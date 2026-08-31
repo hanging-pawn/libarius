@@ -1,0 +1,13 @@
+{
+  "clientId": "4c4bbfe6-8742-4d43-bd49-6b4b6e959fce",
+  "tenantId": "common",
+  "redirectUri": "https://BENUTZERNAME.github.io/kochen/",
+  "rezeptePfad": "/Küche/Rezepte.xlsx",
+  "rohstoffePfad": "/Küche/Rohstoffe.xlsx",
+  "backupOrdner": "/Küche/Backups",
+  "schwundFenster": 3,
+  "zellenWarnung": 25000,
+  "aliase": {
+    "mehl 00": "weissmehl 00"
+  }
+}

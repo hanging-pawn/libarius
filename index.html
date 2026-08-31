@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kochen — Rezeptverwaltung</title>
+<style>
+:root{
+  --bg:#faf8f5; --panel:#fff; --line:#e4ded6; --ink:#2a2724; --muted:#7a716a;
+  --accent:#8c4a2f; --accent-soft:#f3e7e1;
+  --gruen:#3f7d4e; --gelb:#b8860b; --rot:#a63a2b;
+  --radius:10px; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 14px rgba(0,0,0,.04);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#1a1816;--panel:#232019;--line:#3a342c;--ink:#ece6df;--muted:#a2988e;
+        --accent:#d98b62;--accent-soft:#332721;--shadow:0 1px 2px rgba(0,0,0,.3);}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+header.app{position:sticky;top:0;z-index:5;background:var(--panel);border-bottom:1px solid var(--line);
+  padding:.7rem 1rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap}
+header.app h1{font-size:1.05rem;margin:0;font-weight:650;letter-spacing:-.01em}
+header.app .badge{font-size:.72rem;color:var(--muted);border:1px solid var(--line);
+  border-radius:99px;padding:.15rem .55rem}
+.spacer{flex:1}
+main{max-width:960px;margin:0 auto;padding:1rem}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);margin-bottom:1rem;overflow:hidden}
+.card > h2{margin:0;padding:.7rem 1rem;font-size:.82rem;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--muted);border-bottom:1px solid var(--line);font-weight:650}
+.card .body{padding:1rem}
+button,input,select{font:inherit;color:inherit}
+input,select{background:var(--bg);border:1px solid var(--line);border-radius:8px;
+  padding:.55rem .7rem;min-height:44px}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
+button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:.6rem 1rem;
+  min-height:44px;cursor:pointer;font-weight:550}
+button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+button:hover{filter:brightness(1.06)}
+.filters{display:flex;gap:.6rem;flex-wrap:wrap}
+.filters input{flex:1;min-width:180px}
+ul.recipes{list-style:none;margin:0;padding:0}
+ul.recipes li{border-bottom:1px solid var(--line)}
+ul.recipes li:last-child{border-bottom:0}
+ul.recipes button{width:100%;background:transparent;color:inherit;text-align:left;
+  padding:.85rem 1rem;display:flex;gap:.75rem;align-items:baseline;border-radius:0}
+ul.recipes button:hover{background:var(--accent-soft)}
+ul.recipes .nm{font-weight:600}
+ul.recipes .meta{color:var(--muted);font-size:.85rem;margin-left:auto;white-space:nowrap}
+.empty{padding:1.5rem 1rem;color:var(--muted);text-align:center}
+.rezeptkopf h2{margin:0 0 .2rem;font-size:1.5rem;letter-spacing:-.02em}
+.rezeptkopf .sub{color:var(--muted);font-size:.9rem}
+.scaler{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-top:.9rem;
+  padding-top:.9rem;border-top:1px solid var(--line)}
+.scaler label{font-size:.85rem;color:var(--muted);display:flex;flex-direction:column;gap:.25rem}
+.scaler input{width:8rem}
+details.phase{border-bottom:1px solid var(--line)}
+details.phase:last-child{border-bottom:0}
+details.phase > summary{cursor:pointer;padding:.8rem 1rem;font-weight:600;list-style:none;
+  display:flex;align-items:center;gap:.5rem;min-height:44px}
+details.phase > summary::-webkit-details-marker{display:none}
+details.phase > summary::before{content:"▸";color:var(--accent);transition:transform .15s}
+details.phase[open] > summary::before{transform:rotate(90deg)}
+.phasebody{padding:0 1rem 1rem}
+table.zutaten{width:100%;border-collapse:collapse;margin-bottom:.8rem}
+table.zutaten td{padding:.35rem 0;border-bottom:1px dashed var(--line);vertical-align:baseline}
+table.zutaten td.menge{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;
+  font-weight:600;width:9rem}
+table.zutaten td.pct{text-align:right;color:var(--muted);font-size:.82rem;width:4.5rem;
+  font-variant-numeric:tabular-nums}
+.warn-inline{color:var(--rot);font-size:.78rem;margin-left:.4rem}
+ol.schritte{margin:0;padding-left:1.3rem}
+ol.schritte li{margin:.3rem 0}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.75rem}
+.kpi{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:.6rem .7rem}
+.kpi .k{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.kpi .v{font-size:1.15rem;font-weight:650;font-variant-numeric:tabular-nums}
+.hint{color:var(--muted);font-size:.82rem;margin-top:.6rem}
+table.log{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+table.log th{text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);font-weight:600;padding:.3rem 0;border-bottom:1px solid var(--line)}
+table.log td{padding:.45rem 0;border-bottom:1px solid var(--line)}
+table.log td.num{text-align:right}
+.actions{display:flex;gap:.6rem;flex-wrap:wrap}
+#meldungen:empty{display:none}
+#meldungen{margin-bottom:1rem}
+.msg{border:1px solid var(--line);border-left:4px solid var(--muted);border-radius:8px;
+  padding:.7rem .9rem;margin-bottom:.5rem;background:var(--panel);font-size:.9rem}
+.msg.err{border-left-color:var(--rot)} .msg.warn{border-left-color:var(--gelb)}
+.msg.ok{border-left-color:var(--gruen)}
+.msg b{display:block;margin-bottom:.15rem}
+footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);font-size:.78rem}
+@media print{
+  header.app,.filters,.scaler,.actions,#meldungen,footer.app,.noprint{display:none !important}
+  body{background:#fff;color:#000;font-size:11pt}
+  main{max-width:none;padding:0}
+  .card{border:0;box-shadow:none;margin:0 0 .6rem}
+  .card > h2{border:0;padding:.2rem 0;color:#000}
+  .card .body{padding:0}
+  details.phase{break-inside:avoid;border-bottom:1px solid #ccc}
+  details.phase .phasebody{display:block !important;padding:0 0 .5rem}
+  details.phase > summary::before{content:""}
+}
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1>Kochen</h1>
+  <span class="badge" id="modus">Beispieldaten — AP-0301</span>
+  <span class="spacer"></span>
+  <button class="ghost" id="btnLogin" title="wird in AP-0302 aktiv">Anmelden</button>
+</header>
+
+<main>
+  <div id="meldungen"></div>
+
+  <section class="card noprint" id="listeCard">
+    <h2>Rezepte</h2>
+    <div class="body">
+      <div class="filters">
+        <input id="suche" type="search" placeholder="Rezept suchen…" autocomplete="off">
+        <select id="kategorie"><option value="">Alle Kategorien</option></select>
+      </div>
+    </div>
+    <ul class="recipes" id="liste"></ul>
+  </section>
+
+  <div id="rezeptbereich"></div>
+</main>
+
+<footer class="app">
+  kochen.html — UI-Grundgerüst (AP-0301) mit Rechenkern (AP-0303/0304).
+  Datenanbindung an OneDrive folgt in AP-0302.
+  <span id="selftest"></span>
+</footer>
+
+<script>
+/* ============================================================================
+   kochen.html — Modulschnitt gemäss Feinkonzept AP-0206 §2
+   CONFIG · Model · Calc · Data · Store · View · App
+   Calc ruft nichts auf. View schreibt nie direkt nach OneDrive.
+   ========================================================================== */
+
+/* ---------- CONFIG ------------------------------------------------------- */
+const CONFIG = {
+  schwundFenster: 3,
+  zellenWarnung: 25000,
+  aliase: { "mehl 00": "weissmehl 00" }
+};
+
+/* ---------- Model: Normierung + Auflösung ------------------------------- */
+const Model = {
+  nameKey(s){
+    const k = String(s||"").normalize("NFC").trim().toLowerCase().replace(/\s+/g," ");
+    return CONFIG.aliase[k] || k;
+  },
+  rohstoffIndex(rohstoffe){
+    const m = new Map();
+    rohstoffe.forEach(r => m.set(Model.nameKey(r.name), r));
+    return m;
+  },
+  // verknüpft jede Zutat einmalig mit ihrem Rohstoff (FR-306/FR-307)
+  aufloesen(rezepte, rohstoffe){
+    const idx = Model.rohstoffIndex(rohstoffe);
+    rezepte.forEach(rz => rz.phasen.forEach(ph => ph.zutaten.forEach(z => {
+      z.nameKey  = Model.nameKey(z.name);
+      z.rohstoff = idx.get(z.nameKey) || null;
+    })));
+    return rezepte;
+  }
+};
+
+/* ---------- Calc: reiner Rechenkern (kein DOM, kein Netz) --------------- */
+const Calc = {
+  mengeG(zutat, basisMengeG, faktor){ return basisMengeG * faktor * zutat.prozent; },
+
+  faktorAusBasis(zielBasisG, rezept){ return zielBasisG / rezept.basisMengeG; },
+  faktorAusPortionen(zielPortionen, rezept){ return zielPortionen / rezept.portionen; },
+
+  alsStueck(g, rohstoff){
+    if(!rohstoff || !rohstoff.einheitsgroesse || rohstoff.standardeinheit !== "stk") return null;
+    return { stueck: g / rohstoff.einheitsgroesse, g };
+  },
+
+  runden(g){
+    if(g >= 1000) return (g/1000).toFixed(2).replace(/0+$/,"").replace(/\.$/,"") + " kg";
+    if(g >= 10)   return Math.round(g) + " g";
+    return (Math.round(g*10)/10) + " g";
+  },
+
+  zutatenFlach(rezept){
+    return rezept.phasen.flatMap(p => p.zutaten);
+  },
+
+  kosten(rezept, faktor, schwund){
+    let roh = 0; const fehlend = [];
+    for(const z of Calc.zutatenFlach(rezept)){
+      const g = Calc.mengeG(z, rezept.basisMengeG, faktor);
+      const kk = z.rohstoff && z.rohstoff.kostenProKg;
+      if(kk == null){ if(g > 0) fehlend.push(z.name); continue; }
+      roh += g * kk / 1000;
+    }
+    // FR-402: Materialeinsatz = Kosten / (1 - Schwund). Siehe offener Punkt O-5.
+    const s = (schwund == null ? 0 : schwund);
+    const effektiv = s > 0 ? roh / (1 - s) : roh;
+    const portionen = rezept.portionen * faktor;
+    return { roh, effektiv, proPortion: portionen ? effektiv/portionen : null, fehlend };
+  },
+
+  naehrwerte(rezept, faktor){
+    const g0 = {kcal:0, eiweiss:0, fett:0, kh:0}; const fehlend = [];
+    let masseG = 0;
+    for(const z of Calc.zutatenFlach(rezept)){
+      const g = Calc.mengeG(z, rezept.basisMengeG, faktor);
+      masseG += g;
+      const n = z.rohstoff && z.rohstoff.naehrwerte;
+      if(!n || n.kcal == null){ if(g > 0) fehlend.push(z.name); continue; }
+      for(const k of Object.keys(g0)) g0[k] += g * (n[k]||0) / 100;
+    }
+    const portionen = rezept.portionen * faktor;
+    const teile = (obj, div) => {
+      const o = {}; for(const k of Object.keys(obj)) o[k] = div ? obj[k]/div : null; return o;
+    };
+    return { gesamt:g0, proPortion:teile(g0, portionen), pro100g:teile(g0, masseG/100), fehlend, masseG };
+  },
+
+  schwundEintrag(sollG, istG){
+    if(!sollG) return null;
+    return 1 - (istG / sollG);
+  },
+
+  schwundAktuell(backprotokoll, n){
+    n = n || CONFIG.schwundFenster;
+    const werte = (backprotokoll||[]).slice(-n)
+      .map(e => Calc.schwundEintrag(e.sollG, e.istG))
+      .filter(v => v != null && isFinite(v));
+    if(!werte.length) return null;
+    return werte.reduce((a,b)=>a+b,0) / werte.length;
+  },
+
+  kennzahlen(rezept, faktor){
+    const basis = rezept.basisMengeG * faktor;
+    let fl = 0, salz = 0, suesse = 0, fett = 0, zucker = 0;
+    for(const z of Calc.zutatenFlach(rezept)){
+      const g = Calc.mengeG(z, rezept.basisMengeG, faktor);
+      const r = z.rohstoff;
+      if(r && r.standardeinheit === "ml") fl += g;
+      if(z.nameKey === "salz") salz += g;
+      if(r && r.suesskraft) suesse += g * r.suesskraft;
+      if(r && r.naehrwerte && r.naehrwerte.fett != null) fett += g * r.naehrwerte.fett / 100;
+      if(r && r.kategorie === "Zucker") zucker += g;
+    }
+    const d = v => basis ? v/basis : null;
+    return { hydration:d(fl), salz:d(salz), suesse:d(suesse), fett:d(fett), zuckerRoh:d(zucker) };
+  },
+
+  ampel(ist, ziel){
+    if(ist == null || ziel == null || !ziel) return null;
+    const abw = Math.abs(ist - ziel) / ziel;
+    return abw <= 0.05 ? "gruen" : abw <= 0.15 ? "gelb" : "rot";
+  },
+
+  substitutionsMenge(mengeG, suesskraftAlt, suesskraftNeu){
+    if(!suesskraftAlt || !suesskraftNeu)
+      return { menge: mengeG, hinweis: "Äquivalenz nicht hinterlegt — Menge prüfen" };
+    return { menge: mengeG * (suesskraftAlt / suesskraftNeu), hinweis: null };
+  },
+
+  fodmapGesamt(zutaten){
+    const rang = { gruen:0, gelb:1, rot:2 };
+    let max = null, unbewertet = 0;
+    for(const z of zutaten){
+      const a = z.rohstoff && z.rohstoff.fodmap;
+      if(!a){ unbewertet++; continue; }
+      if(max == null || rang[a] > rang[max]) max = a;
+    }
+    if(unbewertet && (max == null || rang[max] < rang.gelb)) max = "gelb";
+    return { ampel: max, unbewertet };
+  }
+};
+
+/* ---------- Data: Stubs. Signatur bleibt, AP-0302 füllt sie. ------------ */
+const Data = {
+  verfuegbar(){ return false; },
+  async init(){ throw new Error("AP-0302"); },
+  async login(){ throw new Error("AP-0302"); },
+  async token(){ throw new Error("AP-0302"); },
+  async readWorkbook(){ throw new Error("AP-0302"); },
+  async writeWorkbook(){ throw new Error("AP-0302"); },
+  async backup(){ throw new Error("AP-0302"); }
+};
+async function loadWorkbooks(){ return Data.readWorkbook(); }   // Schnittstelle laut AP-0301 §5
+async function saveRecipe(){ return Data.writeWorkbook(); }
+
+/* ---------- Beispieldaten (werden in AP-0302 durch OneDrive ersetzt) ---- */
+const BEISPIEL_ROHSTOFFE = [
+  {id:"RS-001",name:"Weissmehl 00",kategorie:"Mehl",standardeinheit:"g",einheitsgroesse:null,
+   kostenProKg:2.20,naehrwerte:{kcal:344,eiweiss:11,fett:1.1,kh:71},suesskraft:0,fodmap:"gelb",fodmapPortionG:null},
+  {id:"RS-002",name:"Wasser",kategorie:"Wasser",standardeinheit:"ml",einheitsgroesse:null,
+   kostenProKg:0,naehrwerte:{kcal:0,eiweiss:0,fett:0,kh:0},suesskraft:0,fodmap:"gruen",fodmapPortionG:null},
+  {id:"RS-003",name:"Salz",kategorie:"Gewürz",standardeinheit:"g",einheitsgroesse:null,
+   kostenProKg:0.90,naehrwerte:{kcal:0,eiweiss:0,fett:0,kh:0},suesskraft:0,fodmap:"gruen",fodmapPortionG:null},
+  {id:"RS-004",name:"Hefe frisch",kategorie:"Triebmittel",standardeinheit:"g",einheitsgroesse:null,
+   kostenProKg:6.50,naehrwerte:{kcal:105,eiweiss:12,fett:1.9,kh:12},suesskraft:0,fodmap:"gruen",fodmapPortionG:null},
+  {id:"RS-005",name:"Zucker",kategorie:"Zucker",standardeinheit:"g",einheitsgroesse:null,
+   kostenProKg:1.30,naehrwerte:{kcal:400,eiweiss:0,fett:0,kh:100},suesskraft:1.0,fodmap:"gelb",fodmapPortionG:null},
+  {id:"RS-006",name:"Butter",kategorie:"Milchprodukt",standardeinheit:"g",einheitsgroesse:null,
+   kostenProKg:15.50,naehrwerte:{kcal:741,eiweiss:0.7,fett:82,kh:0.6},suesskraft:0,fodmap:"gruen",fodmapPortionG:null},
+  {id:"RS-007",name:"Ei",kategorie:"Ei",standardeinheit:"stk",einheitsgroesse:60,
+   kostenProKg:8.00,naehrwerte:{kcal:143,eiweiss:13,fett:9.5,kh:0.7},suesskraft:0,fodmap:"gruen",fodmapPortionG:null},
+  {id:"RS-008",name:"Milch 3.5%",kategorie:"Milchprodukt",standardeinheit:"ml",einheitsgroesse:null,
+   kostenProKg:1.60,naehrwerte:{kcal:64,eiweiss:3.3,fett:3.5,kh:4.8},suesskraft:0,fodmap:"rot",fodmapPortionG:60},
+  {id:"RS-009",name:"Tagatose",kategorie:"Zucker",standardeinheit:"g",einheitsgroesse:null,
+   kostenProKg:38.00,naehrwerte:{kcal:150,eiweiss:0,fett:0,kh:38},suesskraft:0.92,fodmap:"gruen",fodmapPortionG:null}
+];
+
+const BEISPIEL_REZEPTE = [
+  {
+    id:"RZP-001", name:"Sauerteigbrot hell", kategorie:"Backen", unterkategorie:"Brot",
+    quelle:"Hausrezept", basisName:"Weissmehl 00", basisMengeG:1000, sollgewichtG:1600,
+    portionen:2, einheit:"Stk",
+    phasen:[
+      {name:"Autolyse",
+       zutaten:[{name:"Mehl 00",prozent:1.000,einheit:"g"},{name:"Wasser",prozent:0.650,einheit:"ml"}],
+       schritte:[{nr:1,text:"Mehl und Wasser mischen, 30 Min. abgedeckt ruhen lassen."}]},
+      {name:"Hauptteig",
+       zutaten:[{name:"Salz",prozent:0.022,einheit:"g"},{name:"Hefe frisch",prozent:0.003,einheit:"g"}],
+       schritte:[{nr:1,text:"Salz und Hefe zugeben, 10 Min. kneten."},
+                 {nr:2,text:"4× Strecken und Falten im Abstand von 30 Min."}]},
+      {name:"Backen", zutaten:[],
+       schritte:[{nr:1,text:"250 °C mit Dampf anbacken, nach 15 Min. auf 220 °C reduzieren."},
+                 {nr:2,text:"Gesamt 45 Min. backen, auf Gitter auskühlen lassen."}]}
+    ],
+    backprotokoll:[
+      {datum:"2026-03-15", sollG:1600, istG:1470, notizen:"Kruste zu hell, nächstes Mal 10 °C höher."},
+      {datum:"2026-04-02", sollG:1600, istG:1488, notizen:"Besser. Ofen vorgeheizt 20 Min."},
+      {datum:"2026-05-11", sollG:1600, istG:1476, notizen:"Gute Krume, Ofentrieb kräftig."}
+    ],
+    entwicklung:null
+  },
+  {
+    id:"RZP-002", name:"Brioche-Zopf", kategorie:"Backen", unterkategorie:"Süssgebäck",
+    quelle:"Nonna", basisName:"Weissmehl 00", basisMengeG:500, sollgewichtG:900,
+    portionen:12, einheit:"Stk",
+    phasen:[
+      {name:"Vorteig",
+       zutaten:[{name:"Weissmehl 00",prozent:0.200,einheit:"g"},{name:"Milch 3.5%",prozent:0.200,einheit:"ml"},
+                {name:"Hefe frisch",prozent:0.030,einheit:"g"}],
+       schritte:[{nr:1,text:"Zutaten verrühren, 45 Min. bei Raumtemperatur gehen lassen."}]},
+      {name:"Hauptteig",
+       zutaten:[{name:"Weissmehl 00",prozent:0.800,einheit:"g"},{name:"Ei",prozent:0.240,einheit:"g"},
+                {name:"Zucker",prozent:0.120,einheit:"g"},{name:"Butter",prozent:0.200,einheit:"g"},
+                {name:"Salz",prozent:0.018,einheit:"g"}],
+       schritte:[{nr:1,text:"Alles ausser Butter 8 Min. kneten."},
+                 {nr:2,text:"Butter in Stücken einarbeiten, bis der Teig glänzt."},
+                 {nr:3,text:"90 Min. gehen lassen, dann über Nacht kühl stellen."}]},
+      {name:"Formen & Backen",
+       zutaten:[{name:"Ei",prozent:0.060,einheit:"g"}],
+       schritte:[{nr:1,text:"Zopf flechten, 60 Min. gehen lassen."},
+                 {nr:2,text:"Mit Ei bestreichen, 180 °C, 30–35 Min. backen."}]}
+    ],
+    backprotokoll:[
+      {datum:"2026-06-08", sollG:900, istG:842, notizen:"Etwas trocken, 5 Min. kürzer backen."}
+    ],
+    entwicklung:null
+  }
+];
+
+/* ---------- Store ------------------------------------------------------- */
+const Store = {
+  rohstoffe:[], rezepte:[],
+  aktuellesRezept:null, faktor:1,
+  suchtext:"", kategorie:"", offenePhasen:new Set()
+};
+
+/* ---------- View -------------------------------------------------------- */
+const el = (sel) => document.querySelector(sel);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+const nf = (v,d=1) => v==null ? "—" : Number(v).toFixed(d);
+const chf = (v) => v==null ? "—" : "CHF " + Number(v).toFixed(2);
+const pct = (v,d=1) => v==null ? "—" : (v*100).toFixed(d) + " %";
+
+const View = {
+  meldung(text, art, titel){
+    const box = el("#meldungen");
+    const d = document.createElement("div");
+    d.className = "msg " + (art||"");
+    d.innerHTML = (titel ? "<b>"+esc(titel)+"</b>" : "") + esc(text);
+    box.appendChild(d);
+  },
+
+  kategorienFuellen(){
+    const sel = el("#kategorie");
+    const kats = [...new Set(Store.rezepte.map(r => r.kategorie))].sort();
+    kats.forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = k; sel.appendChild(o); });
+  },
+
+  gefilterte(){
+    const q = Store.suchtext.trim().toLowerCase();
+    return Store.rezepte.filter(r =>
+      (!Store.kategorie || r.kategorie === Store.kategorie) &&
+      (!q || (r.name + " " + r.kategorie + " " + (r.unterkategorie||"")).toLowerCase().includes(q))
+    );
+  },
+
+  liste(){
+    const ul = el("#liste"); const rs = View.gefilterte();
+    if(!rs.length){ ul.innerHTML = '<li class="empty">Kein Rezept gefunden</li>'; return; }
+    ul.innerHTML = rs.map(r => `
+      <li><button data-id="${esc(r.id)}">
+        <span class="nm">${esc(r.name)}</span>
+        <span class="meta">${esc(r.kategorie)} · ${r.portionen} ${esc(r.einheit)}</span>
+      </button></li>`).join("");
+    ul.querySelectorAll("button").forEach(b =>
+      b.addEventListener("click", () => App.rezeptOeffnen(b.dataset.id)));
+  },
+
+  zutatenzeile(z, rz, faktor){
+    const g = Calc.mengeG(z, rz.basisMengeG, faktor);
+    const stk = Calc.alsStueck(g, z.rohstoff);
+    const menge = stk
+      ? `${(Math.round(stk.stueck*10)/10)} Stk <span style="color:var(--muted);font-weight:400">(${Calc.runden(g)})</span>`
+      : Calc.runden(g);
+    const unbekannt = z.rohstoff ? "" : '<span class="warn-inline">unbekannter Rohstoff</span>';
+    return `<tr><td>${esc(z.name)}${unbekannt}</td>
+      <td class="pct">${(z.prozent*100).toFixed(1)} %</td>
+      <td class="menge">${menge}</td></tr>`;
+  },
+
+  rezept(){
+    const rz = Store.aktuellesRezept, f = Store.faktor;
+    if(!rz){ el("#rezeptbereich").innerHTML = ""; return; }
+
+    const schwund = Calc.schwundAktuell(rz.backprotokoll);
+    const k = Calc.kosten(rz, f, schwund);
+    const n = Calc.naehrwerte(rz, f);
+    const fd = Calc.fodmapGesamt(Calc.zutatenFlach(rz));
+
+    const phasen = rz.phasen.map((p, i) => {
+      const offen = Store.offenePhasen.has(i) ? " open" : "";
+      const zt = p.zutaten.length
+        ? `<table class="zutaten">${p.zutaten.map(z => View.zutatenzeile(z, rz, f)).join("")}</table>` : "";
+      const sc = p.schritte.length
+        ? `<ol class="schritte">${p.schritte.map(s => `<li>${esc(s.text)}</li>`).join("")}</ol>` : "";
+      return `<details class="phase" data-i="${i}"${offen}>
+                <summary>${esc(p.name)}</summary>
+                <div class="phasebody">${zt}${sc}</div>
+              </details>`;
+    }).join("");
+
+    const log = rz.backprotokoll.length ? `
+      <table class="log">
+        <tr><th>Datum</th><th class="num">Soll</th><th class="num">Ist</th><th class="num">Abw.</th><th>Notiz</th></tr>
+        ${rz.backprotokoll.map(e => `<tr>
+          <td>${esc(e.datum)}</td><td class="num">${e.sollG} g</td><td class="num">${e.istG} g</td>
+          <td class="num">${nf(Calc.schwundEintrag(e.sollG,e.istG)*-100,1)} %</td>
+          <td>${esc(e.notizen||"")}</td></tr>`).join("")}
+      </table>` : '<div class="hint">Noch kein Eintrag — Schwund unbekannt.</div>';
+
+    const fehlendHinweis = (arr, was) => arr.length
+      ? `<div class="hint">${arr.length} Zutat(en) ohne ${was} — Summe unvollständig: ${esc([...new Set(arr)].join(", "))}</div>` : "";
+
+    el("#rezeptbereich").innerHTML = `
+      <section class="card">
+        <div class="body rezeptkopf">
+          <h2>${esc(rz.name)}</h2>
+          <div class="sub">${esc(rz.kategorie)}${rz.unterkategorie ? " · " + esc(rz.unterkategorie) : ""}
+            · Quelle: ${esc(rz.quelle||"—")}<br>
+            ${Math.round(rz.portionen*f)} ${esc(rz.einheit)} · Basis:
+            ${Calc.runden(rz.basisMengeG*f)} ${esc(rz.basisName)}
+            · Sollgewicht ${Calc.runden(rz.sollgewichtG*f)}</div>
+          <div class="scaler noprint">
+            <label>Basis (g)<input id="zielBasis" type="number" min="1" step="10" value="${Math.round(rz.basisMengeG*f)}"></label>
+            <label>Portionen<input id="zielPortionen" type="number" min="1" step="1" value="${Math.round(rz.portionen*f)}"></label>
+            <button class="ghost" id="btnReset">Original</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Zubereitung</h2>
+        ${phasen}
+      </section>
+
+      <section class="card">
+        <h2>Nährwerte</h2>
+        <div class="body">
+          <div class="kpis">
+            <div class="kpi"><div class="k">kcal / Portion</div><div class="v">${nf(n.proPortion.kcal,0)}</div></div>
+            <div class="kpi"><div class="k">Eiweiss</div><div class="v">${nf(n.proPortion.eiweiss,1)} g</div></div>
+            <div class="kpi"><div class="k">Fett</div><div class="v">${nf(n.proPortion.fett,1)} g</div></div>
+            <div class="kpi"><div class="k">Kohlenhydrate</div><div class="v">${nf(n.proPortion.kh,1)} g</div></div>
+            <div class="kpi"><div class="k">kcal / 100 g</div><div class="v">${nf(n.pro100g.kcal,0)}</div></div>
+          </div>
+          ${fehlendHinweis(n.fehlend, "Nährwerte")}
+          <div class="hint">FODMAP gesamt: <b>${fd.ampel ? esc(fd.ampel) : "—"}</b>${fd.unbewertet ? ` · ${fd.unbewertet} Zutat(en) unbewertet` : ""}</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Kosten</h2>
+        <div class="body">
+          <div class="kpis">
+            <div class="kpi"><div class="k">Rohstoffe</div><div class="v">${chf(k.roh)}</div></div>
+            <div class="kpi"><div class="k">Schwund</div><div class="v">${schwund==null ? "—" : pct(schwund,1)}</div></div>
+            <div class="kpi"><div class="k">Gesamt</div><div class="v">${chf(k.effektiv)}</div></div>
+            <div class="kpi"><div class="k">pro ${esc(rz.einheit)}</div><div class="v">${chf(k.proPortion)}</div></div>
+          </div>
+          ${fehlendHinweis(k.fehlend, "Preis")}
+          <div class="hint">Gesamt = Rohstoffkosten ÷ (1 − Schwund)</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Backprotokoll</h2>
+        <div class="body">
+          ${log}
+          <div class="actions noprint" style="margin-top:.9rem">
+            <button class="ghost" id="btnEintrag" title="wird in AP-0305 aktiv">Neuer Eintrag</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="actions noprint">
+        <button id="btnSpeichern" title="wird in AP-0305 aktiv">Speichern</button>
+        <button class="ghost" id="btnDruck">Drucken / PDF</button>
+        <button class="ghost" id="btnZurueck">Zurück zur Liste</button>
+      </div>`;
+
+    // Ereignisse der Rezeptansicht
+    document.querySelectorAll("details.phase").forEach(d =>
+      d.addEventListener("toggle", () => {
+        const i = Number(d.dataset.i);
+        d.open ? Store.offenePhasen.add(i) : Store.offenePhasen.delete(i);
+      }));
+    el("#zielBasis").addEventListener("input", e => {
+      const v = Number(e.target.value); if(v > 0) App.skalieren(Calc.faktorAusBasis(v, rz)); });
+    el("#zielPortionen").addEventListener("input", e => {
+      const v = Number(e.target.value); if(v > 0) App.skalieren(Calc.faktorAusPortionen(v, rz)); });
+    el("#btnReset").addEventListener("click", () => App.skalieren(1));
+    el("#btnDruck").addEventListener("click", () => window.print());
+    el("#btnZurueck").addEventListener("click", () => App.schliessen());
+    el("#btnSpeichern").addEventListener("click", () =>
+      View.meldung("Das Zurückschreiben nach OneDrive kommt mit AP-0305.", "warn", "Noch nicht verfügbar"));
+    el("#btnEintrag").addEventListener("click", () =>
+      View.meldung("Die Erfassung von Backprotokoll-Einträgen kommt mit AP-0305.", "warn", "Noch nicht verfügbar"));
+  }
+};
+
+/* ---------- SelfTest: Referenzwerte aus Feinkonzept AP-0206 §9 ---------- */
+function selfTest(){
+  const nah = (a,b,t) => a!=null && Math.abs(a-b) < (t||0.001);
+  const idx = Model.rohstoffIndex(BEISPIEL_ROHSTOFFE);
+  const rzT = { basisMengeG:1000, portionen:1, phasen:[{zutaten:[
+      {name:"Wasser",prozent:0.650,rohstoff:idx.get("wasser"),nameKey:"wasser"},
+      {name:"Milch 3.5%",prozent:0.030,rohstoff:idx.get("milch 3.5%"),nameKey:"milch 3.5%"}]}] };
+  const suT = { basisMengeG:1000, portionen:1, phasen:[{zutaten:[
+      {name:"Zucker",prozent:0.100,rohstoff:idx.get("zucker"),nameKey:"zucker"},
+      {name:"Tagatose",prozent:0.050,rohstoff:idx.get("tagatose"),nameKey:"tagatose"}]}] };
+  const t = [
+    ["T1 Skalierung",       nah(Calc.mengeG({prozent:0.65}, 1000, 1.5), 975)],
+    ["T2 Stückzahl",        nah(Calc.alsStueck(120, idx.get("ei")).stueck, 2)],
+    ["T3 Schwund",          nah(Calc.schwundEintrag(2400, 2180), 0.09167, 0.0001)],
+    ["T4 Kosten",           nah(3.20/(1-0.08), 3.4783, 0.001)],
+    ["T5 Hydration",        nah(Calc.kennzahlen(rzT,1).hydration, 0.680)],
+    ["T6 Süsse",            nah(Calc.kennzahlen(suT,1).suesse, 0.146)],
+    ["T7 Ampel grün",       Calc.ampel(0.65, 0.68) === "gruen"],
+    ["T7b Ampel rot",       Calc.ampel(0.55, 0.68) === "rot"],
+    ["T8 Substitution",     nah(Calc.substitutionsMenge(100, 1.0, 0.92).menge, 108.7, 0.05)],
+    ["T9 FODMAP rot",       Calc.fodmapGesamt([{rohstoff:{fodmap:"gruen"}},{rohstoff:{fodmap:"gruen"}},{rohstoff:{fodmap:"rot"}}]).ampel === "rot"],
+    ["T10 FODMAP unbew.",   Calc.fodmapGesamt([{rohstoff:{fodmap:"gruen"}},{rohstoff:{fodmap:"gruen"}},{rohstoff:null},{rohstoff:null}]).ampel === "gelb"],
+    ["T11 Alias",           Model.nameKey("Mehl 00") === "weissmehl 00"]
+  ];
+  const fehler = t.filter(x => !x[1]).map(x => x[0]);
+  return { anzahl:t.length, fehler };
+}
+
+/* ---------- App --------------------------------------------------------- */
+const App = {
+  start(){
+    Store.rohstoffe = BEISPIEL_ROHSTOFFE;
+    Store.rezepte   = Model.aufloesen(BEISPIEL_REZEPTE, BEISPIEL_ROHSTOFFE);
+
+    if(location.protocol === "file:"){
+      View.meldung("Diese App braucht eine Web-Adresse (https), weil der Microsoft-Login sonst nicht funktioniert. "
+        + "Mit Beispieldaten läuft sie hier trotzdem — für echte Daten über die GitHub-Pages-URL öffnen.",
+        "warn", "Als Datei geöffnet");
+    }
+
+    View.kategorienFuellen();
+    View.liste();
+
+    el("#suche").addEventListener("input", e => { Store.suchtext = e.target.value; View.liste(); });
+    el("#kategorie").addEventListener("change", e => { Store.kategorie = e.target.value; View.liste(); });
+    el("#btnLogin").addEventListener("click", () =>
+      View.meldung("Anmeldung und OneDrive-Zugriff kommen mit AP-0302.", "warn", "Noch nicht verfügbar"));
+
+    const st = selfTest();
+    el("#selftest").textContent = st.fehler.length
+      ? ` · Selbsttest: ${st.fehler.length} von ${st.anzahl} fehlgeschlagen (${st.fehler.join(", ")})`
+      : ` · Selbsttest: ${st.anzahl}/${st.anzahl} ok`;
+    if(st.fehler.length) View.meldung("Fehlgeschlagen: " + st.fehler.join(", "), "err", "Selbsttest des Rechenkerns");
+  },
+
+  rezeptOeffnen(id){
+    Store.aktuellesRezept = Store.rezepte.find(r => r.id === id) || null;
+    Store.faktor = 1;
+    Store.offenePhasen = new Set([0]);
+    View.rezept();
+    window.scrollTo({top:0, behavior:"smooth"});
+  },
+
+  skalieren(f){
+    const aktiv = document.activeElement;
+    const id = aktiv && aktiv.id, pos = aktiv && aktiv.selectionStart;
+    Store.faktor = f;
+    View.rezept();
+    if(id){
+      const neu = document.getElementById(id);
+      if(neu){ neu.focus(); try{ neu.setSelectionRange(pos,pos); }catch(e){} }
+    }
+  },
+
+  schliessen(){ Store.aktuellesRezept = null; View.rezept(); }
+};
+
+document.addEventListener("DOMContentLoaded", App.start);
+</script>
+</body>
+</html>
