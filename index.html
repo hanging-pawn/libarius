@@ -413,7 +413,15 @@ const Data = {
       cache: { cacheLocation: "localStorage" }
     });
     await msalApp.initialize();
-    const antwort = await msalApp.handleRedirectPromise();   // Rückkehr vom iPad-Redirect
+    let antwort = null;
+    try{
+      antwort = await msalApp.handleRedirectPromise();   // Rückkehr vom iPad-Redirect
+    }catch(e){
+      // Ein hängengebliebener/fremder Redirect-Zustand (z.B. no_token_request_cache_error nach
+      // einem unterbrochenen Login) darf den Start nicht blockieren — der Anmelden-Button
+      // funktioniert trotzdem, siehe Feinkonzept §7 (kein Netzfehler stoppt die App).
+      antwort = null;
+    }
     if(antwort && antwort.account) msalApp.setActiveAccount(antwort.account);
     else {
       const konten = msalApp.getAllAccounts();
