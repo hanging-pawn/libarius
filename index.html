@@ -92,6 +92,16 @@ table.log td.num{text-align:right}
 .msg b{display:block;margin-bottom:.15rem}
 li.fehlerzeile{padding:.85rem 1rem;display:flex;gap:.75rem;align-items:baseline;color:var(--muted)}
 li.fehlerzeile .nm{font-weight:600;color:var(--ink)}
+textarea.importtext{width:100%;min-height:10rem;font:13px/1.4 ui-monospace,Menlo,Consolas,monospace;
+  background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:.6rem .7rem;resize:vertical}
+.importfehler{list-style:none;margin:0;padding:0}
+.importfehler li{padding:.4rem 0;border-bottom:1px dashed var(--line);font-size:.88rem}
+.importfehler li code{background:var(--accent-soft);color:var(--accent);border-radius:4px;padding:.05rem .35rem;font-size:.82rem}
+.zuordnungzeile{display:flex;gap:.6rem;align-items:center;padding:.4rem 0;border-bottom:1px dashed var(--line);flex-wrap:wrap}
+.zuordnungzeile .nm{font-weight:600;min-width:10rem}
+.zuordnungzeile select{flex:1;min-width:180px}
+.importvorschau{border:1px solid var(--line);border-radius:8px;padding:.8rem .9rem;margin-top:.6rem}
+.importvorschau h3{margin:0 0 .3rem;font-size:1rem}
 footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);font-size:.78rem}
 @media print{
   header.app,.filters,.scaler,.actions,#meldungen,footer.app,.noprint{display:none !important}
@@ -112,12 +122,16 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
   <h1>libarius</h1>
   <span class="badge" id="modus">Beispieldaten</span>
   <span class="spacer"></span>
+  <button class="ghost" id="btnImport">Importieren</button>
+  <button class="ghost" id="btnExportAlle">Alle exportieren</button>
   <button class="ghost" id="btnAltDB">Andere Datenbank öffnen</button>
   <button class="ghost" id="btnLogin">Anmelden</button>
 </header>
 
 <main>
   <div id="meldungen"></div>
+
+  <div id="importbereich"></div>
 
   <section class="card noprint" id="listeCard">
     <h2>Rezepte</h2>
@@ -157,7 +171,66 @@ const CONFIG = {
   rezeptePfad: null, rohstoffePfad: null, backupOrdner: "/Backups",
   schwundFenster: 3,
   zellenWarnung: 25000,
-  aliase: { "mehl 00": "weissmehl 00" }
+  // Aliase: reine Schreib-/Sprach-/Zubereitungsvarianten desselben Rohstoffs, ohne
+  // Konkurrenz-SKU im Bestand (AP-0307/-0402/-0403). Generisch->spezifisch-Fälle
+  // (z. B. «Zucker», «Milch», «Farina») bewusst NICHT hier — Entscheidungsliste
+  // dazu in AP-0403_alias_konsolidierung.md.
+  aliase: {
+    "mehl 00": "weissmehl 00",
+    "acqua": "wasser",
+    "acqua a 30°": "wasser",
+    "albume": "eiweiss",
+    "bacche di vaniglia": "vanilleschote",
+    "bacche die vaniglia": "vanilleschote",
+    "bienenhonig": "honig",
+    "burro": "butter",
+    "butter eiskalt": "butter",
+    "butter raumtemp": "butter",
+    "butter weich": "butter",
+    "egg whites, at room temp": "eiweiss",
+    "egg yolks": "eigelb",
+    "ei": "vollei",
+    "eier": "vollei",
+    "eiswasser": "wasser",
+    "erithrit": "erythritol",
+    "farina 00": "weissmehl 00",
+    "frische hefe": "frischhefe",
+    "gemahlene mandeln": "mandeln gemahlen",
+    "hefe frisch": "frischhefe",
+    "lievito di birra": "frischhefe",
+    "mehl 00 (caputo)": "farina caputo blu",
+    "miele (acacia)": "honig",
+    "milch frisch 3.5%": "milch 3.5%",
+    "milch raumtemp": "milch 3.5%",
+    "muskat": "muskatnuss",
+    "olio evo": "olivenöl",
+    "panna": "rahm 35%",
+    "parmigiano reggiano": "parmesan",
+    "pfeffer": "pfeffer schwarz",
+    "pfefferkörner": "pfeffer schwarz",
+    "rahm": "rahm 35%",
+    "ruchmehl (typ 1050)": "ruchmehl",
+    "sale": "salz",
+    "schwarzer pfeffer": "pfeffer schwarz",
+    "speck rückenspeck": "rückenspeck",
+    "trehallose": "trehalose",
+    "tuorli": "eigelb",
+    "tuorli d'uovo": "eigelb",
+    "tuorlo": "eigelb",
+    "uova": "vollei",
+    "vanille schote": "vanilleschote",
+    "vanillestange": "vanilleschote",
+    "wachholder": "wacholder",
+    "wasser (kalt)": "wasser",
+    "wasser (warm)": "wasser",
+    "wasser @30°c": "wasser",
+    "water": "wasser",
+    "weissmehl": "weissmehl 00",
+    "yoghurt": "joghurt nature",
+    "zimt gemahlen": "zimt",
+    "zimtpulver": "zimt",
+    "zucker (tagatose)": "tagatose"
+  }
 };
 const zahlOderNull = v => (v == null || v === "") ? null : Number(v);
 
@@ -195,8 +268,13 @@ async function ladeConfig(){
 
 /* ---------- Model: Normierung + Auflösung ------------------------------- */
 const Model = {
+  // reine Normierung ohne Alias-Aufloesung — Grundlage sowohl fuer nameKey() als auch fuer
+  // das Lesen/Schreiben des Alias-Blatts selbst (AP-0315), das ja die Alias-Zuordnung ERST herstellt.
+  normKey(s){
+    return String(s||"").normalize("NFC").trim().toLowerCase().replace(/\s+/g," ");
+  },
   nameKey(s){
-    const k = String(s||"").normalize("NFC").trim().toLowerCase().replace(/\s+/g," ");
+    const k = Model.normKey(s);
     return CONFIG.aliase[k] || k;
   },
   rohstoffIndex(rohstoffe){
@@ -204,9 +282,11 @@ const Model = {
     rohstoffe.forEach(r => m.set(Model.nameKey(r.name), r));
     return m;
   },
-  // verknüpft jede Zutat einmalig mit ihrem Rohstoff (FR-306/FR-307)
-  aufloesen(rezepte, rohstoffe){
-    const idx = Model.rohstoffIndex(rohstoffe);
+  // verknüpft jede Zutat einmalig mit ihrem Rohstoff (FR-306/FR-307).
+  // idxOverride: optional vorgebauter Index (AP-0315 Import-Vorschau ueberlagert den reellen
+  // Bestand mit den im Dialog gewaehlten, noch nicht gespeicherten Zuordnungen).
+  aufloesen(rezepte, rohstoffe, idxOverride){
+    const idx = idxOverride || Model.rohstoffIndex(rohstoffe);
     rezepte.forEach(rz => rz.phasen.forEach(ph => ph.zutaten.forEach(z => {
       z.nameKey  = Model.nameKey(z.name);
       z.rohstoff = idx.get(z.nameKey) || null;
@@ -261,9 +341,23 @@ const Model = {
       const name = row[iName] || ("Zeile " + (r + 1));
       try{
         const phasen = row[iPhasen] ? JSON.parse(row[iPhasen]) : [];
-        const backprotokoll = row[iBackprot] ? JSON.parse(row[iBackprot]) : [];
+        const backprotokollRoh = row[iBackprot] ? JSON.parse(row[iBackprot]) : [];
         if(!Array.isArray(phasen)) throw new Error("Phasen (JSON) ist kein Array");
-        if(!Array.isArray(backprotokoll)) throw new Error("Backprotokoll (JSON) ist kein Array");
+        if(!Array.isArray(backprotokollRoh)) throw new Error("Backprotokoll (JSON) ist kein Array");
+        // AP-0305: Zeile intern immer als {datum,sollG,istG,notizen} — toleriert das
+        // Alt-/Platzhalterschema (soll_g/ist_g) und verwirft nicht ausgefuellte Platzhalter-
+        // zeilen (Datum "YYYY-MM-DD", wie aktuell in allen 77 produktiven Zeilen vorhanden).
+        // Ohne diesen Filter zeigte das Backprotokoll fuer jedes echte Rezept sofort eine
+        // "undefined g"-Zeile (View.rezept() erwartet sollG/istG, die Platzhalter lieferten
+        // sie nicht) — echter, bereits bestehender Fehler, hier mitbehoben.
+        const backprotokoll = backprotokollRoh
+          .map(e => ({
+            datum: e && e.datum,
+            sollG: zahlOderNull(e && (e.sollG != null ? e.sollG : e.soll_g)),
+            istG: zahlOderNull(e && (e.istG != null ? e.istG : e.ist_g)),
+            notizen: (e && e.notizen) || null
+          }))
+          .filter(e => e.datum && /^\d{4}-\d{2}-\d{2}$/.test(e.datum) && e.sollG != null && e.istG != null);
         rezepte.push({
           id: row[iId], name, kategorie: row[iKat] || null, unterkategorie: row[iUnterkat] || null,
           basisName: row[iBasisName] || null,
@@ -278,6 +372,30 @@ const Model = {
       }
     }
     return { rezepte, fehlerhaft };
+  },
+
+  // AP-0305: Zelladresse fuer gezielte Workbook-API-Updates (Data.updateCell) — pure Funktion,
+  // kein Netz. header = volle Kopfzeile aus rz._raw.spalten, zeileExcel = 1-indexierte Excel-Zeile
+  // (rz._raw.zeile + 1, da _raw.zeile der 0-indexierte AOA-Index inkl. Kopfzeile ist).
+  zelladresse(header, spaltenname, zeileExcel){
+    const i = header.indexOf(spaltenname);
+    return i === -1 ? null : XLSX.utils.encode_col(i) + zeileExcel;
+  },
+
+  // Blatt «Aliase» in Rohstoffe.xlsx (AP-0315 Schritt 4): geraeteuebergreifend gelernte
+  // Zuordnungen, zusaetzlich zu den eingebauten CONFIG.aliase. Header: Variante | Zielname.
+  parseAliase(aoa){
+    const header = aoa[0] || [];
+    const iVon = header.indexOf("Variante"), iZu = header.indexOf("Zielname");
+    if(iVon === -1 || iZu === -1) return {};
+    const out = {};
+    for(let r = 1; r < aoa.length; r++){
+      const row = aoa[r];
+      if(!row || row[iVon] == null || row[iZu] == null) continue;
+      const von = Model.normKey(row[iVon]), zu = Model.normKey(row[iZu]);
+      if(von && zu) out[von] = zu;
+    }
+    return out;
   }
 };
 
@@ -293,7 +411,18 @@ const Calc = {
     return { stueck: g / rohstoff.einheitsgroesse, g };
   },
 
-  runden(g){
+  // Rundung ausschliesslich fuer die Anzeige (Feinkonzept §4: "nie in der Rechenkette").
+  // Stueckzahlen runden auf 0.5 (AP-0303) — eigene Funktion, damit alsStueck() roh bleibt.
+  rundenStueck(stueck){ return Math.round(stueck*2)/2; },
+
+  // g/kg-Pfad unveraendert nach Feinkonzept FR-305 (<10g auf 0.1 · ≥10g auf 1 · ≥1000g als kg).
+  // ml-Pfad neu in AP-0303: auf 5 ml gerundet, ab 1000 ml als Liter angezeigt.
+  runden(g, einheit){
+    if(einheit === "ml"){
+      const ml = Math.round(g/5)*5;
+      if(ml >= 1000) return (ml/1000).toFixed(2).replace(/0+$/,"").replace(/\.$/,"") + " l";
+      return ml + " ml";
+    }
     if(g >= 1000) return (g/1000).toFixed(2).replace(/0+$/,"").replace(/\.$/,"") + " kg";
     if(g >= 10)   return Math.round(g) + " g";
     return (Math.round(g*10)/10) + " g";
@@ -500,14 +629,48 @@ const Data = {
     return await res.arrayBuffer();
   },
 
+  // Metadaten statt Inhalt — fuer die Konflikterkennung (AP-0305/Entscheid O-9): die
+  // Workbook-Range-API kennt kein If-Match, darum wird der eTag des Elements selbst als
+  // Vergleichsbasis genommen (App.backprotokollSpeichern prueft ihn vor jedem Schreiben neu).
+  async getItemMeta(pfad){
+    const token = await Data.token();
+    const url = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(pfad) + "?$select=eTag,name";
+    const res = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+    if(!res.ok) throw new Error("Graph-Fehler " + res.status + " beim Prüfen von " + pfad);
+    return await res.json();
+  },
+
+  // Legt den Backup-Ordner an, falls er fehlt (AP-0305 Schritt 2). Nimmt an, dass der
+  // Elternordner existiert (backupOrdner liegt als Geschwister von Rezepte.xlsx/Rohstoffe.xlsx).
+  async ensureOrdner(pfad){
+    const token = await Data.token();
+    const pruefUrl = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(pfad);
+    const res = await fetch(pruefUrl, { headers: { Authorization: "Bearer " + token } });
+    if(res.ok) return true;
+    if(res.status !== 404) throw new Error("Graph-Fehler " + res.status + " beim Prüfen von " + pfad);
+    const teile = pfad.split("/").filter(Boolean);
+    const name = teile.pop();
+    const elternPfad = "/" + teile.join("/");
+    const anlegenUrl = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(elternPfad) + ":/children";
+    const anlegenRes = await fetch(anlegenUrl, { method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({ name, folder: {}, "@microsoft.graph.conflictBehavior": "fail" }) });
+    // 409 = zwischenzeitlich von anderswo angelegt — auch ok, Ordner existiert jetzt.
+    if(!anlegenRes.ok && anlegenRes.status !== 409) throw new Error("Backup-Ordner anlegen fehlgeschlagen (" + anlegenRes.status + ")");
+    return true;
+  },
+
   // Kopie vor jedem Schreibzugriff (Feinkonzept §5.3 / CLAUDE.md «nie überschreiben»).
+  // Eine Datei pro Tag (AP-0305 Schritt 6) — mehrfaches Speichern am selben Tag ersetzt
+  // nur diese eine Tagesdatei, PUT auf den Pfad ist von sich aus ein Upsert.
   async backup(pfad){
+    const ordner = CONFIG.backupOrdner || "/Backups";
+    await Data.ensureOrdner(ordner);
     const buf = await Data.readWorkbook(pfad);
     const token = await Data.token();
     const name = pfad.split("/").pop();
-    const stempel = new Date().toISOString().replace(/[:.]/g, "-");
-    const zielName = name.replace(/\.xlsx$/i, "") + "_" + stempel + ".xlsx";
-    const ordner = CONFIG.backupOrdner || "/Backups";
+    const heute = new Date().toISOString().slice(0, 10);
+    const zielName = name.replace(/\.xlsx$/i, "") + "_backup_" + heute + ".xlsx";
     const url = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(ordner + "/" + zielName) + ":/content";
     const res = await fetch(url, { method: "PUT",
       headers: { Authorization: "Bearer " + token, "Content-Type": "application/octet-stream" }, body: buf });
@@ -517,6 +680,8 @@ const Data = {
 
   // Schnittstelle für AP-0305 (Speichern). Pilotbefund zum Formatverlust: siehe
   // AP-0302 Dokumentation / Entscheid O-9 — SheetJS-Ganzdatei-PUT verwerfen.
+  // Bleibt fuer den AP-0315-Importpfad (ganze neue Zeilen/Blaetter) bestehen; das
+  // Backprotokoll selbst schreibt AP-0305 gezielt ueber Data.updateCell().
   async writeWorkbook(pfad, arrayBuffer){
     await Data.backup(pfad);
     const token = await Data.token();
@@ -525,10 +690,28 @@ const Data = {
       headers: { Authorization: "Bearer " + token, "Content-Type": "application/octet-stream" }, body: arrayBuffer });
     if(!res.ok) throw new Error("Schreiben fehlgeschlagen (" + res.status + ")");
     return true;
+  },
+
+  // Gezieltes Zell-Update via Microsoft Graph Excel Workbook API (Entscheid O-9, empfohlener
+  // Zweig aus dem AP-0302-Pilotbefund): schreibt eine einzelne Zelle im Blatt, ohne die Datei
+  // neu zu serialisieren — Dropdowns, fixierte Kopfzeile und alle anderen Spalten bleiben
+  // unangetastet, anders als beim SheetJS-Ganzdatei-PUT.
+  async updateCell(pfad, sheetName, addr, wert){
+    const token = await Data.token();
+    const url = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(pfad)
+      + ":/workbook/worksheets('" + encodeURIComponent(sheetName) + "')/range(address='" + addr + "')";
+    const res = await fetch(url, { method: "PATCH",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [[wert]] }) });
+    if(!res.ok) throw new Error("Zelle " + addr + " schreiben fehlgeschlagen (" + res.status + ")");
+    return true;
   }
 };
 
 // Lädt beide Arbeitsmappen parallel und parst sie ins interne Modell (Model.parse…).
+// Haelt die Workbook-Objekte selbst im Rueckgabewert (Store.*Workbook, AP-0315): Import.anhaengen()
+// und Import.aliasAnhaengen() mutieren gezielt Zellen/Zeilen desselben Objekts weiter, statt es aus
+// den geparsten Daten neu zusammenzubauen — damit bleiben unbekannte Spalten/Blätter erhalten (§3.2).
 async function loadWorkbooks(){
   const [rezBuf, rohBuf] = await Promise.all([
     Data.readWorkbook(CONFIG.rezeptePfad),
@@ -536,13 +719,266 @@ async function loadWorkbooks(){
   ]);
   const rezWb = XLSX.read(rezBuf, { type: "array", cellDates: true });
   const rohWb = XLSX.read(rohBuf, { type: "array", cellDates: true });
-  const rezAoa = XLSX.utils.sheet_to_json(rezWb.Sheets[rezWb.SheetNames[0]], { header: 1, raw: true, defval: null });
-  const rohAoa = XLSX.utils.sheet_to_json(rohWb.Sheets[rohWb.SheetNames[0]], { header: 1, raw: true, defval: null });
+  const rezSheetName = rezWb.SheetNames[0];
+  const rohSheetName = rohWb.SheetNames[0];
+  const rezAoa = XLSX.utils.sheet_to_json(rezWb.Sheets[rezSheetName], { header: 1, raw: true, defval: null });
+  const rohAoa = XLSX.utils.sheet_to_json(rohWb.Sheets[rohSheetName], { header: 1, raw: true, defval: null });
   const rohstoffe = Model.parseRohstoffe(rohAoa);
   const { rezepte, fehlerhaft } = Model.parseRezepte(rezAoa);
-  return { rohstoffe, rezepte, fehlerhaft };
+  const aliasBlatt = rohWb.Sheets["Aliase"];
+  const geladeneAliase = aliasBlatt
+    ? Model.parseAliase(XLSX.utils.sheet_to_json(aliasBlatt, { header: 1, raw: true, defval: null }))
+    : {};
+  return { rohstoffe, rezepte, fehlerhaft, geladeneAliase, rezWb, rezSheetName, rohWb, rohSheetName };
 }
-async function saveRecipe(){ return Data.writeWorkbook(); }   // wird in AP-0305 verdrahtet
+
+/* ---------- Import: Austauschformat rezept/1, Pruefung, Vorschau, Uebernahme -----------
+   AP-0315. Ablauf identisch fuer jeden Zulieferer (Feinkonzept §6b.2):
+   parsen -> pruefen (Schema) -> Rohstoffe aufloesen -> Vorschau -> uebernehmen.
+   Import ruft Data nie direkt auf — das Schreiben nach OneDrive bleibt Sache von App. */
+const Import = {
+  EINHEITEN: ["g","kg","ml","l","stk"],
+
+  parseJSON(text){
+    try{ return { ok:true, daten: JSON.parse(text) }; }
+    catch(e){ return { ok:false, fehler:[{ pfad:"(Datei)", meldung:"ungültiges JSON — " + e.message }] }; }
+  },
+
+  // Schema-Pruefung gegen rezept/1 (FORMAT.md). Sammelt ALLE Fehler in einem Durchgang statt
+  // beim ersten abzubrechen, damit eine fehlerhafte Datei auf einmal korrigierbar ist. Jeder
+  // Fehler nennt Feld UND Position (Array-Index im pfad, z.B. rezepte[0].phasen[1].zutaten[2]).
+  pruefen(daten){
+    if(daten == null || typeof daten !== "object")
+      return { ok:false, fehler:[{ pfad:"(Wurzel)", meldung:"keine gültige JSON-Struktur" }] };
+
+    const fehler = [];
+    const err = (pfad, meldung) => fehler.push({ pfad, meldung });
+    const text = (pfad, wert) => { if(typeof wert !== "string" || !wert.trim()) err(pfad, "fehlt oder leer"); };
+    const zahlPos = (pfad, wert) => { if(typeof wert !== "number" || !isFinite(wert) || wert <= 0) err(pfad, "fehlt oder keine Zahl > 0"); };
+    const zahl = (pfad, wert) => { if(typeof wert !== "number" || !isFinite(wert)) err(pfad, "fehlt oder keine Zahl"); };
+
+    if(daten.format !== "rezept/1") err("format", `erwartet "rezept/1", gefunden ${JSON.stringify(daten.format)}`);
+    if(!Array.isArray(daten.rezepte) || !daten.rezepte.length) err("rezepte", "fehlt, leer oder kein Array — mindestens 1 Rezept nötig");
+
+    (daten.rezepte || []).forEach((rz, ri) => {
+      const p = `rezepte[${ri}]`;
+      if(rz == null || typeof rz !== "object"){ err(p, "kein Objekt"); return; }
+      text(`${p}.name`, rz.name);
+      text(`${p}.kategorie`, rz.kategorie);
+      text(`${p}.basisName`, rz.basisName);
+      zahlPos(`${p}.basisMengeG`, rz.basisMengeG);
+      zahlPos(`${p}.sollgewichtG`, rz.sollgewichtG);
+      zahlPos(`${p}.portionen`, rz.portionen);
+      text(`${p}.einheit`, rz.einheit);
+
+      if(!Array.isArray(rz.phasen) || !rz.phasen.length){
+        err(`${p}.phasen`, "fehlt, leer oder kein Array — mindestens 1 Phase nötig");
+      }else{
+        rz.phasen.forEach((ph, pi) => {
+          const pp = `${p}.phasen[${pi}]`;
+          if(ph == null || typeof ph !== "object"){ err(pp, "kein Objekt"); return; }
+          text(`${pp}.name`, ph.name);
+          if(!Array.isArray(ph.zutaten)) err(`${pp}.zutaten`, "kein Array");
+          else ph.zutaten.forEach((z, zi) => {
+            const zp = `${pp}.zutaten[${zi}]`;
+            if(z == null || typeof z !== "object"){ err(zp, "kein Objekt"); return; }
+            text(`${zp}.name`, z.name);
+            zahlPos(`${zp}.prozent`, z.prozent);
+            if(!Import.EINHEITEN.includes(z.einheit)) err(`${zp}.einheit`, `nicht in [${Import.EINHEITEN.join(", ")}]`);
+          });
+          if(!Array.isArray(ph.schritte)) err(`${pp}.schritte`, "kein Array");
+          else ph.schritte.forEach((s, si) => {
+            const sp = `${pp}.schritte[${si}]`;
+            if(s == null || typeof s !== "object"){ err(sp, "kein Objekt"); return; }
+            zahl(`${sp}.nr`, s.nr);
+            text(`${sp}.text`, s.text);
+          });
+        });
+      }
+
+      if(rz.backprotokoll != null){
+        if(!Array.isArray(rz.backprotokoll)) err(`${p}.backprotokoll`, "kein Array");
+        else rz.backprotokoll.forEach((e, ei) => {
+          const ep = `${p}.backprotokoll[${ei}]`;
+          if(e == null || typeof e !== "object"){ err(ep, "kein Objekt"); return; }
+          if(typeof e.datum !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(e.datum)) err(`${ep}.datum`, "fehlt oder kein Format JJJJ-MM-TT");
+          zahlPos(`${ep}.sollG`, e.sollG);
+          zahlPos(`${ep}.istG`, e.istG);
+        });
+      }
+    });
+
+    return { ok: fehler.length === 0, fehler };
+  },
+
+  // Wandelt ein rezept/1-Rezept ins interne Modell (Feinkonzept §3) mit Defaults fuer optionale
+  // Felder. _raw bleibt null — es gibt noch keine Excel-Zeile (§3.2 gilt erst nach dem Schreiben).
+  zuIntern(rz){
+    return {
+      id: null, name: rz.name, kategorie: rz.kategorie, unterkategorie: rz.unterkategorie || null,
+      quelle: rz.quelle || null, basisName: rz.basisName, basisMengeG: rz.basisMengeG,
+      sollgewichtG: rz.sollgewichtG, portionen: rz.portionen, einheit: rz.einheit,
+      phasen: rz.phasen.map(ph => ({
+        name: ph.name,
+        zutaten: (ph.zutaten || []).map(z => ({ name: z.name, prozent: z.prozent, einheit: z.einheit })),
+        schritte: (ph.schritte || []).map(s => ({ nr: s.nr, text: s.text }))
+      })),
+      backprotokoll: (rz.backprotokoll || []).map(e => ({ datum: e.datum, sollG: e.sollG, istG: e.istG, notizen: e.notizen || null })),
+      entwicklung: rz.entwicklung || null,
+      _raw: null
+    };
+  },
+
+  // Sammelt Zutatennamen, die sich gegen keinen bekannten Rohstoff aufloesen lassen (§6b.3).
+  unbekannteNamen(rezepteIntern, rohstoffe){
+    const idx = Model.rohstoffIndex(rohstoffe);
+    const namen = new Set();
+    rezepteIntern.forEach(rz => rz.phasen.forEach(ph => ph.zutaten.forEach(z => {
+      if(!idx.has(Model.nameKey(z.name))) namen.add(z.name);
+    })));
+    return [...namen].sort((a,b) => a.localeCompare(b, "de"));
+  },
+
+  // Gleichnamige Rezepte im Bestand (FR-1205) — nie stillschweigend ueberschreiben, sondern
+  // der Rueckfrage im Dialog vorlegen. index = Position in rezepteIntern (fuer die UI-Zuordnung).
+  konflikte(rezepteIntern, bestehende){
+    const treffer = [];
+    rezepteIntern.forEach((rz, index) => {
+      const bestehend = bestehende.find(b => Model.normKey(b.name) === Model.normKey(rz.name));
+      if(bestehend) treffer.push({ index, neu: rz, bestehend });
+    });
+    return treffer;
+  },
+
+  naechsteId(bestehende, praefix){
+    praefix = praefix || "RZP-";
+    let max = 0;
+    bestehende.forEach(r => {
+      const m = /^([A-Za-z]+)-(\d+)$/.exec(r.id || "");
+      if(m && (praefix === m[1] + "-")) max = Math.max(max, parseInt(m[2], 10));
+    });
+    return praefix + String(max + 1).padStart(3, "0");
+  },
+
+  // Export: Kehrfunktion zu zuIntern — entfernt Laufzeitfelder (_raw, nameKey, rohstoff je
+  // Zutat). Export -> Import derselben Datei muss denselben Bestand ergeben (Rundlauf, Abnahme).
+  alsExport(rz){
+    return {
+      name: rz.name, kategorie: rz.kategorie, unterkategorie: rz.unterkategorie,
+      quelle: rz.quelle, basisName: rz.basisName, basisMengeG: rz.basisMengeG,
+      sollgewichtG: rz.sollgewichtG, portionen: rz.portionen, einheit: rz.einheit,
+      phasen: rz.phasen.map(ph => ({
+        name: ph.name,
+        zutaten: ph.zutaten.map(z => ({ name: z.name, prozent: z.prozent, einheit: z.einheit })),
+        schritte: ph.schritte.map(s => ({ nr: s.nr, text: s.text }))
+      })),
+      backprotokoll: (rz.backprotokoll || []).map(e => ({ datum: e.datum, sollG: e.sollG, istG: e.istG, notizen: e.notizen != null ? e.notizen : null })),
+      entwicklung: rz.entwicklung || null
+    };
+  },
+  alsExportAlle(rezepte){
+    return { format: "rezept/1", rezepte: rezepte.map(Import.alsExport) };
+  },
+
+  // Regelbasierte Vorstufe (Umsetzungsschritt 7, FR-1209/Ausbau) — kein Anspruch auf
+  // Vollstaendigkeit. Erkennt "<Menge> <Einheit> <Name>" als Zutat, kurze Zeilen ohne Menge als
+  // Phasenueberschrift, "1." / "1)" am Zeilenanfang als nummerierten Schritt. Freitext liefert
+  // ABSOLUTE Mengen, keine Baeckerprozente — prozent bleibt bewusst null ("Unklares bleibt leer")
+  // und die anschliessende Pruefung() zeigt exakt, was von Hand ergaenzt werden muss (Feld+Position).
+  freitextZerlegen(text){
+    const MENGE_RE = /^(\d+(?:[.,]\d+)?)\s*(g|kg|ml|l|stk)\b\s+(.+)$/i;
+    const SCHRITT_RE = /^(\d+)[.)]\s+(.+)$/;
+    const UEBERSCHRIFT_RE = /^[^\d]{1,40}:?$/;
+    const zeilen = String(text || "").split(/\r?\n/).map(z => z.trim()).filter(Boolean);
+    const phasen = [];
+    let aktuell = null;
+    const neuePhase = (name) => { aktuell = { name: name.replace(/:$/,""), zutaten:[], schritte:[] }; phasen.push(aktuell); };
+    for(const zeile of zeilen){
+      const mMenge = MENGE_RE.exec(zeile);
+      const mSchritt = !mMenge && SCHRITT_RE.exec(zeile);
+      if(mMenge){
+        if(!aktuell) neuePhase("Zutaten");
+        aktuell.zutaten.push({ name: mMenge[3].trim(), prozent: null, einheit: mMenge[2].toLowerCase() });
+      }else if(mSchritt){
+        if(!aktuell) neuePhase("Zubereitung");
+        aktuell.schritte.push({ nr: parseInt(mSchritt[1], 10), text: mSchritt[2].trim() });
+      }else if(UEBERSCHRIFT_RE.test(zeile)){
+        neuePhase(zeile);
+      }
+      // alles andere ist nicht sicher zuordenbar und bleibt unberuecksichtigt (Prinzip §6b.4)
+    }
+    return {
+      format: "rezept/1",
+      rezepte: [{
+        name: "", kategorie: "", unterkategorie: null, quelle: null,
+        basisName: "", basisMengeG: null, sollgewichtG: null, portionen: null, einheit: "Stk",
+        phasen, backprotokoll: [], entwicklung: null
+      }]
+    };
+  },
+
+  // ---- Uebernahme: Zeilen im geladenen Workbook anlegen/ersetzen (§3.2, §5.3 Schritt 1) ----
+  // Baut eine Zeile passend zur tatsaechlichen Spaltenreihenfolge der Datei (header), nicht zu
+  // einer fest angenommenen — unbekannte Spalten bleiben dadurch unberuehrt/leer statt verschoben.
+  rezeptZeile(header, rz){
+    const row = new Array(header.length).fill(null);
+    const setz = (name, wert) => { const i = header.indexOf(name); if(i > -1) row[i] = wert; };
+    setz("Rezept-ID", rz.id);
+    setz("Name", rz.name);
+    setz("Kategorie", rz.kategorie);
+    setz("Unterkategorie", rz.unterkategorie);
+    setz("Basis-Rohstoff", rz.basisName);
+    setz("Basis-Menge (g)", rz.basisMengeG);
+    setz("Sollgewicht (g)", rz.sollgewichtG);
+    setz("Portionen", rz.portionen);
+    setz("Einheit", rz.einheit);
+    setz("Quelle", rz.quelle);
+    setz("Phasen (JSON)", JSON.stringify(rz.phasen.map(ph => ({
+      name: ph.name,
+      zutaten: ph.zutaten.map(z => ({ name: z.name, prozent: z.prozent, einheit: z.einheit })),
+      schritte: ph.schritte
+    }))));
+    setz("Backprotokoll (JSON)", JSON.stringify(rz.backprotokoll || []));
+    return row;
+  },
+
+  // Neues Rezept: Zeile ans Ende des Blatts anhaengen (kein neu geschriebenes Blatt — bestehende
+  // Zeilen/Formatierung bleiben unangetastet ausser der einen neuen Zeile).
+  anhaengen(workbook, sheetName, rz){
+    const sheet = workbook.Sheets[sheetName];
+    const header = (XLSX.utils.sheet_to_json(sheet, { header:1, raw:true, defval:null })[0]) || [];
+    XLSX.utils.sheet_add_aoa(sheet, [Import.rezeptZeile(header, rz)], { origin: -1 });
+    return workbook;
+  },
+
+  // Alias-Blatt (Schritt 4): eigenes Blatt "Aliase" in Rohstoffe.xlsx, nicht localStorage — muss
+  // geraeteuebergreifend wirken. Legt das Blatt beim allerersten gelernten Alias an.
+  aliasAnhaengen(workbook, variante, ziel, datum){
+    let sheet = workbook.Sheets["Aliase"];
+    if(!sheet){
+      sheet = XLSX.utils.aoa_to_sheet([["Variante","Zielname","Gelernt am"]]);
+      XLSX.utils.book_append_sheet(workbook, sheet, "Aliase");
+    }
+    XLSX.utils.sheet_add_aoa(sheet, [[variante, ziel, datum]], { origin: -1 });
+    return workbook;
+  },
+
+  // Namenskonflikt, Weg B: als Version an ein bestehendes Rezept anhaengen statt ein neues
+  // anzulegen (FR-1205). Rueckgabe ist die aktualisierte `entwicklung`-Struktur des bestehenden
+  // Rezepts. Hinweis auf den offenen Punkt (kein Excel-Feld dafuer) steht in der Dokumentation.
+  alsVersionAnhaengen(bestehendesRezept, neueVersion, datum){
+    const entwicklung = bestehendesRezept.entwicklung || { status:"entwicklung", zielwerte:{}, versionen:[], versuche:[] };
+    const naechsteV = (entwicklung.versionen || []).reduce((m,v) => Math.max(m, v.v || 0), 0) + 1;
+    entwicklung.versionen = [...(entwicklung.versionen || []), {
+      v: naechsteV, datum, notiz: "Import: " + (neueVersion.quelle || "ohne Quelle"), phasen: neueVersion.phasen
+    }];
+    return entwicklung;
+  },
+
+  alsArrayBuffer(workbook){
+    return XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+  }
+};
 
 /* ---------- Beispieldaten (werden in AP-0302 durch OneDrive ersetzt) ---- */
 const BEISPIEL_ROHSTOFFE = [
@@ -622,7 +1058,17 @@ const BEISPIEL_REZEPTE = [
 const Store = {
   rohstoffe:[], rezepte:[], rezepteFehlerhaft:[],
   aktuellesRezept:null, faktor:1,
-  suchtext:"", kategorie:"", offenePhasen:new Set()
+  suchtext:"", kategorie:"", offenePhasen:new Set(),
+  // AP-0302: Workbook-Objekte des zuletzt geladenen Bestands, fuer AP-0315-Uebernahme
+  // (null bei Beispieldaten — Import bleibt dann im Speicher dieser Sitzung).
+  rezepteWorkbook:null, rezepteSheetName:null, rohstoffeWorkbook:null, rohstoffeSheetName:null,
+  // AP-0305: eTag von Rezepte.xlsx im Moment des letzten Ladens/Schreibens — Basis fuer die
+  // Konflikterkennung vor jedem Schreiben (kein If-Match auf der Workbook-API, siehe Data.updateCell).
+  rezepteETag:null,
+  // AP-0305: Zustand des Backprotokoll-Eingabeformulars, null = geschlossen (App.backEintragOeffnen()).
+  backEintrag:null,
+  // AP-0315: Zustand des Import-Dialogs, ein Objekt pro Durchlauf (App.importOeffnen()).
+  import:null
 };
 
 /* ---------- View -------------------------------------------------------- */
@@ -681,8 +1127,8 @@ const View = {
     const g = Calc.mengeG(z, rz.basisMengeG, faktor);
     const stk = Calc.alsStueck(g, z.rohstoff);
     const menge = stk
-      ? `${(Math.round(stk.stueck*10)/10)} Stk <span style="color:var(--muted);font-weight:400">(${Calc.runden(g)})</span>`
-      : Calc.runden(g);
+      ? `${Calc.rundenStueck(stk.stueck)} Stk <span style="color:var(--muted);font-weight:400">(${Calc.runden(g, z.einheit)})</span>`
+      : Calc.runden(g, z.einheit);
     const unbekannt = z.rohstoff ? "" : '<span class="warn-inline">unbekannter Rohstoff</span>';
     return `<tr><td>${esc(z.name)}${unbekannt}</td>
       <td class="pct">${(z.prozent*100).toFixed(1)} %</td>
@@ -721,6 +1167,30 @@ const View = {
 
     const fehlendHinweis = (arr, was) => arr.length
       ? `<div class="hint">${arr.length} Zutat(en) ohne ${was} — Summe unvollständig: ${esc([...new Set(arr)].join(", "))}</div>` : "";
+
+    // AP-0305: Eingabeformular fuer einen neuen Backprotokoll-Eintrag. Store.backEintrag
+    // haelt den Formularzustand (App.backEintragOeffnen()); null = Formular geschlossen,
+    // dann nur der Anstoss-Button.
+    const be = Store.backEintrag;
+    const backForm = be ? `
+      <div style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
+        <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
+          <label>Datum<input id="beDatum" type="date" value="${esc(be.datum)}"></label>
+          <label>Soll (g)<input id="beSoll" type="number" min="1" step="1" value="${esc(be.soll)}"></label>
+          <label>Ist (g)<input id="beIst" type="number" min="1" step="1" value="${esc(be.ist)}"></label>
+        </div>
+        <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">Notizen
+          <input id="beNotizen" type="text" style="width:100%;margin-top:.25rem"
+            value="${esc(be.notizen)}" placeholder="z. B. Kruste zu hell, Ofen 10 °C höher">
+        </label>
+        <div class="actions noprint" style="margin-top:.7rem">
+          <button id="btnEintragSpeichern">Eintrag speichern</button>
+          <button class="ghost" id="btnEintragAbbrechen">Abbrechen</button>
+        </div>
+      </div>` : `
+      <div class="actions noprint" style="margin-top:.9rem">
+        <button class="ghost" id="btnEintrag">Neuer Eintrag</button>
+      </div>`;
 
     el("#rezeptbereich").innerHTML = `
       <section class="card">
@@ -764,11 +1234,12 @@ const View = {
         <div class="body">
           <div class="kpis">
             <div class="kpi"><div class="k">Rohstoffe</div><div class="v">${chf(k.roh)}</div></div>
-            <div class="kpi"><div class="k">Schwund</div><div class="v">${schwund==null ? "—" : pct(schwund,1)}</div></div>
+            <div class="kpi"><div class="k">Schwund</div><div class="v">${schwund==null ? "0 %" : pct(schwund,1)}</div></div>
             <div class="kpi"><div class="k">Gesamt</div><div class="v">${chf(k.effektiv)}</div></div>
             <div class="kpi"><div class="k">pro ${esc(rz.einheit)}</div><div class="v">${chf(k.proPortion)}</div></div>
           </div>
           ${fehlendHinweis(k.fehlend, "Preis")}
+          ${schwund==null ? '<div class="hint">Noch kein Backprotokoll — Schwund als 0 % angenommen.</div>' : ""}
           <div class="hint">Gesamt = Rohstoffkosten ÷ (1 − Schwund)</div>
         </div>
       </section>
@@ -777,14 +1248,12 @@ const View = {
         <h2>Backprotokoll</h2>
         <div class="body">
           ${log}
-          <div class="actions noprint" style="margin-top:.9rem">
-            <button class="ghost" id="btnEintrag" title="wird in AP-0305 aktiv">Neuer Eintrag</button>
-          </div>
+          ${backForm}
         </div>
       </section>
 
       <div class="actions noprint">
-        <button id="btnSpeichern" title="wird in AP-0305 aktiv">Speichern</button>
+        <button class="ghost" id="btnExport">Exportieren</button>
         <button class="ghost" id="btnDruck">Drucken / PDF</button>
         <button class="ghost" id="btnZurueck">Zurück zur Liste</button>
       </div>`;
@@ -802,10 +1271,145 @@ const View = {
     el("#btnReset").addEventListener("click", () => App.skalieren(1));
     el("#btnDruck").addEventListener("click", () => window.print());
     el("#btnZurueck").addEventListener("click", () => App.schliessen());
-    el("#btnSpeichern").addEventListener("click", () =>
-      View.meldung("Das Zurückschreiben nach OneDrive kommt mit AP-0305.", "warn", "Noch nicht verfügbar"));
-    el("#btnEintrag").addEventListener("click", () =>
-      View.meldung("Die Erfassung von Backprotokoll-Einträgen kommt mit AP-0305.", "warn", "Noch nicht verfügbar"));
+    el("#btnExport").addEventListener("click", () => App.exportEinzeln());
+    // AP-0305: Backprotokoll-Formular — je nach Zustand entweder Anstoss-Button oder Felder+Speichern.
+    if(be){
+      el("#beDatum").addEventListener("input", e => { be.datum = e.target.value; });
+      el("#beSoll").addEventListener("input", e => { be.soll = e.target.value; });
+      el("#beIst").addEventListener("input", e => { be.ist = e.target.value; });
+      el("#beNotizen").addEventListener("input", e => { be.notizen = e.target.value; });
+      el("#btnEintragAbbrechen").addEventListener("click", () => { Store.backEintrag = null; View.rezept(); });
+      el("#btnEintragSpeichern").addEventListener("click", (e) => {
+        const btn = e.currentTarget; btn.disabled = true;
+        App.backEintragSpeichern().finally(() => { if(btn) btn.disabled = false; });
+      });
+    }else{
+      el("#btnEintrag").addEventListener("click", () => App.backEintragOeffnen());
+    }
+  },
+
+  /* ---------- Import-Dialog (AP-0315) ------------------------------------
+     Ein Durchlauf, EIN Bildschirm: Eingabe -> (Fehler | Zuordnung + Konflikte + Vorschau).
+     Store.import === null -> Dialog geschlossen, nichts rendern. */
+  import(){
+    const box = el("#importbereich");
+    const st = Store.import;
+    if(!st){ box.innerHTML = ""; return; }
+
+    const kopf = `
+      <section class="card" id="importKarte">
+        <h2>Rezept importieren</h2>
+        <div class="body">
+          <div class="hint">Datei wählen (.json, Format <code>rezept/1</code>) oder Text einfügen.
+            Freitext lässt sich mit «Freitext umwandeln» in ein Gerüst überführen — Baeckerprozente
+            fehlen danach meist und müssen von Hand ergänzt werden, bevor die Prüfung durchläuft.</div>
+          <input type="file" id="importDatei" accept=".json,application/json" style="margin:.5rem 0">
+          <textarea class="importtext" id="importText" placeholder='{"format":"rezept/1","rezepte":[…]} oder Freitext'>${esc(st.text)}</textarea>
+          <div class="actions" style="margin-top:.6rem">
+            <button id="importFreitext" class="ghost">Freitext umwandeln</button>
+            <button id="importPruefen">Prüfen</button>
+            <button id="importAbbrechen" class="ghost">Abbrechen</button>
+          </div>
+        </div>
+      </section>`;
+
+    if(!st.geprueft){ box.innerHTML = kopf; View.importEreignisse(); return; }
+
+    if(st.fehler.length){
+      box.innerHTML = kopf + `
+        <section class="card">
+          <h2>Prüfung fehlgeschlagen — nichts übernommen</h2>
+          <div class="body">
+            <ul class="importfehler">
+              ${st.fehler.map(f => `<li><code>${esc(f.pfad)}</code> — ${esc(f.meldung)}</li>`).join("")}
+            </ul>
+          </div>
+        </section>`;
+      View.importEreignisse();
+      return;
+    }
+
+    const unbekanntHtml = st.unbekannt.length ? `
+      <section class="card">
+        <h2>Unbekannte Zutaten (${st.unbekannt.length})</h2>
+        <div class="body">
+          ${st.unbekannt.map(name => `
+            <div class="zuordnungzeile">
+              <span class="nm">${esc(name)}</span>
+              <select data-unbekannt="${esc(name)}">
+                <option value="">unbekannt lassen</option>
+                ${Store.rohstoffe.map(r => `<option value="${esc(r.id)}"${st.zuordnung[name]===r.id?" selected":""}>${esc(r.name)}</option>`).join("")}
+              </select>
+            </div>`).join("")}
+          <div class="hint">Eine Zuordnung wird als Alias gemerkt (Blatt «Aliase» in Rohstoffe.xlsx)
+            und wirkt beim nächsten Import automatisch — auch auf einem anderen Gerät.</div>
+        </div>
+      </section>` : "";
+
+    const konfliktHtml = st.konflikte.length ? `
+      <section class="card">
+        <h2>Gleichnamige Rezepte (${st.konflikte.length})</h2>
+        <div class="body">
+          ${st.konflikte.map(k => `
+            <div class="msg warn">
+              <b>${esc(k.neu.name)}</b> existiert bereits als «${esc(k.bestehend.name)}» (${esc(k.bestehend.id)}).
+              <div class="actions" style="margin-top:.4rem">
+                <button data-konflikt="${k.index}" data-wahl="neu"
+                  class="${st.entscheidung[k.index]==='neu' ? '' : 'ghost'}">Neues Rezept anlegen</button>
+                <button data-konflikt="${k.index}" data-wahl="version"
+                  class="${st.entscheidung[k.index]==='version' ? '' : 'ghost'}">Als Version anhängen</button>
+              </div>
+            </div>`).join("")}
+        </div>
+      </section>` : "";
+
+    const vorschauHtml = `
+      <section class="card">
+        <h2>Vorschau (${st.rezepte.length} Rezept${st.rezepte.length===1?"":"e"})</h2>
+        <div class="body">
+          ${st.rezepte.map((rz, i) => {
+            const modus = st.entscheidung[i] === "version" ? "wird als Version angehängt" : "wird neu angelegt";
+            const zt = rz.phasen.map(ph => ph.zutaten.length
+              ? `<table class="zutaten">${ph.zutaten.map(z => View.zutatenzeile(z, rz, 1)).join("")}</table>` : "").join("");
+            return `<div class="importvorschau">
+              <h3>${esc(rz.name || "(ohne Namen)")} <span class="hint" style="display:inline">— ${modus}</span></h3>
+              <div class="sub" style="color:var(--muted);font-size:.85rem">${esc(rz.kategorie||"—")}
+                · Basis ${rz.basisMengeG!=null ? Calc.runden(rz.basisMengeG) : "—"} ${esc(rz.basisName||"—")}</div>
+              ${zt}
+            </div>`;
+          }).join("")}
+          <div class="actions" style="margin-top:.8rem">
+            <button id="importUebernehmen">Übernehmen</button>
+            <button id="importAbbrechen2" class="ghost">Abbrechen</button>
+          </div>
+        </div>
+      </section>`;
+
+    box.innerHTML = kopf + unbekanntHtml + konfliktHtml + vorschauHtml;
+    View.importEreignisse();
+  },
+
+  importEreignisse(){
+    const st = Store.import;
+    el("#importText") && el("#importText").addEventListener("input", e => { st.text = e.target.value; });
+    el("#importDatei") && el("#importDatei").addEventListener("change", e => {
+      const datei = e.target.files[0]; if(!datei) return;
+      const reader = new FileReader();
+      reader.onload = () => { st.text = String(reader.result || ""); App.importPruefen(); };
+      reader.readAsText(datei);
+    });
+    el("#importFreitext") && el("#importFreitext").addEventListener("click", () => {
+      st.text = JSON.stringify(Import.freitextZerlegen(st.text), null, 2);
+      View.import();
+    });
+    el("#importPruefen") && el("#importPruefen").addEventListener("click", () => App.importPruefen());
+    el("#importAbbrechen") && el("#importAbbrechen").addEventListener("click", () => App.importSchliessen());
+    el("#importAbbrechen2") && el("#importAbbrechen2").addEventListener("click", () => App.importSchliessen());
+    el("#importUebernehmen") && el("#importUebernehmen").addEventListener("click", () => App.importUebernehmen());
+    document.querySelectorAll("[data-unbekannt]").forEach(sel =>
+      sel.addEventListener("change", e => App.importZuordnen(e.target.dataset.unbekannt, e.target.value)));
+    document.querySelectorAll("[data-konflikt]").forEach(btn =>
+      btn.addEventListener("click", e => App.importEntscheiden(Number(e.target.dataset.konflikt), e.target.dataset.wahl)));
   }
 };
 
@@ -821,7 +1425,7 @@ function selfTest(){
       {name:"Tagatose",prozent:0.050,rohstoff:idx.get("tagatose"),nameKey:"tagatose"}]}] };
   const t = [
     ["T1 Skalierung",       nah(Calc.mengeG({prozent:0.65}, 1000, 1.5), 975)],
-    ["T2 Stückzahl",        nah(Calc.alsStueck(120, idx.get("ei")).stueck, 2)],
+    ["T2 Stückzahl",        nah(Calc.alsStueck(120, idx.get("vollei")).stueck, 2)],
     ["T3 Schwund",          nah(Calc.schwundEintrag(2400, 2180), 0.09167, 0.0001)],
     ["T4 Kosten",           nah(3.20/(1-0.08), 3.4783, 0.001)],
     ["T5 Hydration",        nah(Calc.kennzahlen(rzT,1).hydration, 0.680)],
@@ -831,7 +1435,126 @@ function selfTest(){
     ["T8 Substitution",     nah(Calc.substitutionsMenge(100, 1.0, 0.92).menge, 108.7, 0.05)],
     ["T9 FODMAP rot",       Calc.fodmapGesamt([{rohstoff:{fodmap:"gruen"}},{rohstoff:{fodmap:"gruen"}},{rohstoff:{fodmap:"rot"}}]).ampel === "rot"],
     ["T10 FODMAP unbew.",   Calc.fodmapGesamt([{rohstoff:{fodmap:"gruen"}},{rohstoff:{fodmap:"gruen"}},{rohstoff:null},{rohstoff:null}]).ampel === "gelb"],
-    ["T11 Alias",           Model.nameKey("Mehl 00") === "weissmehl 00"]
+    ["T11 Alias",           Model.nameKey("Mehl 00") === "weissmehl 00"],
+    // ---- AP-0303 Skalierung + Einheiten-Umrechnung — Testblock (5 Fälle) ----
+    // Bürli-Beispiel Lastenheft §5.1: Basis 1000 g Mehl → Ziel 1500 g, Wasser 65 % = 975 g.
+    ["AP0303-1 Bürli-Beispiel (1000→1500g, Wasser 65%)",
+                            nah(Calc.mengeG({prozent:0.65}, 1000, Calc.faktorAusBasis(1500, {basisMengeG:1000})), 975)],
+    // 80 g Vollei ÷ 60 g Einheitsgrösse = 1.333 Stk, gerundet auf 0.5 → 1.5 Stk.
+    ["AP0303-2 Stück-Rundung (80g Vollei à 60g → 1.5 Stk)",
+                            Calc.rundenStueck(Calc.alsStueck(80, idx.get("vollei")).stueck) === 1.5],
+    // Bidirektional: 2 Portionen → 3 Portionen ergibt denselben Faktor 1.5 wie Basis 1000→1500.
+    ["AP0303-3 Portionen-Skalierung bidirektional (2→3 Portionen)",
+                            nah(Calc.faktorAusPortionen(3, {portionen:2}), 1.5)],
+    // ml-Rundung auf 5 ml (AP-0303-Kontext).
+    ["AP0303-4 ml-Rundung (122 ml → 120 ml)",
+                            Calc.runden(122, "ml") === "120 ml"],
+    // g-Rundung auf 1 g bleibt nach FR-305 unverändert (Feinkonzept AP-0206 §4).
+    ["AP0303-5 g-Rundung (974.6 g → 975 g)",
+                            Calc.runden(974.6) === "975 g"],
+    // ---- AP-0304 Kosten- und Nährwertberechnung — Testblock (3 Fälle) ----
+    // Handrechnung: 700 g Mehl 00 (à 2.20/kg) + 100 g Zucker (à 1.30/kg) + 50 g Butter (à 15.50/kg),
+    // kein Backprotokoll ⇒ Schwund unbekannt/0 %. Roh = 1.54 + 0.13 + 0.775 = 2.445 CHF, 2 Portionen.
+    (() => {
+      const rzKosten = { basisMengeG:1000, portionen:2, backprotokoll:[], phasen:[{zutaten:[
+        {name:"Weissmehl 00", prozent:0.700, rohstoff:idx.get("weissmehl 00"), nameKey:"weissmehl 00"},
+        {name:"Zucker",       prozent:0.100, rohstoff:idx.get("zucker"),       nameKey:"zucker"},
+        {name:"Butter",       prozent:0.050, rohstoff:idx.get("butter"),       nameKey:"butter"}
+      ]}] };
+      const kk = Calc.kosten(rzKosten, 1, Calc.schwundAktuell(rzKosten.backprotokoll));
+      return ["AP0304-1 Kosten Handrechnung (kein Protokoll ⇒ Schwund 0%, Gesamt 2.445 CHF, ±0.05)",
+        nah(kk.effektiv, 2.445, 0.05) && nah(kk.proPortion, 1.2225, 0.05)];
+    })(),
+    // Handrechnung Nährwerte für dasselbe Rezept: 700×344/100 + 100×400/100 + 50×741/100
+    // = 2408 + 400 + 370.5 = 3178.5 kcal gesamt, 1589.25 kcal/Portion.
+    (() => {
+      const rzNaehr = { basisMengeG:1000, portionen:2, phasen:[{zutaten:[
+        {name:"Weissmehl 00", prozent:0.700, rohstoff:idx.get("weissmehl 00"), nameKey:"weissmehl 00"},
+        {name:"Zucker",       prozent:0.100, rohstoff:idx.get("zucker"),       nameKey:"zucker"},
+        {name:"Butter",       prozent:0.050, rohstoff:idx.get("butter"),       nameKey:"butter"}
+      ]}] };
+      const nn = Calc.naehrwerte(rzNaehr, 1);
+      return ["AP0304-2 Nährwerte Handrechnung (3178.5 kcal gesamt, 1589.25 kcal/Portion, ±1)",
+        nah(nn.gesamt.kcal, 3178.5, 1) && nah(nn.proPortion.kcal, 1589.25, 1)];
+    })(),
+    // Zutat mit aufgelöstem Rohstoff, aber ohne hinterlegten Preis: muss als Lücke geführt
+    // werden (fehlend[]) statt mit 0.00 CHF stillschweigend in die Summe einzugehen.
+    (() => {
+      const rzLuecke = { basisMengeG:1000, portionen:1, backprotokoll:[], phasen:[{zutaten:[
+        {name:"Weissmehl 00", prozent:0.500, rohstoff:idx.get("weissmehl 00"), nameKey:"weissmehl 00"},
+        {name:"Geheimzutat",  prozent:0.020, rohstoff:{kostenProKg:null, naehrwerte:{kcal:null,eiweiss:null,fett:null,kh:null}}, nameKey:"geheimzutat"}
+      ]}] };
+      const kl = Calc.kosten(rzLuecke, 1, null);
+      return ["AP0304-3 Zutat ohne Preis erscheint als Lücke, nicht als 0.00 CHF",
+        kl.fehlend.includes("Geheimzutat") && nah(kl.effektiv, 1.10, 0.01)];
+    })(),
+    // ---- AP-0315 Austauschformat + Import-Dialog — Testblock ----
+    // Gültige Datei (Struktur wie FORMAT.md-Beispiel) besteht die Prüfung.
+    ["AP0315-1 gültige Datei besteht Prüfung",
+                            Import.pruefen({ format:"rezept/1", rezepte:[{
+                              name:"Test", kategorie:"Backen", basisName:"Weissmehl 00", basisMengeG:1000,
+                              sollgewichtG:1000, portionen:1, einheit:"Stk",
+                              phasen:[{ name:"Phase 1", zutaten:[{name:"Weissmehl 00",prozent:1,einheit:"g"}], schritte:[] }],
+                              backprotokoll:[], entwicklung:null
+                            }]}).ok === true],
+    // Fehlerhafte Datei (prozent fehlt) nennt Feld UND Position, verändert nichts.
+    ["AP0315-2 fehlerhafte Datei nennt Feld+Position",
+                            (() => {
+                              const r = Import.pruefen({ format:"rezept/1", rezepte:[{
+                                name:"Test", kategorie:"Backen", basisName:"Weissmehl 00", basisMengeG:1000,
+                                sollgewichtG:1000, portionen:1, einheit:"Stk",
+                                phasen:[{ name:"Phase 1", zutaten:[{name:"Wasser",einheit:"g"}], schritte:[] }]
+                              }]});
+                              return r.ok === false && r.fehler.some(f => f.pfad === "rezepte[0].phasen[0].zutaten[0].prozent");
+                            })()],
+    // Unbekannte Zutat wird erkannt (gegen die Beispiel-Rohstoffe).
+    ["AP0315-3 unbekannte Zutat erkannt",
+                            Import.unbekannteNamen([Import.zuIntern({
+                              name:"Test", kategorie:"Backen", basisName:"Weissmehl 00", basisMengeG:1000,
+                              sollgewichtG:1000, portionen:1, einheit:"Stk",
+                              phasen:[{ name:"P", zutaten:[{name:"Glutamat",prozent:0.01,einheit:"g"}], schritte:[] }]
+                            })], BEISPIEL_ROHSTOFFE).includes("Glutamat")],
+    // Gleichnamiges Rezept löst einen Konflikt aus (nicht: stillschweigend übernehmen).
+    ["AP0315-4 Namenskonflikt erkannt",
+                            Import.konflikte([Import.zuIntern({
+                              name:"Sauerteigbrot hell", kategorie:"Backen", basisName:"Weissmehl 00", basisMengeG:1000,
+                              sollgewichtG:1000, portionen:1, einheit:"Stk",
+                              phasen:[{ name:"P", zutaten:[], schritte:[] }]
+                            })], BEISPIEL_REZEPTE).length === 1],
+    // Export → Import ergibt denselben Bestand (Rundlauf): Export eines Beispielrezepts,
+    // erneut geprüft und intern gewandelt, muss strukturell gleich zum Original sein.
+    ["AP0315-5 Rundlauf Export → Import",
+                            (() => {
+                              const original = BEISPIEL_REZEPTE[0];
+                              const exportiert = Import.alsExportAlle([original]);
+                              const pruefung = Import.pruefen(exportiert);
+                              if(!pruefung.ok) return false;
+                              const zurueck = Import.zuIntern(exportiert.rezepte[0]);
+                              return zurueck.name === original.name
+                                && zurueck.basisMengeG === original.basisMengeG
+                                && zurueck.phasen.length === original.phasen.length
+                                && zurueck.phasen[0].zutaten.length === original.phasen[0].zutaten.length
+                                && zurueck.phasen[0].zutaten[0].prozent === original.phasen[0].zutaten[0].prozent;
+                            })()],
+    // ---- AP-0305 Backprotokoll + Speichern — Testblock (2 Fälle) ----
+    // Produktive Rezepte.xlsx traegt aktuell in jeder Zeile denselben unausgefuellten
+    // Platzhalter (Datum "YYYY-MM-DD", Felder soll_g/ist_g statt sollG/istG) — Model.parseRezepte
+    // muss ihn verwerfen und darf einen echten, korrekt benannten Eintrag daneben nicht verlieren.
+    (() => {
+      const header = ["Rezept-ID","Name","Kategorie","Unterkategorie","Basis-Rohstoff","Basis-Menge (g)",
+        "Sollgewicht (g)","Portionen","Einheit","Quelle","Phasen (JSON)","Backprotokoll (JSON)"];
+      const row = ["RZP-T","Test","Backen",null,"Mehl",1000,1000,1,"Stk",null,"[]",
+        JSON.stringify([{datum:"YYYY-MM-DD",soll_g:0,ist_g:0,schwund_pct:0,notizen:""},
+                        {datum:"2026-01-01",sollG:500,istG:480,notizen:"ok"}])];
+      const { rezepte } = Model.parseRezepte([header, row]);
+      return ["AP0305-1 Backprotokoll-Platzhalter verworfen, gültiger Eintrag bleibt (sollG/istG)",
+        rezepte.length === 1 && rezepte[0].backprotokoll.length === 1
+          && rezepte[0].backprotokoll[0].sollG === 500 && rezepte[0].backprotokoll[0].istG === 480];
+    })(),
+    // Zelladresse fuer die gezielten Workbook-API-Updates: Spalte per Name gefunden,
+    // 0-indexiert in einen Buchstaben umgerechnet, mit der uebergebenen Excel-Zeile kombiniert.
+    ["AP0305-2 Zelladresse (Spalte „Backprotokoll (JSON)“, Zeile 5) → C5",
+                            Model.zelladresse(["Rezept-ID","Name","Backprotokoll (JSON)"], "Backprotokoll (JSON)", 5) === "C5"]
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
   return { anzahl:t.length, fehler };
@@ -850,6 +1573,8 @@ const App = {
     el("#kategorie").addEventListener("change", e => { Store.kategorie = e.target.value; View.liste(); });
     el("#btnLogin").addEventListener("click", App.loginKlick);
     el("#btnAltDB").addEventListener("click", App.altDBKlick);
+    el("#btnImport").addEventListener("click", App.importOeffnen);
+    el("#btnExportAlle").addEventListener("click", App.exportAlle);
 
     const st = selfTest();
     el("#selftest").textContent = st.fehler.length
@@ -901,10 +1626,20 @@ const App = {
     el("#btnLogin").textContent = "Abmelden (" + (konto.username || konto.name || "Konto") + ")";
     el("#btnLogin").onclick = () => Data.logout();
     try{
-      const { rohstoffe, rezepte, fehlerhaft } = await loadWorkbooks();
+      const { rohstoffe, rezepte, fehlerhaft, geladeneAliase, rezWb, rezSheetName, rohWb, rohSheetName } = await loadWorkbooks();
+      // Aliase aus dem Blatt «Aliase» (AP-0315) ueberschreiben etwaige veraltete
+      // localStorage-Eintraege — sie sind geraeteuebergreifend die aktuellere Quelle.
+      CONFIG.aliase = Object.assign({}, CONFIG.aliase, geladeneAliase);
       Store.rohstoffe = rohstoffe;
       Store.rezepte = Model.aufloesen(rezepte, rohstoffe);
       Store.rezepteFehlerhaft = fehlerhaft;
+      Store.rezepteWorkbook = rezWb; Store.rezepteSheetName = rezSheetName;
+      Store.rohstoffeWorkbook = rohWb; Store.rohstoffeSheetName = rohSheetName;
+      // AP-0305: Basis-eTag fuer die Konflikterkennung vor dem naechsten Schreiben.
+      // Schlaegt der Metadaten-Abruf fehl, bleibt die Pruefung beim Speichern einfach aus
+      // (kein falscher Konflikt-Alarm) statt den Ladevorgang selbst scheitern zu lassen.
+      try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
+      catch(e){ Store.rezepteETag = null; }
       el("#modus").textContent = "OneDrive — " + Store.rezepte.length + " Rezepte";
       View.kategorienFuellen();
       View.liste();
@@ -955,7 +1690,244 @@ const App = {
     }
   },
 
-  schliessen(){ Store.aktuellesRezept = null; View.rezept(); }
+  schliessen(){ Store.aktuellesRezept = null; View.rezept(); },
+
+  /* ---------- Backprotokoll (AP-0305) --------------------------------------
+     Ablauf: Formular oeffnen -> pruefen -> (Beispieldaten: nur im Speicher | OneDrive:
+     Konflikt pruefen -> Backup -> gezielte Zell-Updates via Data.updateCell). Nie blind
+     ueberschreiben (Entscheid O-9): eTag-Abgleich vor jedem Schreiben, siehe Data.getItemMeta. */
+  backEintragOeffnen(){
+    const rz = Store.aktuellesRezept;
+    if(!rz) return;
+    Store.backEintrag = {
+      datum: new Date().toISOString().slice(0, 10),
+      soll: Math.round(rz.sollgewichtG * Store.faktor),
+      ist: "",
+      notizen: ""
+    };
+    View.rezept();
+    el("#beIst") && el("#beIst").focus();
+  },
+
+  async backEintragSpeichern(){
+    const rz = Store.aktuellesRezept, eingabe = Store.backEintrag;
+    if(!rz || !eingabe) return;
+    const datum = (eingabe.datum || "").trim();
+    const soll = Number(eingabe.soll), ist = Number(eingabe.ist);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(datum)){ View.meldung("Datum fehlt oder ungültig.", "err", "Eintrag unvollständig"); return; }
+    if(!(soll > 0)){ View.meldung("Soll (g) muss grösser als 0 sein.", "err", "Eintrag unvollständig"); return; }
+    if(!(ist > 0)){ View.meldung("Ist (g) muss grösser als 0 sein.", "err", "Eintrag unvollständig"); return; }
+    const neuerEintrag = { datum, sollG: soll, istG: ist, notizen: (eingabe.notizen || "").trim() || null };
+    await App.backprotokollSpeichern(rz, neuerEintrag);
+  },
+
+  // Schreibt den Eintrag in Store (sofort sichtbar) und, falls eine OneDrive-Verbindung
+  // besteht, zurueck nach Rezepte.xlsx. Bei jedem Fehlschlag (Konflikt, Netzfehler) wird
+  // der Store-Eintrag zurueckgenommen — nie ein Erfolg vortaeuschen, den OneDrive nicht hat.
+  async backprotokollSpeichern(rz, eintrag){
+    rz.backprotokoll = [...rz.backprotokoll, eintrag];
+    const verbunden = Store.rezepteWorkbook && Data.verfuegbar() && msalApp.getActiveAccount();
+    if(!verbunden){
+      Store.backEintrag = null;
+      View.meldung("Eintrag erfasst — nur in dieser Sitzung, keine OneDrive-Verbindung.", "warn", "Nicht dauerhaft gespeichert");
+      View.rezept();
+      return;
+    }
+    if(!rz._raw){
+      rz.backprotokoll = rz.backprotokoll.slice(0, -1);
+      View.meldung("Zeilenposition dieses Rezepts ist unbekannt (frisch importiert, noch nicht neu geladen). "
+        + "Seite neu laden und erneut versuchen.", "err", "Speichern nicht möglich");
+      return;
+    }
+    try{
+      if(Store.rezepteETag){
+        const meta = await Data.getItemMeta(CONFIG.rezeptePfad);
+        if(meta.eTag !== Store.rezepteETag){
+          rz.backprotokoll = rz.backprotokoll.slice(0, -1);
+          Store.backEintrag = null;
+          View.meldung("Rezepte.xlsx wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. "
+            + "Eintrag bitte erneut erfassen.", "warn", "Konflikt erkannt");
+          const konto = msalApp.getActiveAccount();
+          await App.datenLaden(konto);
+          App.rezeptOeffnen(rz.id);
+          return;
+        }
+      }
+      await Data.backup(CONFIG.rezeptePfad);
+      const header = rz._raw.spalten, zeileExcel = rz._raw.zeile + 1;
+      const iBack = header.indexOf("Backprotokoll (JSON)");
+      if(iBack === -1) throw new Error('Spalte "Backprotokoll (JSON)" fehlt in Rezepte.xlsx');
+      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
+        Model.zelladresse(header, "Backprotokoll (JSON)", zeileExcel), JSON.stringify(rz.backprotokoll));
+      // Schwund (%) und Geändert sind reine Komfortspalten fuer die direkte Excel-Ansicht —
+      // die App selbst berechnet Schwund immer live aus dem Backprotokoll (Calc.schwundAktuell).
+      // Ein Fehlschlag hier ist darum nicht fatal, nur meldepflichtig (Abnahmekriterium 1).
+      const heute = new Date().toISOString().slice(0, 10);
+      const schwund = Calc.schwundAktuell(rz.backprotokoll);
+      const nebenfelder = [["Schwund (%)", schwund == null ? 0 : Math.round(schwund * 100)], ["Geändert", heute]];
+      const nebenfehler = [];
+      for(const [spalte, wert] of nebenfelder){
+        const addr = Model.zelladresse(header, spalte, zeileExcel);
+        if(!addr) continue;
+        try{ await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName, addr, wert); }
+        catch(e){ nebenfehler.push(spalte); }
+      }
+      try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
+      catch(e){ Store.rezepteETag = null; }
+      Store.backEintrag = null;
+      View.meldung("Backprotokoll-Eintrag gespeichert, Backup in " + (CONFIG.backupOrdner || "/Backups") + " angelegt."
+        + (nebenfehler.length ? " Hinweis: Spalte(n) " + nebenfehler.join(", ") + " konnten nicht mitaktualisiert werden — Backprotokoll selbst ist gespeichert." : ""),
+        nebenfehler.length ? "warn" : "ok", "Gespeichert");
+      View.rezept();
+    }catch(e){
+      rz.backprotokoll = rz.backprotokoll.slice(0, -1);
+      View.meldung("Speichern fehlgeschlagen: " + e.message + " — Backprotokoll in OneDrive nicht verändert.", "err", "Fehler beim Speichern");
+      View.rezept();
+    }
+  },
+
+  /* ---------- Import (AP-0315) --------------------------------------------
+     Ablauf: parsen -> pruefen -> aufloesen -> Vorschau -> uebernehmen (Feinkonzept §6b.2).
+     Store.import haelt den gesamten Zustand eines Durchlaufs. */
+  importOeffnen(){
+    Store.import = { text:"", geprueft:false, fehler:[], rezepte:[], unbekannt:[], zuordnung:{}, konflikte:[], entscheidung:{} };
+    View.import();
+    el("#importKarte") && el("#importKarte").scrollIntoView({ behavior:"smooth" });
+  },
+
+  importSchliessen(){ Store.import = null; View.import(); },
+
+  importPruefen(){
+    const st = Store.import;
+    const textEl = el("#importText");
+    if(textEl) st.text = textEl.value;
+
+    const geparst = Import.parseJSON(st.text);
+    if(!geparst.ok){
+      Object.assign(st, { geprueft:true, fehler:geparst.fehler, rezepte:[], unbekannt:[], konflikte:[] });
+      View.import();
+      return;
+    }
+    const pruefung = Import.pruefen(geparst.daten);
+    if(!pruefung.ok){
+      Object.assign(st, { geprueft:true, fehler:pruefung.fehler, rezepte:[], unbekannt:[], konflikte:[] });
+      View.import();
+      return;
+    }
+
+    const rezepteIntern = geparst.daten.rezepte.map(Import.zuIntern);
+    const unbekannt = Import.unbekannteNamen(rezepteIntern, Store.rohstoffe);
+    const konflikte = Import.konflikte(rezepteIntern, Store.rezepte);
+    Object.assign(st, {
+      geprueft: true, fehler: [], rezepte: rezepteIntern,
+      unbekannt, zuordnung: Object.fromEntries(unbekannt.map(n => [n, ""])),
+      konflikte, entscheidung: Object.fromEntries(konflikte.map(k => [k.index, "neu"]))
+    });
+    App.importVorschauAktualisieren();
+    View.import();
+  },
+
+  // Wendet die im Dialog gewaehlten Zuordnungen auf die Vorschau an, OHNE Store.rohstoffe oder
+  // CONFIG.aliase zu veraendern — erst App.importUebernehmen() macht eine Wahl dauerhaft.
+  importVorschauAktualisieren(){
+    const st = Store.import;
+    const idx = Model.rohstoffIndex(Store.rohstoffe);
+    st.unbekannt.forEach(name => {
+      const zielId = st.zuordnung[name];
+      if(!zielId) return;
+      const ziel = Store.rohstoffe.find(r => r.id === zielId);
+      if(ziel) idx.set(Model.nameKey(name), ziel);
+    });
+    Model.aufloesen(st.rezepte, Store.rohstoffe, idx);
+  },
+
+  importZuordnen(name, rohstoffId){
+    Store.import.zuordnung[name] = rohstoffId;
+    App.importVorschauAktualisieren();
+    View.import();
+  },
+
+  importEntscheiden(index, wahl){
+    Store.import.entscheidung[index] = wahl;
+    View.import();
+  },
+
+  async importUebernehmen(){
+    const st = Store.import;
+    const heute = new Date().toISOString().slice(0,10);
+
+    // Zuordnungen sofort als Alias lernen (wirkt ab jetzt in dieser Sitzung fuers Matching).
+    const neueAliase = [];
+    st.unbekannt.forEach(name => {
+      const zielId = st.zuordnung[name];
+      if(!zielId) return;
+      const ziel = Store.rohstoffe.find(r => r.id === zielId);
+      if(!ziel) return;
+      CONFIG.aliase[Model.normKey(name)] = Model.nameKey(ziel.name);
+      neueAliase.push({ variante: name, ziel: ziel.name });
+    });
+
+    const uebernommen = [];
+    st.rezepte.forEach((rz, i) => {
+      const konflikt = st.konflikte.find(k => k.index === i);
+      if(konflikt && st.entscheidung[i] === "version"){
+        konflikt.bestehend.entwicklung = Import.alsVersionAnhaengen(konflikt.bestehend, rz, heute);
+        uebernommen.push({ rz: konflikt.bestehend, modus:"version" });
+      }else{
+        rz.id = Import.naechsteId(Store.rezepte);
+        Model.aufloesen([rz], Store.rohstoffe);
+        Store.rezepte = [...Store.rezepte, rz];
+        uebernommen.push({ rz, modus:"neu" });
+      }
+    });
+
+    const versionsHinweis = uebernommen.some(u => u.modus === "version")
+      ? " Hinweis: Als Version angehängte Einträge sind aktuell nur in dieser Sitzung sichtbar — ein Excel-Feld für Entwicklungsversionen gibt es noch nicht (Ausbau AP-0311)."
+      : "";
+
+    if(Store.rezepteWorkbook && Store.rohstoffeWorkbook){
+      try{
+        uebernommen.filter(u => u.modus === "neu")
+          .forEach(u => Import.anhaengen(Store.rezepteWorkbook, Store.rezepteSheetName, u.rz));
+        neueAliase.forEach(a => Import.aliasAnhaengen(Store.rohstoffeWorkbook, a.variante, a.ziel, heute));
+        await Data.writeWorkbook(CONFIG.rezeptePfad, Import.alsArrayBuffer(Store.rezepteWorkbook));
+        if(neueAliase.length) await Data.writeWorkbook(CONFIG.rohstoffePfad, Import.alsArrayBuffer(Store.rohstoffeWorkbook));
+        View.meldung(uebernommen.length + " Rezept(e) importiert und nach OneDrive geschrieben." + versionsHinweis, "ok", "Import übernommen");
+      }catch(e){
+        View.meldung("In OneDrive schreiben fehlgeschlagen: " + e.message + " — im Bestand dieser Sitzung bleibt der Import trotzdem sichtbar.",
+          "err", "Import teilweise übernommen");
+      }
+    }else{
+      View.meldung(uebernommen.length + " Rezept(e) importiert (nur im Speicher dieser Sitzung — keine OneDrive-Verbindung)." + versionsHinweis,
+        "warn", "Import übernommen");
+    }
+
+    App.importSchliessen();
+    View.kategorienFuellen();
+    View.liste();
+  },
+
+  /* ---------- Export (AP-0315) --------------------------------------------
+     Gegenzug zum Import: erzeugt exakt das Austauschformat rezept/1 (FORMAT.md). */
+  exportEinzeln(){
+    if(!Store.aktuellesRezept) return;
+    App.downloadJSON(Import.alsExportAlle([Store.aktuellesRezept]),
+      (Store.aktuellesRezept.name || "rezept").replace(/[^\w\-]+/g,"_") + ".rezept1.json");
+  },
+
+  exportAlle(){
+    if(!Store.rezepte.length){ View.meldung("Keine Rezepte zum Exportieren geladen.", "warn", "Export"); return; }
+    App.downloadJSON(Import.alsExportAlle(Store.rezepte), "rezepte_alle.rezept1.json");
+  },
+
+  downloadJSON(daten, dateiname){
+    const blob = new Blob([JSON.stringify(daten, null, 2)], { type:"application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = dateiname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 };
 
 // MSAL 5.x holt die Antwort aus dem Popup NICHT per URL-Polling ab. Die Seite auf der
