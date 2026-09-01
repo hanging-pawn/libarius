@@ -90,6 +90,8 @@ table.log td.num{text-align:right}
 .msg.err{border-left-color:var(--rot)} .msg.warn{border-left-color:var(--gelb)}
 .msg.ok{border-left-color:var(--gruen)}
 .msg b{display:block;margin-bottom:.15rem}
+li.fehlerzeile{padding:.85rem 1rem;display:flex;gap:.75rem;align-items:baseline;color:var(--muted)}
+li.fehlerzeile .nm{font-weight:600;color:var(--ink)}
 footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);font-size:.78rem}
 @media print{
   header.app,.filters,.scaler,.actions,#meldungen,footer.app,.noprint{display:none !important}
@@ -108,9 +110,10 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
 
 <header class="app">
   <h1>libarius</h1>
-  <span class="badge" id="modus">Beispieldaten — AP-0301</span>
+  <span class="badge" id="modus">Beispieldaten</span>
   <span class="spacer"></span>
-  <button class="ghost" id="btnLogin" title="wird in AP-0302 aktiv">Anmelden</button>
+  <button class="ghost" id="btnAltDB">Andere Datenbank öffnen</button>
+  <button class="ghost" id="btnLogin">Anmelden</button>
 </header>
 
 <main>
@@ -132,10 +135,12 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
 
 <footer class="app">
   libarius — UI-Grundgerüst (AP-0301) mit Rechenkern (AP-0303/0304).
-  Datenanbindung an OneDrive folgt in AP-0302.
+  Datenanbindung an OneDrive (AP-0302).
   <span id="selftest"></span>
 </footer>
 
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.20.0/lib/msal-browser.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
 <script>
 /* ============================================================================
    libarius — Modulschnitt gemäss Feinkonzept AP-0206 §2
@@ -143,12 +148,49 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
    Calc ruft nichts auf. View schreibt nie direkt nach OneDrive.
    ========================================================================== */
 
-/* ---------- CONFIG ------------------------------------------------------- */
+/* ---------- CONFIG --------------------------------------------------------
+   Startwerte; ladeConfig() überschreibt mit config.json, danach mit
+   nutzerbezogenen Overrides aus localStorage (Settings, Feinkonzept §5.4). */
 const CONFIG = {
+  clientId: null, tenantId: "common", redirectUri: null,
+  rezeptePfad: null, rohstoffePfad: null, backupOrdner: "/Backups",
   schwundFenster: 3,
   zellenWarnung: 25000,
   aliase: { "mehl 00": "weissmehl 00" }
 };
+const zahlOderNull = v => (v == null || v === "") ? null : Number(v);
+
+/* ---------- Settings: nutzerbezogene Werte in localStorage --------------- */
+const Settings = {
+  schluessel(feld){ return "libarius." + feld; },
+  get(feld, fallback){
+    try{
+      const raw = localStorage.getItem(Settings.schluessel(feld));
+      return raw == null ? fallback : JSON.parse(raw);
+    }catch(e){ return fallback; }
+  },
+  set(feld, wert){
+    try{ localStorage.setItem(Settings.schluessel(feld), JSON.stringify(wert)); }catch(e){}
+  }
+};
+
+async function ladeConfig(){
+  try{
+    const res = await fetch("config.json", { cache: "no-store" });
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    Object.assign(CONFIG, await res.json());
+  }catch(e){
+    View.meldung("config.json konnte nicht geladen werden (" + e.message + "). "
+      + "Anmeldung ist ohne clientId nicht möglich — Beispieldaten bleiben nutzbar.",
+      "warn", "Konfiguration fehlt");
+  }
+  CONFIG.rezeptePfad    = Settings.get("rezeptePfad",    CONFIG.rezeptePfad);
+  CONFIG.rohstoffePfad  = Settings.get("rohstoffePfad",  CONFIG.rohstoffePfad);
+  CONFIG.backupOrdner   = Settings.get("backupOrdner",   CONFIG.backupOrdner);
+  CONFIG.schwundFenster = Settings.get("schwundFenster", CONFIG.schwundFenster);
+  CONFIG.zellenWarnung  = Settings.get("zellenWarnung",  CONFIG.zellenWarnung);
+  CONFIG.aliase         = Object.assign({}, CONFIG.aliase, Settings.get("aliase", {}));
+}
 
 /* ---------- Model: Normierung + Auflösung ------------------------------- */
 const Model = {
@@ -169,6 +211,72 @@ const Model = {
       z.rohstoff = idx.get(z.nameKey) || null;
     })));
     return rezepte;
+  },
+
+  // Excel ⇄ intern (Feinkonzept §3, §3.2). aoa = Array-of-Arrays inkl. Kopfzeile.
+  parseRohstoffe(aoa){
+    const header = aoa[0] || [];
+    const i = h => header.indexOf(h);
+    const iId=i("Rohstoff-ID"), iName=i("Name"), iKat=i("Kategorie"),
+          iEinh=i("Standardeinheit"), iEinhG=i("Einheitsgrösse"),
+          iKosten=i("Kosten/kg (CHF)"), iKcal=i("kcal/100g"), iEiweiss=i("Eiweiss g/100g"),
+          iFett=i("Fett g/100g"), iKh=i("KH g/100g"), iSuess=i("Süsskraft"),
+          iFodmap=i("FODMAP"), iFodmapPortion=i("FODMAP sichere Portion (g)"), iGesperrt=i("Gesperrt");
+    const rohstoffe = [];
+    for(let r = 1; r < aoa.length; r++){
+      const row = aoa[r];
+      if(!row || row.every(v => v == null || v === "")) continue;
+      const fodmapRoh = row[iFodmap] ? String(row[iFodmap]).trim().toLowerCase() : null;
+      rohstoffe.push({
+        id: row[iId], name: row[iName], kategorie: row[iKat] || null,
+        standardeinheit: row[iEinh] || null,
+        einheitsgroesse: zahlOderNull(row[iEinhG]),
+        kostenProKg: zahlOderNull(row[iKosten]),
+        naehrwerte: { kcal: zahlOderNull(row[iKcal]), eiweiss: zahlOderNull(row[iEiweiss]),
+                      fett: zahlOderNull(row[iFett]), kh: zahlOderNull(row[iKh]) },
+        suesskraft: zahlOderNull(row[iSuess]),
+        fodmap: ["gruen","gelb","rot"].includes(fodmapRoh) ? fodmapRoh : null,
+        fodmapPortionG: zahlOderNull(row[iFodmapPortion]),
+        gesperrt: !!row[iGesperrt],
+        _raw: { zeile: r, spalten: header, werte: row }
+      });
+    }
+    return rohstoffe;
+  },
+
+  // Fehlerpfad (AP-0302 Schritt 2): ungültiges JSON in einer Zeile stoppt nicht
+  // den ganzen Import — die Zeile landet in fehlerhaft[] statt in rezepte[].
+  parseRezepte(aoa){
+    const header = aoa[0] || [];
+    const i = h => header.indexOf(h);
+    const iId=i("Rezept-ID"), iName=i("Name"), iKat=i("Kategorie"), iUnterkat=i("Unterkategorie"),
+          iBasisName=i("Basis-Rohstoff"), iBasisMenge=i("Basis-Menge (g)"), iSoll=i("Sollgewicht (g)"),
+          iPortionen=i("Portionen"), iEinheit=i("Einheit"), iQuelle=i("Quelle"),
+          iPhasen=i("Phasen (JSON)"), iBackprot=i("Backprotokoll (JSON)");
+    const rezepte = [], fehlerhaft = [];
+    for(let r = 1; r < aoa.length; r++){
+      const row = aoa[r];
+      if(!row || row.every(v => v == null || v === "")) continue;
+      const name = row[iName] || ("Zeile " + (r + 1));
+      try{
+        const phasen = row[iPhasen] ? JSON.parse(row[iPhasen]) : [];
+        const backprotokoll = row[iBackprot] ? JSON.parse(row[iBackprot]) : [];
+        if(!Array.isArray(phasen)) throw new Error("Phasen (JSON) ist kein Array");
+        if(!Array.isArray(backprotokoll)) throw new Error("Backprotokoll (JSON) ist kein Array");
+        rezepte.push({
+          id: row[iId], name, kategorie: row[iKat] || null, unterkategorie: row[iUnterkat] || null,
+          basisName: row[iBasisName] || null,
+          basisMengeG: zahlOderNull(row[iBasisMenge]), sollgewichtG: zahlOderNull(row[iSoll]),
+          portionen: zahlOderNull(row[iPortionen]), einheit: row[iEinheit] || null,
+          quelle: row[iQuelle] || null,
+          phasen, backprotokoll, entwicklung: null,
+          _raw: { zeile: r, spalten: header, werte: row }
+        });
+      }catch(e){
+        fehlerhaft.push({ id: row[iId] || ("Zeile " + (r + 1)), name, fehler: e.message, zeile: r + 1 });
+      }
+    }
+    return { rezepte, fehlerhaft };
   }
 };
 
@@ -281,18 +389,123 @@ const Calc = {
   }
 };
 
-/* ---------- Data: Stubs. Signatur bleibt, AP-0302 füllt sie. ------------ */
+/* ---------- Data: MSAL-Login + Microsoft Graph (Feinkonzept §5) --------- */
+let msalApp = null;
+
 const Data = {
-  verfuegbar(){ return false; },
-  async init(){ throw new Error("AP-0302"); },
-  async login(){ throw new Error("AP-0302"); },
-  async token(){ throw new Error("AP-0302"); },
-  async readWorkbook(){ throw new Error("AP-0302"); },
-  async writeWorkbook(){ throw new Error("AP-0302"); },
-  async backup(){ throw new Error("AP-0302"); }
+  verfuegbar(){ return !!msalApp; },
+
+  // iPadOS-Safari meldet sich als "MacIntel", hat aber echte Touch-Punkte —
+  // Popup-Login wird von Safari dort notorisch blockiert, darum Redirect (AP-0302 Kontext).
+  istIPad(){
+    return /iPad/.test(navigator.userAgent)
+      || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  },
+
+  async init(){
+    if(!CONFIG.clientId) throw new Error("clientId fehlt (config.json nicht geladen)");
+    msalApp = new msal.PublicClientApplication({
+      auth: {
+        clientId: CONFIG.clientId,
+        authority: "https://login.microsoftonline.com/" + (CONFIG.tenantId || "common"),
+        redirectUri: CONFIG.redirectUri
+      },
+      cache: { cacheLocation: "localStorage" }
+    });
+    await msalApp.initialize();
+    const antwort = await msalApp.handleRedirectPromise();   // Rückkehr vom iPad-Redirect
+    if(antwort && antwort.account) msalApp.setActiveAccount(antwort.account);
+    else {
+      const konten = msalApp.getAllAccounts();
+      if(konten.length) msalApp.setActiveAccount(konten[0]);
+    }
+    return msalApp.getActiveAccount();
+  },
+
+  async login(){
+    const req = { scopes: ["Files.ReadWrite", "User.Read"] };
+    if(Data.istIPad()){
+      await msalApp.loginRedirect(req);
+      return null;   // Seite navigiert weg; Rückkehr läuft über init()/handleRedirectPromise
+    }
+    const antwort = await msalApp.loginPopup(req);
+    msalApp.setActiveAccount(antwort.account);
+    return antwort.account;
+  },
+
+  logout(){
+    const konto = msalApp && msalApp.getActiveAccount();
+    if(!konto) return;
+    const req = { account: konto };
+    Data.istIPad() ? msalApp.logoutRedirect(req) : msalApp.logoutPopup(req);
+  },
+
+  async token(){
+    const konto = msalApp.getActiveAccount();
+    if(!konto) throw new Error("nicht angemeldet");
+    const req = { scopes: ["Files.ReadWrite", "User.Read"], account: konto };
+    try{
+      return (await msalApp.acquireTokenSilent(req)).accessToken;
+    }catch(e){
+      const antwort = Data.istIPad()
+        ? await msalApp.acquireTokenRedirect(req)
+        : await msalApp.acquireTokenPopup(req);
+      return antwort && antwort.accessToken;
+    }
+  },
+
+  async readWorkbook(pfad){
+    const token = await Data.token();
+    const url = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(pfad) + ":/content";
+    const res = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+    if(res.status === 404) throw new Error("Datei nicht gefunden: " + pfad);
+    if(!res.ok) throw new Error("Graph-Fehler " + res.status + " beim Lesen von " + pfad);
+    return await res.arrayBuffer();
+  },
+
+  // Kopie vor jedem Schreibzugriff (Feinkonzept §5.3 / CLAUDE.md «nie überschreiben»).
+  async backup(pfad){
+    const buf = await Data.readWorkbook(pfad);
+    const token = await Data.token();
+    const name = pfad.split("/").pop();
+    const stempel = new Date().toISOString().replace(/[:.]/g, "-");
+    const zielName = name.replace(/\.xlsx$/i, "") + "_" + stempel + ".xlsx";
+    const ordner = CONFIG.backupOrdner || "/Backups";
+    const url = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(ordner + "/" + zielName) + ":/content";
+    const res = await fetch(url, { method: "PUT",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/octet-stream" }, body: buf });
+    if(!res.ok) throw new Error("Backup fehlgeschlagen (" + res.status + ")");
+    return zielName;
+  },
+
+  // Schnittstelle für AP-0305 (Speichern). Pilotbefund zum Formatverlust: siehe
+  // AP-0302 Dokumentation / Entscheid O-9 — SheetJS-Ganzdatei-PUT verwerfen.
+  async writeWorkbook(pfad, arrayBuffer){
+    await Data.backup(pfad);
+    const token = await Data.token();
+    const url = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(pfad) + ":/content";
+    const res = await fetch(url, { method: "PUT",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/octet-stream" }, body: arrayBuffer });
+    if(!res.ok) throw new Error("Schreiben fehlgeschlagen (" + res.status + ")");
+    return true;
+  }
 };
-async function loadWorkbooks(){ return Data.readWorkbook(); }   // Schnittstelle laut AP-0301 §5
-async function saveRecipe(){ return Data.writeWorkbook(); }
+
+// Lädt beide Arbeitsmappen parallel und parst sie ins interne Modell (Model.parse…).
+async function loadWorkbooks(){
+  const [rezBuf, rohBuf] = await Promise.all([
+    Data.readWorkbook(CONFIG.rezeptePfad),
+    Data.readWorkbook(CONFIG.rohstoffePfad)
+  ]);
+  const rezWb = XLSX.read(rezBuf, { type: "array", cellDates: true });
+  const rohWb = XLSX.read(rohBuf, { type: "array", cellDates: true });
+  const rezAoa = XLSX.utils.sheet_to_json(rezWb.Sheets[rezWb.SheetNames[0]], { header: 1, raw: true, defval: null });
+  const rohAoa = XLSX.utils.sheet_to_json(rohWb.Sheets[rohWb.SheetNames[0]], { header: 1, raw: true, defval: null });
+  const rohstoffe = Model.parseRohstoffe(rohAoa);
+  const { rezepte, fehlerhaft } = Model.parseRezepte(rezAoa);
+  return { rohstoffe, rezepte, fehlerhaft };
+}
+async function saveRecipe(){ return Data.writeWorkbook(); }   // wird in AP-0305 verdrahtet
 
 /* ---------- Beispieldaten (werden in AP-0302 durch OneDrive ersetzt) ---- */
 const BEISPIEL_ROHSTOFFE = [
@@ -370,7 +583,7 @@ const BEISPIEL_REZEPTE = [
 
 /* ---------- Store ------------------------------------------------------- */
 const Store = {
-  rohstoffe:[], rezepte:[],
+  rohstoffe:[], rezepte:[], rezepteFehlerhaft:[],
   aktuellesRezept:null, faktor:1,
   suchtext:"", kategorie:"", offenePhasen:new Set()
 };
@@ -393,7 +606,8 @@ const View = {
 
   kategorienFuellen(){
     const sel = el("#kategorie");
-    const kats = [...new Set(Store.rezepte.map(r => r.kategorie))].sort();
+    sel.innerHTML = '<option value="">Alle Kategorien</option>';
+    const kats = [...new Set(Store.rezepte.map(r => r.kategorie).filter(Boolean))].sort();
     kats.forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = k; sel.appendChild(o); });
   },
 
@@ -407,12 +621,21 @@ const View = {
 
   liste(){
     const ul = el("#liste"); const rs = View.gefilterte();
-    if(!rs.length){ ul.innerHTML = '<li class="empty">Kein Rezept gefunden</li>'; return; }
-    ul.innerHTML = rs.map(r => `
+    const fehlerhaft = Store.rezepteFehlerhaft || [];
+    if(!rs.length && !fehlerhaft.length){ ul.innerHTML = '<li class="empty">Kein Rezept gefunden</li>'; return; }
+    const zeilen = rs.map(r => `
       <li><button data-id="${esc(r.id)}">
         <span class="nm">${esc(r.name)}</span>
         <span class="meta">${esc(r.kategorie)} · ${r.portionen} ${esc(r.einheit)}</span>
       </button></li>`).join("");
+    // FR-abgeleitet (Feinkonzept §7): ungültiges JSON blockiert nicht die Liste,
+    // die betroffene Zeile wird sichtbar als fehlerhaft markiert statt geöffnet.
+    const fehlerZeilen = fehlerhaft.map(f => `
+      <li class="fehlerzeile">
+        <span class="nm">${esc(f.name)}</span>
+        <span class="warn-inline">fehlerhaft (Zeile ${f.zeile}) — ${esc(f.fehler)}</span>
+      </li>`).join("");
+    ul.innerHTML = zeilen + fehlerZeilen;
     ul.querySelectorAll("button").forEach(b =>
       b.addEventListener("click", () => App.rezeptOeffnen(b.dataset.id)));
   },
@@ -583,25 +806,90 @@ const App = {
     Store.rohstoffe = BEISPIEL_ROHSTOFFE;
     Store.rezepte   = Model.aufloesen(BEISPIEL_REZEPTE, BEISPIEL_ROHSTOFFE);
 
-    if(location.protocol === "file:"){
-      View.meldung("Diese App braucht eine Web-Adresse (https), weil der Microsoft-Login sonst nicht funktioniert. "
-        + "Mit Beispieldaten läuft sie hier trotzdem — für echte Daten über die GitHub-Pages-URL öffnen.",
-        "warn", "Als Datei geöffnet");
-    }
-
     View.kategorienFuellen();
     View.liste();
 
     el("#suche").addEventListener("input", e => { Store.suchtext = e.target.value; View.liste(); });
     el("#kategorie").addEventListener("change", e => { Store.kategorie = e.target.value; View.liste(); });
-    el("#btnLogin").addEventListener("click", () =>
-      View.meldung("Anmeldung und OneDrive-Zugriff kommen mit AP-0302.", "warn", "Noch nicht verfügbar"));
+    el("#btnLogin").addEventListener("click", App.loginKlick);
+    el("#btnAltDB").addEventListener("click", App.altDBKlick);
 
     const st = selfTest();
     el("#selftest").textContent = st.fehler.length
       ? ` · Selbsttest: ${st.fehler.length} von ${st.anzahl} fehlgeschlagen (${st.fehler.join(", ")})`
       : ` · Selbsttest: ${st.anzahl}/${st.anzahl} ok`;
     if(st.fehler.length) View.meldung("Fehlgeschlagen: " + st.fehler.join(", "), "err", "Selbsttest des Rechenkerns");
+
+    App.initDaten();
+  },
+
+  // US-A1 / Feinkonzept §5.2: file:// bricht vor jeder MSAL-Initialisierung ab.
+  // Sonst: Konfiguration laden, MSAL aufbauen, bei bereits bekanntem Konto
+  // still anmelden und laden (nie ungefragt, siehe §5.4).
+  async initDaten(){
+    if(location.protocol === "file:"){
+      View.meldung("Diese App braucht eine Web-Adresse (https), weil der Microsoft-Login sonst nicht funktioniert. "
+        + "Mit Beispieldaten läuft sie hier trotzdem — für echte Daten über die GitHub-Pages-URL öffnen.",
+        "warn", "Als Datei geöffnet");
+      return;
+    }
+    await ladeConfig();
+    if(!CONFIG.clientId) return;   // keine Anmeldung möglich, Beispieldaten bleiben nutzbar
+    try{
+      const konto = await Data.init();
+      if(konto) await App.datenLaden(konto);
+    }catch(e){
+      View.meldung("Anmeldung konnte nicht initialisiert werden: " + e.message, "err", "Fehler beim Start");
+    }
+  },
+
+  async loginKlick(){
+    if(!Data.verfuegbar()){ View.meldung("Konfiguration fehlt — clientId nicht gesetzt.", "err", "Anmeldung nicht möglich"); return; }
+    try{
+      const konto = await Data.login();
+      if(konto) await App.datenLaden(konto);   // Popup-Pfad (Desktop); iPad navigiert per Redirect weg
+    }catch(e){
+      View.meldung("Anmeldung fehlgeschlagen: " + e.message, "err", "Login");
+    }
+  },
+
+  async datenLaden(konto){
+    el("#btnLogin").textContent = "Abmelden (" + (konto.username || konto.name || "Konto") + ")";
+    el("#btnLogin").onclick = () => Data.logout();
+    try{
+      const { rohstoffe, rezepte, fehlerhaft } = await loadWorkbooks();
+      Store.rohstoffe = rohstoffe;
+      Store.rezepte = Model.aufloesen(rezepte, rohstoffe);
+      Store.rezepteFehlerhaft = fehlerhaft;
+      el("#modus").textContent = "OneDrive — " + Store.rezepte.length + " Rezepte";
+      View.kategorienFuellen();
+      View.liste();
+      if(fehlerhaft.length){
+        View.meldung(fehlerhaft.length + " Rezept(e) mit ungültigem JSON übersprungen — in der Liste markiert, restliche Rezepte geladen.",
+          "warn", "Teilweise geladen");
+      }else{
+        View.meldung("Rezepte und Rohstoffe aus OneDrive geladen.", "ok");
+      }
+    }catch(e){
+      View.meldung("Laden fehlgeschlagen: " + e.message, "err", "Fehler beim Laden");
+    }
+  },
+
+  // AP-0302 Schritt 3 / Lastenheft F1: alternativer OneDrive-Pfad statt der
+  // Standard-Datenbank. Pfade werden pro Nutzer in localStorage gemerkt (§5.4).
+  async altDBKlick(){
+    const rez = prompt("Pfad zur Rezepte.xlsx (ab OneDrive-Wurzel, z. B. /Küche/Rezepte.xlsx):", CONFIG.rezeptePfad || "");
+    if(rez == null || !rez.trim()) return;
+    const roh = prompt("Pfad zur Rohstoffe.xlsx:", CONFIG.rohstoffePfad || "");
+    if(roh == null || !roh.trim()) return;
+    CONFIG.rezeptePfad = rez.trim();
+    CONFIG.rohstoffePfad = roh.trim();
+    Settings.set("rezeptePfad", CONFIG.rezeptePfad);
+    Settings.set("rohstoffePfad", CONFIG.rohstoffePfad);
+    if(!Data.verfuegbar()){ View.meldung("Pfade gespeichert. Zum Laden zuerst anmelden.", "ok", "Andere Datenbank"); return; }
+    const konto = msalApp.getActiveAccount();
+    if(!konto){ await App.loginKlick(); return; }
+    await App.datenLaden(konto);
   },
 
   rezeptOeffnen(id){

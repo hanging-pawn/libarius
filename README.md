@@ -37,12 +37,14 @@ CONFIG · Model · Calc · Data · Store · View · Dev · App
 | UI-Grundgerüst, Liste, Suche, Phasen | AP-0301 | steht |
 | Skalierung, Einheiten | AP-0303 | steht |
 | Kosten, Nährwerte | AP-0304 | steht |
-| Login + OneDrive laden | AP-0302 | offen — `Data` ist noch ein Stub |
+| Login + OneDrive laden | AP-0302 | implementiert — Abnahme (Mac + iPad) durch Gianluca aussteht |
 | Backprotokoll erfassen + speichern | AP-0305 | offen |
 | Druck / PDF | AP-0306 | Print-CSS steht |
 | Entwicklungsmodus | AP-0311–0314 | offen |
 
-Bis AP-0302 läuft die App mit zwei eingebauten Beispielrezepten.
+Ohne Anmeldung läuft die App mit zwei eingebauten Beispielrezepten. Nach Anmeldung lädt sie
+`Rezepte.xlsx` und `Rohstoffe.xlsx` direkt aus OneDrive (Pfade in `config.json`, änderbar über
+«Andere Datenbank öffnen»).
 
 ## Entwickeln
 
