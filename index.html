@@ -402,6 +402,25 @@ const Data = {
       || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   },
 
+  // MSAL 5.x erkennt einen verschachtelten Popup NICHT an window.opener oder window.name,
+  // sondern daran, dass in Hash oder Query DIESER Seite noch eine Auth-Antwort mit
+  // interactionType "popup" steht (msal-browser 5.20.0: isInPopup() -> parseAuthResponseFromUrl()).
+  // Weil redirectUri = diese Seite selbst ist (ADR AP-0201), landet so eine Antwort hier. Raeumt
+  // handleRedirectPromise() sie nicht ab — etwa weil es geworfen hat —, bleibt sie in der
+  // Adresszeile stehen. Hash und Query ueberleben jeden Reload: der Tab ist dann dauerhaft
+  // blockiert, jeder Klick auf «Anmelden» endet sofort mit block_nested_popups.
+  // Darum nach dem Auswerten und vor jedem interaktiven Login selbst aufraeumen.
+  bereinigeAuthAntwort(){
+    const AUTH_PARAM = /^(code|state|session_state|client_info|error|error_description|error_uri|suberror|id_token|access_token|token_type|expires_in|scope)$/;
+    const hatState = s => s.length > 1 && new URLSearchParams(s.replace(/^[#?]/, "")).has("state");
+    if(!hatState(location.hash) && !hatState(location.search)) return false;
+    const query = new URLSearchParams(location.search);
+    for(const name of [...query.keys()]) if(AUTH_PARAM.test(name)) query.delete(name);
+    const rest = query.toString();
+    history.replaceState(null, "", location.pathname + (rest ? "?" + rest : ""));
+    return true;
+  },
+
   async init(){
     if(!CONFIG.clientId) throw new Error("clientId fehlt (config.json nicht geladen)");
     msalApp = new msal.PublicClientApplication({
@@ -422,6 +441,9 @@ const Data = {
       // funktioniert trotzdem, siehe Feinkonzept §7 (kein Netzfehler stoppt die App).
       antwort = null;
     }
+    // Eine erfolgreich ausgewertete Antwort raeumt MSAL selbst aus der URL; eine
+    // fehlgeschlagene bleibt liegen und blockiert danach jeden Popup-Login. Hier nachfassen.
+    Data.bereinigeAuthAntwort();
     if(antwort && antwort.account) msalApp.setActiveAccount(antwort.account);
     else {
       const konten = msalApp.getAllAccounts();
@@ -432,6 +454,8 @@ const Data = {
 
   async login(){
     const req = { scopes: ["Files.ReadWrite", "User.Read"] };
+    // Selbstheilung: ein schon vergifteter Tab wuerde sonst sofort block_nested_popups werfen.
+    Data.bereinigeAuthAntwort();
     if(Data.istIPad()){
       await msalApp.loginRedirect(req);
       return null;   // Seite navigiert weg; Rückkehr läuft über init()/handleRedirectPromise
