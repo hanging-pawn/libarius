@@ -1395,7 +1395,7 @@ const View = {
     el("#importDatei") && el("#importDatei").addEventListener("change", e => {
       const datei = e.target.files[0]; if(!datei) return;
       const reader = new FileReader();
-      reader.onload = () => { st.text = String(reader.result || ""); App.importPruefen(); };
+      reader.onload = () => { st.text = String(reader.result || ""); App.importAuswerten(); };
       reader.readAsText(datei);
     });
     el("#importFreitext") && el("#importFreitext").addEventListener("click", () => {
@@ -1797,11 +1797,19 @@ const App = {
 
   importSchliessen(){ Store.import = null; View.import(); },
 
+  // Liest das Textfeld ins Store.import.text (Quelle: Klick auf «Prüfen»). Der Datei-Upload
+  // ruft stattdessen direkt importAuswerten() — dort ist st.text schon aus der Datei gesetzt,
+  // und das Textfeld im DOM wurde bis zum naechsten Rendern noch nicht nachgezogen. Ein Aufruf
+  // von importPruefen() an dieser Stelle wuerde den geladenen Dateiinhalt sofort wieder mit dem
+  // (noch leeren) Feldwert ueberschreiben — genau der Bug, den Gianlucas Live-Test aufdeckte.
   importPruefen(){
-    const st = Store.import;
     const textEl = el("#importText");
-    if(textEl) st.text = textEl.value;
+    if(textEl) Store.import.text = textEl.value;
+    App.importAuswerten();
+  },
 
+  importAuswerten(){
+    const st = Store.import;
     const geparst = Import.parseJSON(st.text);
     if(!geparst.ok){
       Object.assign(st, { geprueft:true, fehler:geparst.fehler, rezepte:[], unbekannt:[], konflikte:[] });
