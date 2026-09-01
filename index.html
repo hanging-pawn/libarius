@@ -835,6 +835,13 @@ const App = {
   // Sonst: Konfiguration laden, MSAL aufbauen, bei bereits bekanntem Konto
   // still anmelden und laden (nie ungefragt, siehe §5.4).
   async initDaten(){
+    // redirectUri = diese Seite selbst (ADR AP-0201/§8). Microsoft lädt darum
+    // beim Popup-Login dieselbe App-Seite kurz INNERHALB des Popups, um die
+    // Antwort zu übergeben. Läuft hier ein zweiter App-Start und der versucht
+    // (z.B. über Data.token()) selbst einen Popup zu öffnen, meldet MSAL
+    // block_nested_popups. Das öffnende Fenster wertet die Antwort per Polling
+    // aus — im Popup selbst ist nichts zu tun, darum hier abbrechen.
+    if(window.opener && window.opener !== window) return;
     if(location.protocol === "file:"){
       View.meldung("Diese App braucht eine Web-Adresse (https), weil der Microsoft-Login sonst nicht funktioniert. "
         + "Mit Beispieldaten läuft sie hier trotzdem — für echte Daten über die GitHub-Pages-URL öffnen.",
