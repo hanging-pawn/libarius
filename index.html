@@ -140,6 +140,7 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.20.0/lib/msal-browser.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.20.0/lib/redirect-bridge/msal-redirect-bridge.min.js" crossorigin="anonymous"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
 <script>
 /* ============================================================================
@@ -402,6 +403,11 @@ const Data = {
       || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   },
 
+  istAuthAntwortInUrl(){
+    const hatState = s => s.length > 1 && new URLSearchParams(s.replace(/^[#?]/, "")).has("state");
+    return hatState(location.hash) || hatState(location.search);
+  },
+
   // MSAL 5.x erkennt einen verschachtelten Popup NICHT an window.opener oder window.name,
   // sondern daran, dass in Hash oder Query DIESER Seite noch eine Auth-Antwort mit
   // interactionType "popup" steht (msal-browser 5.20.0: isInPopup() -> parseAuthResponseFromUrl()).
@@ -412,8 +418,7 @@ const Data = {
   // Darum nach dem Auswerten und vor jedem interaktiven Login selbst aufraeumen.
   bereinigeAuthAntwort(){
     const AUTH_PARAM = /^(code|state|session_state|client_info|error|error_description|error_uri|suberror|id_token|access_token|token_type|expires_in|scope)$/;
-    const hatState = s => s.length > 1 && new URLSearchParams(s.replace(/^[#?]/, "")).has("state");
-    if(!hatState(location.hash) && !hatState(location.search)) return false;
+    if(!Data.istAuthAntwortInUrl()) return false;
     const query = new URLSearchParams(location.search);
     for(const name of [...query.keys()]) if(AUTH_PARAM.test(name)) query.delete(name);
     const rest = query.toString();
@@ -953,7 +958,28 @@ const App = {
   schliessen(){ Store.aktuellesRezept = null; View.rezept(); }
 };
 
-document.addEventListener("DOMContentLoaded", App.start);
+// MSAL 5.x holt die Antwort aus dem Popup NICHT per URL-Polling ab. Die Seite auf der
+// redirectUri muss die mitgelieferte Redirect-Bridge ausfuehren: sie schickt die Antwort per
+// BroadcastChannel ans oeffnende Fenster und schliesst das Popup danach
+// (msal-browser 5.20.0, lib/redirect-bridge/ -> broadcastResponseToMainFrame). Beim
+// Redirect-Flow legt dieselbe Funktion die Antwort in den sessionStorage und navigiert
+// zurueck zur Ausgangsseite, wo handleRedirectPromise() sie aufnimmt.
+// Weil redirectUri = diese Seite selbst ist (ADR AP-0201), IST diese Seite die Bridge.
+// Ohne das wartet loginPopup() im Hauptfenster bis zum Bridge-Timeout: der Klick auf
+// «Anmelden» bleibt wirkungslos, ohne jede Fehlermeldung.
+// Muss vor App.start() laufen — die App darf in diesem Fenster gar nicht erst starten.
+document.addEventListener("DOMContentLoaded", () => {
+  const bridge = window.msalRedirectBridge;
+  if(Data.istAuthAntwortInUrl() && bridge && bridge.broadcastResponseToMainFrame){
+    // Im Popup raeumt die Bridge die URL auf und schliesst das Fenster selbst. Bleibt es
+    // offen — normaler Tab mit liegengebliebener Antwort, oder Bridge wirft bei fremdem
+    // Zustand —, startet die App danach ganz normal weiter, damit kein totes Fenster
+    // stehen bleibt. Data.bereinigeAuthAntwort() faengt einen Rest in der URL ab.
+    bridge.broadcastResponseToMainFrame().catch(() => {}).then(() => App.start());
+    return;
+  }
+  App.start();
+});
 </script>
 </body>
 </html>
