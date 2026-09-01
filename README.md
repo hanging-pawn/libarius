@@ -6,7 +6,7 @@ Backprotokoll führen und drucken.
 
 Der Name kommt aus dem Lateinischen: *libarius* ist der Kuchen- und Feingebäckbäcker.
 
-**Live:** `https://<benutzername>.github.io/libarius/`
+**Live:** https://hanging-pawn.github.io/libarius/
 
 ## Was hier liegt
 
