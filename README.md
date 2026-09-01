@@ -1,10 +1,12 @@
-# kochen
+# libarius
 
 Browser-App zur Rezeptverwaltung: Rezepte aus zwei Excel-Datenbanken in OneDrive anzeigen,
 auf beliebige Mengen skalieren (Bäckerprozent), Kosten und Nährwerte rechnen,
 Backprotokoll führen und drucken.
 
-**Live:** `https://<benutzername>.github.io/kochen/`
+Der Name kommt aus dem Lateinischen: *libarius* ist der Kuchen- und Feingebäckbäcker.
+
+**Live:** `https://<benutzername>.github.io/libarius/`
 
 ## Was hier liegt
 
