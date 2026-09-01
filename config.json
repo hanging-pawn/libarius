@@ -1,7 +1,7 @@
 {
   "clientId": "4c4bbfe6-8742-4d43-bd49-6b4b6e959fce",
   "tenantId": "common",
-  "redirectUri": "https://BENUTZERNAME.github.io/libarius/",
+  "redirectUri": "https://hanging-pawn.github.io/libarius/",
   "rezeptePfad": "/Küche/Rezepte.xlsx",
   "rohstoffePfad": "/Küche/Rohstoffe.xlsx",
   "backupOrdner": "/Küche/Backups",
