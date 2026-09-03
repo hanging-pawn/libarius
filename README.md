@@ -62,7 +62,8 @@ python3 -m http.server 8080     # dann http://localhost:8080
 
 Vor jedem Schreibzugriff auf `Rezepte.xlsx` (Backprotokoll-Eintrag speichern, Import
 übernehmen) legt die App automatisch eine Sicherungskopie in `config.json.backupOrdner`
-an (produktiv `/04_Casa La Rocca/Küche/Backups`) — **eine Datei pro Tag**,
+an (der Pfad wird pro Nutzer in den Einstellungen gesetzt, Vorgabe `<Datenordner>/Backups`)
+— **eine Datei pro Tag**,
 `Rezepte_backup_JJJJ-MM-TT.xlsx`. Mehrfaches Speichern am selben Tag ersetzt nur diese
 eine Tagesdatei, der Ordner wird bei Bedarf automatisch angelegt.
 
@@ -74,10 +75,10 @@ Kopfzeile bei jedem Speichern). Vor jedem Schreiben prüft die App den `eTag` vo
 zwischenzeitlich extern geändert, bricht die App ab, meldet den Konflikt und lädt den
 Bestand neu, statt blind zu überschreiben.
 
-**Restore:** In OneDrive nach `Küche/Backups/` navigieren, die gewünschte Tagesdatei
+**Restore:** In OneDrive in den Backup-Ordner navigieren, die gewünschte Tagesdatei
 (`Rezepte_backup_JJJJ-MM-TT.xlsx`) öffnen, herunterladen und über die produktive
-`Rezepte.xlsx` unter `Küche/Rezepte.xlsx` hochladen (ersetzen) — oder die Backup-Datei in
-OneDrive kopieren und auf `Rezepte.xlsx` umbenennen. Backups älter als ~90 Tage bei
+`Rezepte.xlsx` hochladen (ersetzen) — oder die Backup-Datei in OneDrive kopieren und auf
+`Rezepte.xlsx` umbenennen. Backups älter als ~90 Tage bei
 Gelegenheit von Hand in einen Archiv-Unterordner verschieben, nie automatisch löschen
 (CLAUDE.md-Grundregel).
 
@@ -247,5 +248,5 @@ Details: `Projekte/rezeptverwaltung/02_konzept/AP-0201_adr_hosting.md`
 
 ## Dokumentation
 
-Lastenheft, Anforderungskatalog, User Stories und Feinkonzept liegen in OneDrive unter
-`04_Casa La Rocca/Küche/` — nicht in diesem Repo, weil das Repo öffentlich ist.
+Lastenheft, Anforderungskatalog, User Stories und Feinkonzept liegen im OneDrive-Datenordner
+des jeweiligen Nutzers — nicht in diesem Repo, weil das Repo öffentlich ist.
