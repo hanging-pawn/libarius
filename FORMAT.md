@@ -64,7 +64,7 @@ AP-0315. Format für Import und Export von Rezepten — identisch mit dem intern
 | `einheit` | string | ja | z. B. `"Stk"` |
 | `phasen` | Array\<Phase\> | ja | mindestens 1 Eintrag |
 | `backprotokoll` | Array\<Backeintrag\> | nein | Default `[]` |
-| `entwicklung` | null | nein | Default `null` — Struktur für Entwicklungsmodus (AP-0311) wird in v1 nicht geprüft |
+| `entwicklung` | Entwicklung \| null | nein | Default `null` — Struktur siehe unten. Wird in v1 **nicht** geprüft, aber unverändert durchgereicht (Export → Import ist verlustfrei) |
 
 ### Phase
 
@@ -97,6 +97,49 @@ AP-0315. Format für Import und Export von Rezepten — identisch mit dem intern
 | `sollG` | number > 0 | ja | |
 | `istG` | number > 0 | ja | |
 | `notizen` | string \| null | nein | Default `null` |
+
+### Entwicklung (AP-0311)
+
+Entspricht der Excel-Spalte «Entwicklung (JSON)» in `Rezepte.xlsx` und der Spezifikation
+AP-0203 §1.1. Fehlt die Spalte oder ist die Zelle leer, bleibt `entwicklung` `null` und das
+Rezept verhält sich wie ohne Entwicklungsmodus.
+
+| Feld | Typ | Pflicht | Bemerkung |
+|---|---|---|---|
+| `status` | `"entwicklung"` \| `"produktiv"` | ja | `"produktiv"` nach dem Befördern; der Verlauf bleibt erhalten |
+| `zielwerte` | object | ja | je Kennzahl ein Faktor oder `null`, z. B. `hydration_pct`, `salz_pct` (AP-0312) |
+| `aktivV` | number | ja | Versionsnummer der aktuell bearbeiteten Version; ohne Treffer gilt die letzte |
+| `versionen` | Array\<Version\> | ja | mindestens 1 Eintrag; wird nie gekürzt |
+| `versuche` | Array\<Versuch\> | ja | darf leer sein |
+
+#### Version
+
+| Feld | Typ | Pflicht | Bemerkung |
+|---|---|---|---|
+| `v` | number | ja | fortlaufend ab 1, nur `+ Neue Version` erhöht sie |
+| `datum` | string | ja | Format `JJJJ-MM-TT` |
+| `notiz` | string | ja | Kurznotiz, was gegenüber der Vorversion geändert wurde |
+| `phasen` | Array\<Phase\> | ja | identisches Format wie `phasen` oben |
+
+#### Versuch
+
+Feldnamen bewusst `soll_g`/`ist_g` (Spezifikation AP-0203 §1.1) — abweichend vom
+Backeintrag oben, der `sollG`/`istG` verwendet.
+
+| Feld | Typ | Pflicht | Bemerkung |
+|---|---|---|---|
+| `datum` | string | ja | Format `JJJJ-MM-TT` |
+| `version` | number | ja | referenziert `versionen[].v` |
+| `soll_g` | number > 0 | ja | |
+| `ist_g` | number > 0 | ja | |
+| `bewertung` | number 1–5 | ja | |
+| `erkenntnis` | string \| null | nein | Default `null` |
+
+**Befördern** kopiert `phasen` der gewählten Version nach `phasen` des Rezepts und setzt
+`status` auf `"produktiv"`. Die Versionsliste bleibt vollständig erhalten — die bisherige
+produktive Rezeptur ist weiterhin als Version abrufbar.
+
+**Grössenwarnung:** Die App warnt ab 25'000 Zeichen pro Zelle (Excel-Limit 32'767).
 
 ## Prüfung
 

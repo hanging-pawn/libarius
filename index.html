@@ -34,9 +34,9 @@ button,input,select{font:inherit;color:inherit}
 input,select{background:var(--bg);border:1px solid var(--line);border-radius:8px;
   padding:.55rem .7rem;min-height:44px}
 input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px}
-button{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:.6rem 1rem;
-  min-height:44px;cursor:pointer;font-weight:550}
-button.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+button,label.ghost{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:.6rem 1rem;
+  min-height:44px;cursor:pointer;font-weight:550;box-sizing:border-box}
+button.ghost,label.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
 button:hover{filter:brightness(1.06)}
 .filters{display:flex;gap:.6rem;flex-wrap:wrap}
 .filters input{flex:1;min-width:180px}
@@ -104,7 +104,10 @@ textarea.importtext{width:100%;min-height:10rem;font:13px/1.4 ui-monospace,Menlo
 .importvorschau h3{margin:0 0 .3rem;font-size:1rem}
 footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);font-size:.78rem}
 @media print{
-  header.app,.filters,.scaler,.actions,#meldungen,footer.app,.noprint{display:none !important}
+  /* AP-0306: #importbereich/#rechercheBereich sind eigene Top-Level-Container (nicht Teil von
+     #rezeptbereich) — ohne diese beiden bliebe ein offener Import- oder Recherche-Dialog mit
+     allen Eingabefeldern/Buttons im PDF sichtbar (Abnahmekriterium 1). */
+  header.app,.filters,.scaler,.actions,#meldungen,#importbereich,#rechercheBereich,footer.app,.noprint{display:none !important}
   body{background:#fff;color:#000;font-size:11pt}
   main{max-width:none;padding:0}
   .card{border:0;box-shadow:none;margin:0 0 .6rem}
@@ -145,6 +148,7 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
   </section>
 
   <div id="rezeptbereich"></div>
+  <div id="rechercheBereich"></div>
 </main>
 
 <footer class="app">
@@ -171,6 +175,12 @@ const CONFIG = {
   rezeptePfad: null, rohstoffePfad: null, backupOrdner: "/Backups",
   schwundFenster: 3,
   zellenWarnung: 25000,
+  // AP-0318: Aussengrenze der App (Feinkonzept §6b.5). Zeigt auf eine selbst gehostete
+  // Funktion, die den eigentlichen LLM-Schlüssel haelt (nie im Repo) und die vier Pfade
+  // /rezept-aus-text, /rezept-aus-bild, /rohstoff-recherche bedient. null/leer = kein Dienst
+  // konfiguriert, Service.verfuegbar() liefert dann false und alle zugehoerigen Knoepfe
+  // bleiben ausgeblendet — die App funktioniert vollstaendig ohne dieses Feld.
+  serviceUrl: null,
   // Aliase: reine Schreib-/Sprach-/Zubereitungsvarianten desselben Rohstoffs, ohne
   // Konkurrenz-SKU im Bestand (AP-0307/-0402/-0403). Generisch->spezifisch-Fälle
   // (z. B. «Zucker», «Milch», «Farina») bewusst NICHT hier — Entscheidungsliste
@@ -302,7 +312,13 @@ const Model = {
           iEinh=i("Standardeinheit"), iEinhG=i("Einheitsgrösse"),
           iKosten=i("Kosten/kg (CHF)"), iKcal=i("kcal/100g"), iEiweiss=i("Eiweiss g/100g"),
           iFett=i("Fett g/100g"), iKh=i("KH g/100g"), iSuess=i("Süsskraft"),
-          iFodmap=i("FODMAP"), iFodmapPortion=i("FODMAP sichere Portion (g)"), iGesperrt=i("Gesperrt");
+          iFodmap=i("FODMAP"), iFodmapPortion=i("FODMAP sichere Portion (g)"), iGesperrt=i("Gesperrt"),
+          // AP-0317 hat diese vier Spalten bereits angelegt («ohne Beleg kein Wert») — AP-0318
+          // liest sie erstmals aus, fuer die Preisalter-Markierung (FR-1305) und als Basis fuer
+          // die Vorbelegung im Recherche-Dialog. Fehlt eine Spalte (aeltere Dateien), bleibt der
+          // Wert schlicht null statt eines Ladefehlers.
+          iPreisQuelle=i("Preis Quelle"), iPreisStand=i("Preis Stand"),
+          iNaehrwertQuelle=i("Nährwert Quelle"), iNaehrwertStand=i("Nährwert Stand");
     const rohstoffe = [];
     for(let r = 1; r < aoa.length; r++){
       const row = aoa[r];
@@ -319,6 +335,10 @@ const Model = {
         fodmap: ["gruen","gelb","rot"].includes(fodmapRoh) ? fodmapRoh : null,
         fodmapPortionG: zahlOderNull(row[iFodmapPortion]),
         gesperrt: !!row[iGesperrt],
+        preisQuelle: iPreisQuelle > -1 ? (row[iPreisQuelle] || null) : null,
+        preisStand: iPreisStand > -1 ? (row[iPreisStand] || null) : null,
+        naehrwertQuelle: iNaehrwertQuelle > -1 ? (row[iNaehrwertQuelle] || null) : null,
+        naehrwertStand: iNaehrwertStand > -1 ? (row[iNaehrwertStand] || null) : null,
         _raw: { zeile: r, spalten: header, werte: row }
       });
     }
@@ -333,7 +353,11 @@ const Model = {
     const iId=i("Rezept-ID"), iName=i("Name"), iKat=i("Kategorie"), iUnterkat=i("Unterkategorie"),
           iBasisName=i("Basis-Rohstoff"), iBasisMenge=i("Basis-Menge (g)"), iSoll=i("Sollgewicht (g)"),
           iPortionen=i("Portionen"), iEinheit=i("Einheit"), iQuelle=i("Quelle"),
-          iPhasen=i("Phasen (JSON)"), iBackprot=i("Backprotokoll (JSON)");
+          iPhasen=i("Phasen (JSON)"), iBackprot=i("Backprotokoll (JSON)"),
+          // AP-0311/§1.1: eigene Spalte, separat von Phasen (JSON) (Audit-Empfehlung AP-0101,
+          // Zellenlimit). Fehlt die Spalte (aeltere Rezepte.xlsx-Stände) bleibt entwicklung
+          // schlicht null — Abwärtskompatibilität ist Abnahmekriterium 3 dieses AP.
+          iEntwicklung = i("Entwicklung (JSON)");
     const rezepte = [], fehlerhaft = [];
     for(let r = 1; r < aoa.length; r++){
       const row = aoa[r];
@@ -342,8 +366,10 @@ const Model = {
       try{
         const phasen = row[iPhasen] ? JSON.parse(row[iPhasen]) : [];
         const backprotokollRoh = row[iBackprot] ? JSON.parse(row[iBackprot]) : [];
+        const entwicklung = (iEntwicklung > -1 && row[iEntwicklung]) ? JSON.parse(row[iEntwicklung]) : null;
         if(!Array.isArray(phasen)) throw new Error("Phasen (JSON) ist kein Array");
         if(!Array.isArray(backprotokollRoh)) throw new Error("Backprotokoll (JSON) ist kein Array");
+        if(entwicklung != null && typeof entwicklung !== "object") throw new Error("Entwicklung (JSON) ist kein Objekt");
         // AP-0305: Zeile intern immer als {datum,sollG,istG,notizen} — toleriert das
         // Alt-/Platzhalterschema (soll_g/ist_g) und verwirft nicht ausgefuellte Platzhalter-
         // zeilen (Datum "YYYY-MM-DD", wie aktuell in allen 77 produktiven Zeilen vorhanden).
@@ -364,7 +390,7 @@ const Model = {
           basisMengeG: zahlOderNull(row[iBasisMenge]), sollgewichtG: zahlOderNull(row[iSoll]),
           portionen: zahlOderNull(row[iPortionen]), einheit: row[iEinheit] || null,
           quelle: row[iQuelle] || null,
-          phasen, backprotokoll, entwicklung: null,
+          phasen, backprotokoll, entwicklung,
           _raw: { zeile: r, spalten: header, werte: row }
         });
       }catch(e){
@@ -516,6 +542,59 @@ const Calc = {
     }
     if(unbewertet && (max == null || rang[max] < rang.gelb)) max = "gelb";
     return { ampel: max, unbewertet };
+  },
+
+  // AP-0318/FR-1305: Alter eines Preis-/Nährwert-Stands. AP-0317 schreibt das Datum als
+  // Schweizer Kurzformat "TT.MM.JJJJ" oder den Text "unbekannt" in die Spalte "… Stand".
+  // Weder ein fehlender Wert noch "unbekannt" lassen sich in Tage umrechnen — beides liefert
+  // null (heisst in der Anzeige "kein Datum", nicht "0 Tage alt").
+  parseDatumCH(s){
+    const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(s || "").trim());
+    if(!m) return null;
+    return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  },
+  preisAlterTage(standStr, heute){
+    const d = Calc.parseDatumCH(standStr);
+    if(!d) return null;
+    return Math.floor((heute - d) / 86400000);
+  },
+
+  // AP-0311/§3: die "aktive" Version eines Entwicklungsrezepts — entwicklung.aktivV, mit
+  // der zuletzt angelegten Version als Rueckfalllinie (z.B. bei einer von Hand in Excel
+  // veraenderten Datei ohne aktivV). Reine Lesefunktion, keine Mutation.
+  entwAktiveVersion(entwicklung){
+    if(!entwicklung || !Array.isArray(entwicklung.versionen) || !entwicklung.versionen.length) return null;
+    const treffer = entwicklung.versionen.find(v => v.v === entwicklung.aktivV);
+    return treffer || entwicklung.versionen[entwicklung.versionen.length - 1];
+  },
+
+  // AP-0311/§3 Versions-Diff: Zeilen = Zutat | vA-% | vB-% | Δ (Union aller Zutatennamen aus
+  // beiden Versionen, ueber alle Phasen geflacht — die Tabelle im Mockup unterscheidet nicht
+  // nach Phase), plus je Phase, ob sich die Schritte-Texte geaendert haben (Union der
+  // Phasennamen, damit eine in vB neue oder in vA entfernte Phase ebenfalls auftaucht).
+  entwDiff(vA, vB){
+    const flach = v => (v ? v.phasen || [] : []).flatMap(ph => ph.zutaten || []);
+    const proName = zutaten => {
+      const m = new Map();
+      zutaten.forEach(z => m.set(z.name, (m.get(z.name) || 0) + (z.prozent || 0)));
+      return m;
+    };
+    const mA = proName(flach(vA)), mB = proName(flach(vB));
+    const namen = [...new Set([...mA.keys(), ...mB.keys()])].sort((a,b) => a.localeCompare(b, "de"));
+    const zutaten = namen.map(name => {
+      const aPct = mA.has(name) ? mA.get(name) : null, bPct = mB.has(name) ? mB.get(name) : null;
+      return { name, aPct, bPct, delta: (aPct != null && bPct != null) ? bPct - aPct : null };
+    });
+
+    const schritteText = ph => (ph.schritte || []).map(s => s.text).join("\n");
+    const phasenA = new Map((vA ? vA.phasen || [] : []).map(ph => [ph.name, schritteText(ph)]));
+    const phasenB = new Map((vB ? vB.phasen || [] : []).map(ph => [ph.name, schritteText(ph)]));
+    const phasenNamen = [...new Set([...phasenA.keys(), ...phasenB.keys()])];
+    const schritte = phasenNamen.map(name => ({
+      phase: name, geaendert: (phasenA.get(name) || "") !== (phasenB.get(name) || "")
+    }));
+
+    return { zutaten, schritte };
   }
 };
 
@@ -708,6 +787,37 @@ const Data = {
   }
 };
 
+/* ---------- Service: Aussengrenze für LLM-Import + Rohstoff-Recherche (AP-0318) -----------
+   Feinkonzept §6b.5 — genau diese vier Funktionen, dahinter beliebiger Dienst (eigene
+   Funktion / fertiger Anbieter / lokales Modell). Ohne CONFIG.serviceUrl ist verfuegbar()
+   false; jede aufrufende Stelle in View blendet ihre Knoepfe dann komplett aus statt einen
+   toten Button zu zeigen (Abnahmekriterium 1). Der Dienst selbst (Server, Schluessel) liegt
+   ausserhalb dieses Repos — Entscheid O-7: fertiger Anbieter hinter einer selbst gehosteten
+   Azure Function, die den Schluessel haelt. Siehe README.md fuer die Einrichtung. */
+const Service = {
+  verfuegbar(){ return !!(CONFIG.serviceUrl && String(CONFIG.serviceUrl).trim()); },
+
+  async _aufruf(pfad, body){
+    if(!Service.verfuegbar()) throw new Error("Kein Dienst konfiguriert (CONFIG.serviceUrl fehlt)");
+    const url = String(CONFIG.serviceUrl).replace(/\/$/, "") + pfad;
+    const res = await fetch(url, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    });
+    if(!res.ok) throw new Error("Dienst antwortete mit " + res.status + " auf " + pfad);
+    return res.json();
+  },
+
+  // -> { format:"rezept/1", rezepte:[…] } — laeuft wie jede andere Quelle durch Import.pruefen()
+  // und den Vorschau-Dialog, bevor irgendetwas uebernommen wird (FR-1210: nie ungeprueft).
+  rezeptAusText(text){ return Service._aufruf("/rezept-aus-text", { text }); },
+  rezeptAusBild(dataUrl){ return Service._aufruf("/rezept-aus-bild", { bild: dataUrl }); },
+
+  // -> [{ name, kostenProKg, quelle, stand, naehrwerte:{kcal,eiweiss,fett,kh}, gefunden }, …]
+  // Roher Vorschlag, kein Schreibzugriff — App.rechercheUebernehmen() schreibt erst nach
+  // Freigabe je Zeile, gleiches Prinzip wie AP-0317 ("ohne Beleg kein Wert").
+  rohstoffRecherche(namen){ return Service._aufruf("/rohstoff-recherche", { namen }); }
+};
+
 // Lädt beide Arbeitsmappen parallel und parst sie ins interne Modell (Model.parse…).
 // Haelt die Workbook-Objekte selbst im Rueckgabewert (Store.*Workbook, AP-0315): Import.anhaengen()
 // und Import.aliasAnhaengen() mutieren gezielt Zellen/Zeilen desselben Objekts weiter, statt es aus
@@ -744,6 +854,45 @@ const Import = {
     catch(e){ return { ok:false, fehler:[{ pfad:"(Datei)", meldung:"ungültiges JSON — " + e.message }] }; }
   },
 
+  // Phasen-Validierung als eigene Funktion, geteilt zwischen der vollen rezept/1-Pruefung
+  // (Import.pruefen, unten) und der Versions-Bearbeitung im Entwicklungsmodus
+  // (App.versionSpeichern, AP-0311/§3) — dort wird nur eine einzelne phasen-Liste eingegeben,
+  // kein ganzes Rezept. praefix ist der Pfad-Anfang in den gemeldeten Fehlern, z.B.
+  // "rezepte[0].phasen" bzw. schlicht "phasen" fuer die Versions-Bearbeitung.
+  phasenFehler(phasen, praefix){
+    praefix = praefix || "phasen";
+    const fehler = [];
+    const err = (pfad, meldung) => fehler.push({ pfad, meldung });
+    const text = (pfad, wert) => { if(typeof wert !== "string" || !wert.trim()) err(pfad, "fehlt oder leer"); };
+    const zahlPos = (pfad, wert) => { if(typeof wert !== "number" || !isFinite(wert) || wert <= 0) err(pfad, "fehlt oder keine Zahl > 0"); };
+    const zahl = (pfad, wert) => { if(typeof wert !== "number" || !isFinite(wert)) err(pfad, "fehlt oder keine Zahl"); };
+    if(!Array.isArray(phasen) || !phasen.length){
+      err(praefix, "fehlt, leer oder kein Array — mindestens 1 Phase nötig");
+      return fehler;
+    }
+    phasen.forEach((ph, pi) => {
+      const pp = `${praefix}[${pi}]`;
+      if(ph == null || typeof ph !== "object"){ err(pp, "kein Objekt"); return; }
+      text(`${pp}.name`, ph.name);
+      if(!Array.isArray(ph.zutaten)) err(`${pp}.zutaten`, "kein Array");
+      else ph.zutaten.forEach((z, zi) => {
+        const zp = `${pp}.zutaten[${zi}]`;
+        if(z == null || typeof z !== "object"){ err(zp, "kein Objekt"); return; }
+        text(`${zp}.name`, z.name);
+        zahlPos(`${zp}.prozent`, z.prozent);
+        if(!Import.EINHEITEN.includes(z.einheit)) err(`${zp}.einheit`, `nicht in [${Import.EINHEITEN.join(", ")}]`);
+      });
+      if(!Array.isArray(ph.schritte)) err(`${pp}.schritte`, "kein Array");
+      else ph.schritte.forEach((s, si) => {
+        const sp = `${pp}.schritte[${si}]`;
+        if(s == null || typeof s !== "object"){ err(sp, "kein Objekt"); return; }
+        zahl(`${sp}.nr`, s.nr);
+        text(`${sp}.text`, s.text);
+      });
+    });
+    return fehler;
+  },
+
   // Schema-Pruefung gegen rezept/1 (FORMAT.md). Sammelt ALLE Fehler in einem Durchgang statt
   // beim ersten abzubrechen, damit eine fehlerhafte Datei auf einmal korrigierbar ist. Jeder
   // Fehler nennt Feld UND Position (Array-Index im pfad, z.B. rezepte[0].phasen[1].zutaten[2]).
@@ -755,7 +904,6 @@ const Import = {
     const err = (pfad, meldung) => fehler.push({ pfad, meldung });
     const text = (pfad, wert) => { if(typeof wert !== "string" || !wert.trim()) err(pfad, "fehlt oder leer"); };
     const zahlPos = (pfad, wert) => { if(typeof wert !== "number" || !isFinite(wert) || wert <= 0) err(pfad, "fehlt oder keine Zahl > 0"); };
-    const zahl = (pfad, wert) => { if(typeof wert !== "number" || !isFinite(wert)) err(pfad, "fehlt oder keine Zahl"); };
 
     if(daten.format !== "rezept/1") err("format", `erwartet "rezept/1", gefunden ${JSON.stringify(daten.format)}`);
     if(!Array.isArray(daten.rezepte) || !daten.rezepte.length) err("rezepte", "fehlt, leer oder kein Array — mindestens 1 Rezept nötig");
@@ -771,30 +919,7 @@ const Import = {
       zahlPos(`${p}.portionen`, rz.portionen);
       text(`${p}.einheit`, rz.einheit);
 
-      if(!Array.isArray(rz.phasen) || !rz.phasen.length){
-        err(`${p}.phasen`, "fehlt, leer oder kein Array — mindestens 1 Phase nötig");
-      }else{
-        rz.phasen.forEach((ph, pi) => {
-          const pp = `${p}.phasen[${pi}]`;
-          if(ph == null || typeof ph !== "object"){ err(pp, "kein Objekt"); return; }
-          text(`${pp}.name`, ph.name);
-          if(!Array.isArray(ph.zutaten)) err(`${pp}.zutaten`, "kein Array");
-          else ph.zutaten.forEach((z, zi) => {
-            const zp = `${pp}.zutaten[${zi}]`;
-            if(z == null || typeof z !== "object"){ err(zp, "kein Objekt"); return; }
-            text(`${zp}.name`, z.name);
-            zahlPos(`${zp}.prozent`, z.prozent);
-            if(!Import.EINHEITEN.includes(z.einheit)) err(`${zp}.einheit`, `nicht in [${Import.EINHEITEN.join(", ")}]`);
-          });
-          if(!Array.isArray(ph.schritte)) err(`${pp}.schritte`, "kein Array");
-          else ph.schritte.forEach((s, si) => {
-            const sp = `${pp}.schritte[${si}]`;
-            if(s == null || typeof s !== "object"){ err(sp, "kein Objekt"); return; }
-            zahl(`${sp}.nr`, s.nr);
-            text(`${sp}.text`, s.text);
-          });
-        });
-      }
+      fehler.push(...Import.phasenFehler(rz.phasen, `${p}.phasen`));
 
       if(rz.backprotokoll != null){
         if(!Array.isArray(rz.backprotokoll)) err(`${p}.backprotokoll`, "kein Array");
@@ -809,6 +934,18 @@ const Import = {
     });
 
     return { ok: fehler.length === 0, fehler };
+  },
+
+  // Entfernt Laufzeitfelder aus einer phasen-Liste (nameKey/rohstoff je Zutat gibt es hier
+  // gar nicht erst, aber ueberzaehlige Felder aus einer Entwicklungsversion schon) — geteilt
+  // zwischen rezeptZeile()/alsExport() (Feinkonzept §3.2) und der Versions-Speicherung im
+  // Entwicklungsmodus (App.versionSpeichern, AP-0311/§3), die dieselbe Form braucht.
+  phasenExport(phasen){
+    return phasen.map(ph => ({
+      name: ph.name,
+      zutaten: (ph.zutaten || []).map(z => ({ name: z.name, prozent: z.prozent, einheit: z.einheit })),
+      schritte: (ph.schritte || []).map(s => ({ nr: s.nr, text: s.text }))
+    }));
   },
 
   // Wandelt ein rezept/1-Rezept ins interne Modell (Feinkonzept §3) mit Defaults fuer optionale
@@ -867,11 +1004,7 @@ const Import = {
       name: rz.name, kategorie: rz.kategorie, unterkategorie: rz.unterkategorie,
       quelle: rz.quelle, basisName: rz.basisName, basisMengeG: rz.basisMengeG,
       sollgewichtG: rz.sollgewichtG, portionen: rz.portionen, einheit: rz.einheit,
-      phasen: rz.phasen.map(ph => ({
-        name: ph.name,
-        zutaten: ph.zutaten.map(z => ({ name: z.name, prozent: z.prozent, einheit: z.einheit })),
-        schritte: ph.schritte.map(s => ({ nr: s.nr, text: s.text }))
-      })),
+      phasen: Import.phasenExport(rz.phasen),
       backprotokoll: (rz.backprotokoll || []).map(e => ({ datum: e.datum, sollG: e.sollG, istG: e.istG, notizen: e.notizen != null ? e.notizen : null })),
       entwicklung: rz.entwicklung || null
     };
@@ -933,12 +1066,11 @@ const Import = {
     setz("Portionen", rz.portionen);
     setz("Einheit", rz.einheit);
     setz("Quelle", rz.quelle);
-    setz("Phasen (JSON)", JSON.stringify(rz.phasen.map(ph => ({
-      name: ph.name,
-      zutaten: ph.zutaten.map(z => ({ name: z.name, prozent: z.prozent, einheit: z.einheit })),
-      schritte: ph.schritte
-    }))));
+    setz("Phasen (JSON)", JSON.stringify(Import.phasenExport(rz.phasen)));
     setz("Backprotokoll (JSON)", JSON.stringify(rz.backprotokoll || []));
+    // AP-0311: nur schreiben, wenn tatsaechlich etwas da ist — setz() selbst ist bereits ein
+    // No-op, falls die Spalte in dieser Datei (noch) fehlt.
+    setz("Entwicklung (JSON)", rz.entwicklung ? JSON.stringify(rz.entwicklung) : null);
     return row;
   },
 
@@ -977,6 +1109,204 @@ const Import = {
 
   alsArrayBuffer(workbook){
     return XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+  },
+
+  /* ---------- Excel-Altdatei-Erkenner (AP-0316) --------------------------------------
+     Erkenner, kein Rater (Feinkonzept §6b.4): liest ein Blatt einer Bestandsdatei nach dem
+     in AP-0101 erhobenen Muster (Kopfzeile "Sollgewicht", %-Spalte, Teigphasen-Spalten) und
+     liefert ein rezept/1-Rezept ODER — wenn das Muster nicht passt — nichts. Nichts wird
+     geschaetzt: was nicht sicher zuordenbar ist, bleibt im Protokoll (nicht_zugeordnet) und
+     fehlt im Rezept, sodass Import.pruefen() es beim Uebernehmen sichtbar einfordert statt
+     es stillschweigend mit einem falschen Wert zu fuellen (Abnahmekriterium AP-0316).
+     Reine Datenfunktion (aoa = Array-of-Arrays wie XLSX.utils.sheet_to_json({header:1})) —
+     ohne DOM/XLSX-Abhaengigkeit, damit sie ausserhalb des Browsers testbar bleibt. */
+  excelBlattErkennen(blattname, aoa, kontext){
+    kontext = kontext || {};
+    const protokoll = { blatt: blattname, status: null, uebernommen: [], geraten: [], nicht_zugeordnet: [] };
+    const zeile = (i) => aoa[i] || [];
+    const istLeer = (v) => v === null || v === undefined || v === "";
+    const istZahl = (v) => typeof v === "number" && isFinite(v);
+    const merkeUebernommen = (z, feld, wert) => protokoll.uebernommen.push({ zeile: z, feld, wert: String(wert) });
+    const merkeOffen = (z, grund) => protokoll.nicht_zugeordnet.push({ zeile: z, grund });
+
+    // 1. Kopfzeile (Excel-Zeile 1): "Sollgewicht" in A1 ist der verlaessliche Anker dieses Musters.
+    const kopf = zeile(0);
+    if(!(typeof kopf[0] === "string" && kopf[0].trim().toLowerCase() === "sollgewicht")){
+      protokoll.status = "kopf_nicht_erkannt";
+      merkeOffen(1, "kein Label \"Sollgewicht\" in Zelle A1 — Blatt entspricht nicht dem erkannten Grundmuster, keine automatische Uebernahme");
+      return { rezept: null, protokoll };
+    }
+    const portionen = istZahl(kopf[1]) ? kopf[1] : null;
+    let sollgewichtG = null;
+    for(let c = kopf.length - 1; c >= 2; c--){ if(istZahl(kopf[c])){ sollgewichtG = kopf[c]; break; } }
+    portionen != null ? merkeUebernommen(1, "portionen", portionen) : merkeOffen(1, "Portionenzahl (Zelle B1) fehlt oder keine Zahl");
+    sollgewichtG != null ? merkeUebernommen(1, "sollgewichtG", sollgewichtG) : merkeOffen(1, "Sollgewicht gesamt in der Kopfzeile nicht gefunden");
+
+    // 2. Spaltenkoepfe: die %-Kopfzeile folgt meist direkt auf Zeile 1, manchmal liegt eine
+    //    Leerzeile dazwischen (reale Datei St. Galler Bürli) — deshalb gesucht statt angenommen,
+    //    begrenzt auf ein kleines Fenster, damit eine ganz andere Struktur nicht "gefunden" wird.
+    let headerZeile = -1;
+    for(let r = 1; r < Math.min(aoa.length, 6); r++){
+      if(zeile(r).some(v => typeof v === "string" && v.trim() === "%")){ headerZeile = r; break; }
+    }
+    if(headerZeile === -1){
+      protokoll.status = "prozentkopf_nicht_gefunden";
+      merkeOffen(2, "keine Kopfzeile mit \"%\"-Spalte in den ersten Zeilen nach der Sollgewicht-Zeile gefunden");
+      return { rezept: null, protokoll };
+    }
+    const header = zeile(headerZeile);
+    const phasenSpalten = [];
+    { let c = 4;
+      while(c < header.length && istLeer(header[c])) c++;
+      while(c < header.length && typeof header[c] === "string" && header[c].trim() && header[c].trim() !== "%"){
+        phasenSpalten.push({ index: c, name: header[c].trim() });
+        c++;
+      }
+    }
+
+    // 3. Zutatenzeilen direkt nach der Kopfzeile: Name in Spalte A + Prozentwert 0–300% in
+    //    Spalte B. Leerzeilen dazwischen werden uebersprungen, nicht als Tabellenende gewertet;
+    //    die erste NICHT leere Zeile, die trotzdem nicht passt (Summenzeile, Text), beendet die Tabelle.
+    const zutatenRoh = [];
+    let naechsteZeile = headerZeile + 1;
+    for(; naechsteZeile < aoa.length; naechsteZeile++){
+      const r = zeile(naechsteZeile);
+      if(r.every(istLeer)) continue;
+      const name = typeof r[0] === "string" ? r[0].trim() : "";
+      const prozent = r[1];
+      if(name && istZahl(prozent) && prozent > 0 && prozent < 3){
+        zutatenRoh.push({
+          zeileNr: naechsteZeile + 1, name, absMengeG: istZahl(r[2]) ? r[2] : null,
+          einheit: typeof r[3] === "string" && r[3].trim() ? r[3].trim().toLowerCase() : "g",
+          zellen: r
+        });
+      } else break;
+    }
+    if(!zutatenRoh.length){
+      protokoll.status = "keine_zutaten_erkannt";
+      merkeOffen(3, "keine Zutatenzeile erkannt (Spalte A Name + Spalte B Prozent zwischen 0 und 300%)");
+      return { rezept: null, protokoll };
+    }
+
+    // 4. Phasenspalten verifizieren: Werte darunter muessen ueberwiegend Gramm-Groessenordnung
+    //    (>= 1) haben — sonst ist es keine Mengenspalte, sondern z.B. eine zweite %-Spalte
+    //    (siehe Gelato-Beispiel, Spalte "Grundrezept": enthaelt Prozentwerte, keine Gramm).
+    const phasenGueltig = phasenSpalten.filter(ps => {
+      const werte = zutatenRoh.map(z => z.zellen[ps.index]).filter(istZahl);
+      if(!werte.length) return false;
+      return werte.filter(w => w >= 1).length >= werte.length / 2;
+    });
+
+    // 5. Basis-Rohstoff = schwerste Zutat (groesste absolute Menge). Strukturelle Regel, keine
+    //    Ernaehrungs-/Rezept-Annahme: liefert bei Backwaren meist das Mehl, bei Eis die Basisfluessigkeit.
+    const basis = zutatenRoh.reduce((max, z) => (z.absMengeG != null && (max == null || z.absMengeG > max.absMengeG)) ? z : max, null);
+    const basisMengeG = basis && basis.absMengeG != null ? basis.absMengeG : null;
+    if(basisMengeG == null){
+      protokoll.status = "basis_nicht_bestimmbar";
+      merkeOffen(basis ? basis.zeileNr : 3, "keine Zutat mit erkennbarer Menge in Gramm — Basis-Rohstoff und Baeckerprozent nicht berechenbar");
+      return { rezept: null, protokoll };
+    }
+    merkeUebernommen(basis.zeileNr, "basisName/basisMengeG", basis.name + " / " + basisMengeG + " g (schwerste Zutat)");
+
+    // 6. Phasen aus den Zutatenzeilen aufbauen.
+    const phasen = [];
+    if(phasenGueltig.length){
+      phasenGueltig.forEach(ps => {
+        const zutaten = [];
+        zutatenRoh.forEach(z => {
+          const wert = z.zellen[ps.index];
+          if(istZahl(wert) && wert > 0){
+            zutaten.push({ name: z.name, prozent: wert / basisMengeG, einheit: z.einheit });
+            merkeUebernommen(z.zeileNr, `Phase "${ps.name}"`, z.name + ": " + wert + " g");
+          }
+        });
+        if(zutaten.length) phasen.push({ name: ps.name, zutaten, schritte: [] });
+      });
+      zutatenRoh.forEach(z => {
+        const inPhase = phasenGueltig.some(ps => istZahl(z.zellen[ps.index]) && z.zellen[ps.index] > 0);
+        if(!inPhase) merkeOffen(z.zeileNr, `Zutat "${z.name}" keiner erkannten Phase zuordenbar`);
+      });
+    } else {
+      const zutaten = zutatenRoh.filter(z => z.absMengeG != null)
+        .map(z => ({ name: z.name, prozent: z.absMengeG / basisMengeG, einheit: z.einheit }));
+      zutatenRoh.forEach(z => { if(z.absMengeG == null) merkeOffen(z.zeileNr, `Zutat "${z.name}" hat keine erkennbare Menge in Gramm (Spalte C)`); });
+      if(zutaten.length) phasen.push({ name: "Zutaten", zutaten, schritte: [] });
+      merkeUebernommen(2, "Phasen", "keine Phasenspalten erkannt — eine generische Phase \"Zutaten\" angelegt");
+    }
+
+    // 7. Schritte/Ueberschriften unterhalb der Zutatentabelle: Zeilen mit genau einer gefuellten
+    //    Zelle in Spalte A. Eine kurze, ziffern- und punktfreie Zeile (<=40 Zeichen) ist eine
+    //    Ueberschrift; alles andere sind Schritte der zuletzt eroeffneten Phase (§6b.4 — bleibt
+    //    unsicher Zuordenbares stehen, wird nichts in eine Phase gezwungen, landet es im Protokoll).
+    const UEBERSCHRIFT_RE = /^[^\n\d.]{1,40}$/;
+    // Eine Textzeile "Hauptteig\n…" nach einer bereits aus den Phasenspalten erkannten Phase
+    // gleichen Namens (haeufig, siehe Bürli-Beispiel) erweitert dieselbe Phase um ihre Schritte,
+    // statt eine zweite gleichnamige Phase anzulegen.
+    const phaseHolen = (name) => {
+      let ph = phasen.find(p => p.name === name);
+      if(!ph){ ph = { name, zutaten: [], schritte: [] }; phasen.push(ph); }
+      return ph;
+    };
+    let aktuellePhase = null;
+    for(let r = naechsteZeile; r < aoa.length; r++){
+      const row = zeile(r);
+      const nichtleer = row.filter(v => !istLeer(v));
+      if(nichtleer.length !== 1 || typeof row[0] !== "string" || !row[0].trim()){
+        if(nichtleer.length) merkeOffen(r + 1, "Zeile unterhalb der Zutatentabelle nicht eindeutig als Ueberschrift oder Textblock erkannt");
+        continue;
+      }
+      const zeilen = row[0].trim().split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      if(zeilen.length > 1 && UEBERSCHRIFT_RE.test(zeilen[0])){
+        aktuellePhase = phaseHolen(zeilen[0]);
+        zeilen.slice(1).forEach(s => aktuellePhase.schritte.push({ nr: aktuellePhase.schritte.length + 1, text: s }));
+        merkeUebernommen(r + 1, "Phase + Schritte aus Text", zeilen[0] + " (" + (zeilen.length - 1) + " Schritt(e))");
+      }else if(zeilen.length === 1 && UEBERSCHRIFT_RE.test(zeilen[0])){
+        aktuellePhase = phaseHolen(zeilen[0]);
+        merkeUebernommen(r + 1, "Phasenueberschrift", zeilen[0]);
+      }else{
+        if(!aktuellePhase) aktuellePhase = phaseHolen("Zubereitung");
+        zeilen.forEach(s => aktuellePhase.schritte.push({ nr: aktuellePhase.schritte.length + 1, text: s }));
+        merkeUebernommen(r + 1, "Schritte", zeilen.length + " Zeile(n) zu Phase \"" + aktuellePhase.name + "\"");
+      }
+    }
+
+    // Ueberschriften-Phasen ohne Inhalt (z.B. "ANLEITUNG" als reiner Abschnittstitel) verwerfen.
+    const phasenBereinigt = phasen.filter(ph => ph.zutaten.length || ph.schritte.length);
+    if(!phasenBereinigt.length){
+      protokoll.status = "keine_verwertbaren_phasen";
+      return { rezept: null, protokoll };
+    }
+
+    const kategorie = kontext.kategorieHinweis || "";
+    if(kategorie) merkeUebernommen(0, "kategorie", kategorie + " (aus Ordnername)");
+    else merkeOffen(0, "Kategorie nicht bestimmbar (Datei liegt nicht in einem Kategorie-Ordner oder Ordner unbekannt)");
+
+    const rezept = {
+      name: blattname, kategorie, unterkategorie: null,
+      quelle: "Excel-Import: " + (kontext.dateipfad || "") + " / " + blattname,
+      basisName: basis.name, basisMengeG, sollgewichtG, portionen,
+      // Einheit ist keine Zutatsannahme, sondern eine System-Konvention (wie in allen Beispieldaten):
+      // ohne eigene %-Spalte fuer Stueckzahl-Einheiten gibt es dafuer kein sichereres Signal in der Datei.
+      einheit: "Stk",
+      phasen: phasenBereinigt, backprotokoll: [], entwicklung: null
+    };
+    protokoll.status = "erkannt";
+    return { rezept, protokoll };
+  },
+
+  // Wrapper fuer den Browser: liest alle Blaetter einer geladenen Arbeitsmappe und erkennt
+  // jedes einzeln. Blaetter ausserhalb des Musters (Rechner, Umrechnungsfaktoren, Protokoll, …)
+  // liefern schlicht kein Rezept und stehen mit Grund im Protokoll — keine Sonderbehandlung noetig.
+  excelDateiErkennen(workbook, dateipfad, kategorieHinweis){
+    const rezepte = [];
+    const protokolle = [];
+    workbook.SheetNames.forEach(blattname => {
+      const aoa = XLSX.utils.sheet_to_json(workbook.Sheets[blattname], { header: 1, raw: true, defval: null });
+      const { rezept, protokoll } = Import.excelBlattErkennen(blattname, aoa, { dateipfad, kategorieHinweis });
+      protokolle.push(protokoll);
+      if(rezept) rezepte.push(rezept);
+    });
+    return { format: "rezept/1", rezepte, protokolle, dateipfad };
   }
 };
 
@@ -1065,10 +1395,20 @@ const Store = {
   // AP-0305: eTag von Rezepte.xlsx im Moment des letzten Ladens/Schreibens — Basis fuer die
   // Konflikterkennung vor jedem Schreiben (kein If-Match auf der Workbook-API, siehe Data.updateCell).
   rezepteETag:null,
+  // AP-0318: gleiches Prinzip fuer Rohstoffe.xlsx — Basis fuer die Konflikterkennung vor
+  // jedem Schreiben aus dem Recherche-Dialog (App.rechercheUebernehmen()).
+  rohstoffeETag:null,
   // AP-0305: Zustand des Backprotokoll-Eingabeformulars, null = geschlossen (App.backEintragOeffnen()).
   backEintrag:null,
   // AP-0315: Zustand des Import-Dialogs, ein Objekt pro Durchlauf (App.importOeffnen()).
-  import:null
+  import:null,
+  // AP-0318: Zustand des Recherche-Dialogs ("Preise aktualisieren"), ein Objekt pro Durchlauf
+  // (App.rechercheOeffnen()); null = Dialog geschlossen.
+  recherche:null,
+  // AP-0311: Zustand des jeweils einen offenen Formulars im Entwicklungsmodus-Block — nur eins
+  // gleichzeitig, gleiches Prinzip wie Store.backEintrag/Store.import. art unterscheidet
+  // "version" (neu/bearbeiten), "versuch", "diff" und "befoerdern"; null = kein Formular offen.
+  devForm:null
 };
 
 /* ---------- View -------------------------------------------------------- */
@@ -1135,6 +1475,196 @@ const View = {
       <td class="menge">${menge}</td></tr>`;
   },
 
+  /* ---------- Entwicklungsmodus (AP-0311/§3) -------------------------------
+     rz.entwicklung == null -> nur der Anstoss-Button (Abnahmekriterium 3: unveraendertes
+     Verhalten ohne das Feld). Store.devForm haelt das jeweils eine offene Formular
+     (Versions-Bearbeitung/-Neuanlage, Diff, Befoerdern-Bestaetigung, Versuchseintrag) —
+     gleiches Prinzip wie Store.backEintrag. */
+  entwKarte(rz){
+    const e = rz.entwicklung;
+    if(!e){
+      return `<section class="card">
+        <h2>Entwicklung</h2>
+        <div class="body">
+          <div class="hint">Kein Entwicklungsverlauf — dieses Rezept läuft als produktive Rezeptur.</div>
+          <div class="actions noprint" style="margin-top:.6rem">
+            <button class="ghost" id="btnEntwStarten">Entwicklungsmodus starten</button>
+          </div>
+        </div>
+      </section>`;
+    }
+
+    const df = Store.devForm;
+    const sortiert = (e.versionen || []).slice().sort((a,b) => a.v - b.v);
+    const aktiv = Calc.entwAktiveVersion(e);
+
+    const versionenHtml = sortiert.map(v => `
+      <div class="zuordnungzeile">
+        <span class="nm">v${v.v}${aktiv && v.v === aktiv.v ? " ●" : ""} · ${esc(v.datum)}</span>
+        <span class="hint" style="display:inline;flex:1;margin:0">${esc(v.notiz || "")}</span>
+        <div class="actions noprint" style="flex:none">
+          ${!(aktiv && v.v === aktiv.v) ? `<button class="ghost" data-entw-aktiv="${v.v}">Aktiv setzen</button>` : ""}
+          <button class="ghost" data-entw-bearbeiten="${v.v}">Bearbeiten</button>
+        </div>
+      </div>`).join("") || '<div class="hint">Noch keine Version.</div>';
+
+    let versionForm = "";
+    if(df && df.art === "version"){
+      versionForm = `
+        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
+          <div class="hint">${df.modus === "neu"
+            ? "Neue Version v" + df.v + " — Kopie der aktiven Version, danach frei editierbar."
+            : "v" + df.v + " bearbeiten."}</div>
+          <label style="display:block;margin-top:.5rem;font-size:.85rem;color:var(--muted)">Notiz
+            <input id="devNotiz" type="text" style="width:100%;margin-top:.25rem" value="${esc(df.notiz)}"
+              placeholder="Was hat sich geändert?"></label>
+          <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">Phasen (JSON) dieser Version
+            <textarea id="devPhasenText" class="importtext" style="margin-top:.25rem">${esc(df.phasenText)}</textarea></label>
+          <div class="actions noprint" style="margin-top:.7rem">
+            <button id="btnEntwVersionSpeichern">Version speichern</button>
+            <button class="ghost" id="btnEntwFormAbbrechen">Abbrechen</button>
+          </div>
+        </div>`;
+    }
+
+    let diffForm = "";
+    if(df && df.art === "diff"){
+      const vA = e.versionen.find(v => v.v === df.a), vB = e.versionen.find(v => v.v === df.b);
+      const diff = Calc.entwDiff(vA, vB);
+      const opt = (sel) => sortiert.map(v => `<option value="${v.v}"${v.v===sel?" selected":""}>v${v.v} (${esc(v.datum)})</option>`).join("");
+      diffForm = `
+        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
+          <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
+            <label>Version A<select id="diffA">${opt(df.a)}</select></label>
+            <label>Version B<select id="diffB">${opt(df.b)}</select></label>
+          </div>
+          <table class="log" style="margin-top:.7rem">
+            <tr><th>Zutat</th><th class="num">v${df.a}</th><th class="num">v${df.b}</th><th class="num">Δ</th></tr>
+            ${diff.zutaten.map(z => `<tr${z.delta != null && Math.abs(z.delta) > 0.0001 ? ' style="font-weight:600"' : ""}>
+              <td>${esc(z.name)}</td><td class="num">${z.aPct==null?"—":pct(z.aPct,1)}</td>
+              <td class="num">${z.bPct==null?"—":pct(z.bPct,1)}</td>
+              <td class="num">${z.delta==null?"—":(z.delta>=0?"+":"")+pct(z.delta,1)}</td></tr>`).join("")}
+          </table>
+          <div class="hint">Schritte geändert: ${diff.schritte.filter(s=>s.geaendert).length
+            ? esc(diff.schritte.filter(s=>s.geaendert).map(s=>s.phase).join(", "))
+            : "keine"}</div>
+          <div class="actions noprint" style="margin-top:.7rem">
+            <button class="ghost" id="btnEntwFormAbbrechen">Schliessen</button>
+          </div>
+        </div>`;
+    }
+
+    let befoerdernForm = "";
+    if(df && df.art === "befoerdern"){
+      befoerdernForm = `
+        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
+          <div class="msg warn"><b>v${df.v} wird produktive Rezeptur.</b> Bisherige Rezeptur bleibt als Version erhalten.</div>
+          <div class="actions noprint" style="margin-top:.6rem">
+            <button id="btnEntwBefoerdernBestaetigt">Bestätigen</button>
+            <button class="ghost" id="btnEntwFormAbbrechen">Abbrechen</button>
+          </div>
+        </div>`;
+    }
+
+    const versuche = (e.versuche || []).slice().sort((a,b) => (a.datum||"").localeCompare(b.datum||""));
+    const versucheHtml = versuche.length ? `
+      <table class="log">
+        <tr><th>Datum</th><th>Version</th><th class="num">Soll</th><th class="num">Ist</th><th>Bewertung</th><th>Erkenntnis</th></tr>
+        ${versuche.map(v => `<tr>
+          <td>${esc(v.datum)}</td><td>v${v.version}</td>
+          <td class="num">${v.soll_g} g</td><td class="num">${v.ist_g} g</td>
+          <td>${"★".repeat(v.bewertung)}${"☆".repeat(5-v.bewertung)}</td>
+          <td>${esc(v.erkenntnis||"")}</td></tr>`).join("")}
+      </table>` : '<div class="hint">Noch kein Versuch erfasst.</div>';
+
+    let versuchForm = "";
+    if(df && df.art === "versuch"){
+      versuchForm = `
+        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
+          <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
+            <label>Datum<input id="devDatum" type="date" value="${esc(df.datum)}"></label>
+            <label>Version<select id="devVersion">${sortiert.map(v=>`<option value="${v.v}"${v.v===df.version?" selected":""}>v${v.v}</option>`).join("")}</select></label>
+            <label>Soll (g)<input id="devSoll" type="number" min="1" step="1" value="${esc(df.soll)}"></label>
+            <label>Ist (g)<input id="devIst" type="number" min="1" step="1" value="${esc(df.ist)}"></label>
+            <label>Bewertung<select id="devBewertung">${[1,2,3,4,5].map(n=>`<option value="${n}"${n===df.bewertung?" selected":""}>${n} — ${"★".repeat(n)}${"☆".repeat(5-n)}</option>`).join("")}</select></label>
+          </div>
+          <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">Erkenntnis
+            <input id="devErkenntnis" type="text" style="width:100%;margin-top:.25rem" value="${esc(df.erkenntnis)}"
+              placeholder="z. B. Krume offener, Kruste zu blass"></label>
+          <div class="actions noprint" style="margin-top:.7rem">
+            <button id="btnEntwVersuchSpeichern">Versuch speichern</button>
+            <button class="ghost" id="btnEntwFormAbbrechen">Abbrechen</button>
+          </div>
+        </div>`;
+    }
+
+    return `<section class="card">
+      <h2>Entwicklung</h2>
+      <div class="body">
+        <div class="hint">Status: <b>${e.status === "produktiv" ? "produktiv, Verlauf erhalten" : "in Entwicklung"}</b></div>
+        ${versionenHtml}
+        <div class="actions noprint" style="margin-top:.7rem">
+          <button class="ghost" id="btnEntwVersionNeu">+ Neue Version</button>
+          ${sortiert.length >= 2 ? `<button class="ghost" id="btnEntwDiff">Vergleichen</button>` : ""}
+          ${aktiv ? `<button class="ghost" id="btnEntwBefoerdern">Version befördern</button>` : ""}
+        </div>
+        ${versionForm}${diffForm}${befoerdernForm}
+        <h3 style="margin:1.1rem 0 .4rem;font-size:.95rem">Versuche</h3>
+        ${versucheHtml}
+        <div class="actions noprint" style="margin-top:.7rem">
+          <button class="ghost" id="btnEntwVersuchNeu">+ Neuer Versuch</button>
+        </div>
+        ${versuchForm}
+      </div>
+    </section>`;
+  },
+
+  entwEreignisse(rz){
+    el("#btnEntwStarten") && el("#btnEntwStarten").addEventListener("click", () => App.entwStarten());
+    if(!rz.entwicklung) return;
+    document.querySelectorAll("[data-entw-aktiv]").forEach(b =>
+      b.addEventListener("click", () => App.entwAktivSetzen(Number(b.dataset.entwAktiv))));
+    document.querySelectorAll("[data-entw-bearbeiten]").forEach(b =>
+      b.addEventListener("click", () => App.entwVersionBearbeitenOeffnen(Number(b.dataset.entwBearbeiten))));
+    el("#btnEntwVersionNeu") && el("#btnEntwVersionNeu").addEventListener("click", () => App.entwVersionNeuOeffnen());
+    el("#btnEntwDiff") && el("#btnEntwDiff").addEventListener("click", () => App.entwDiffOeffnen());
+    el("#btnEntwBefoerdern") && el("#btnEntwBefoerdern").addEventListener("click", () => App.entwBefoerdernOeffnen());
+    el("#btnEntwVersuchNeu") && el("#btnEntwVersuchNeu").addEventListener("click", () => App.entwVersuchOeffnen());
+    el("#btnEntwFormAbbrechen") && el("#btnEntwFormAbbrechen").addEventListener("click", () => App.entwFormAbbrechen());
+
+    const df = Store.devForm;
+    if(df && df.art === "version"){
+      el("#devNotiz").addEventListener("input", e => { df.notiz = e.target.value; });
+      el("#devPhasenText").addEventListener("input", e => { df.phasenText = e.target.value; });
+      el("#btnEntwVersionSpeichern").addEventListener("click", (e) => {
+        const btn = e.currentTarget; btn.disabled = true;
+        App.entwVersionSpeichern().finally(() => { if(btn) btn.disabled = false; });
+      });
+    }
+    if(df && df.art === "diff"){
+      el("#diffA").addEventListener("change", e => App.entwDiffAendern("a", e.target.value));
+      el("#diffB").addEventListener("change", e => App.entwDiffAendern("b", e.target.value));
+    }
+    if(df && df.art === "befoerdern"){
+      el("#btnEntwBefoerdernBestaetigt").addEventListener("click", (e) => {
+        const btn = e.currentTarget; btn.disabled = true;
+        App.entwBefoerdernBestaetigt().finally(() => { if(btn) btn.disabled = false; });
+      });
+    }
+    if(df && df.art === "versuch"){
+      el("#devDatum").addEventListener("input", e => { df.datum = e.target.value; });
+      el("#devVersion").addEventListener("change", e => { df.version = Number(e.target.value); });
+      el("#devSoll").addEventListener("input", e => { df.soll = e.target.value; });
+      el("#devIst").addEventListener("input", e => { df.ist = e.target.value; });
+      el("#devBewertung").addEventListener("change", e => { df.bewertung = Number(e.target.value); });
+      el("#devErkenntnis").addEventListener("input", e => { df.erkenntnis = e.target.value; });
+      el("#btnEntwVersuchSpeichern").addEventListener("click", (e) => {
+        const btn = e.currentTarget; btn.disabled = true;
+        App.entwVersuchSpeichern().finally(() => { if(btn) btn.disabled = false; });
+      });
+    }
+  },
+
   rezept(){
     const rz = Store.aktuellesRezept, f = Store.faktor;
     if(!rz){ el("#rezeptbereich").innerHTML = ""; return; }
@@ -1168,12 +1698,27 @@ const View = {
     const fehlendHinweis = (arr, was) => arr.length
       ? `<div class="hint">${arr.length} Zutat(en) ohne ${was} — Summe unvollständig: ${esc([...new Set(arr)].join(", "))}</div>` : "";
 
+    // AP-0318/FR-1305: Preisalter je Rohstoff dieses Rezepts sichtbar machen — "unbekannt"
+    // zaehlt wie "zu alt", nicht wie "aktuell" (§ Regel "ohne Beleg kein Wert", AP-0317).
+    const heute = new Date();
+    const preisalterListe = [...new Map(Calc.zutatenFlach(rz)
+      .filter(z => z.rohstoff)
+      .map(z => [z.rohstoff.id, z.rohstoff])).values()]
+      .map(r => ({ name: r.name, tage: Calc.preisAlterTage(r.preisStand, heute) }))
+      .filter(e => e.tage == null || e.tage > 365);
+    const preisalterHinweis = preisalterListe.length
+      ? `<div class="hint"><span class="warn-inline" style="margin-left:0">${preisalterListe.length} Rohstoff(e) mit Preis älter als 12 Monate oder ohne Datum:</span> `
+        + esc(preisalterListe.map(e => e.name + " (" + (e.tage == null ? "unbekannt" : e.tage + " Tage") + ")").join(", ")) + "</div>"
+      : "";
+    const rechercheButton = Service.verfuegbar()
+      ? `<div class="actions noprint" style="margin-top:.6rem"><button class="ghost" id="btnRecherche">Preise aktualisieren</button></div>` : "";
+
     // AP-0305: Eingabeformular fuer einen neuen Backprotokoll-Eintrag. Store.backEintrag
     // haelt den Formularzustand (App.backEintragOeffnen()); null = Formular geschlossen,
     // dann nur der Anstoss-Button.
     const be = Store.backEintrag;
     const backForm = be ? `
-      <div style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
+      <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
         <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
           <label>Datum<input id="beDatum" type="date" value="${esc(be.datum)}"></label>
           <label>Soll (g)<input id="beSoll" type="number" min="1" step="1" value="${esc(be.soll)}"></label>
@@ -1241,6 +1786,8 @@ const View = {
           ${fehlendHinweis(k.fehlend, "Preis")}
           ${schwund==null ? '<div class="hint">Noch kein Backprotokoll — Schwund als 0 % angenommen.</div>' : ""}
           <div class="hint">Gesamt = Rohstoffkosten ÷ (1 − Schwund)</div>
+          ${preisalterHinweis}
+          ${rechercheButton}
         </div>
       </section>
 
@@ -1251,6 +1798,8 @@ const View = {
           ${backForm}
         </div>
       </section>
+
+      ${View.entwKarte(rz)}
 
       <div class="actions noprint">
         <button class="ghost" id="btnExport">Exportieren</button>
@@ -1269,9 +1818,18 @@ const View = {
     el("#zielPortionen").addEventListener("input", e => {
       const v = Number(e.target.value); if(v > 0) App.skalieren(Calc.faktorAusPortionen(v, rz)); });
     el("#btnReset").addEventListener("click", () => App.skalieren(1));
-    el("#btnDruck").addEventListener("click", () => window.print());
+    // AP-0306: alle Phasen vor dem Druckdialog aufklappen (details.phase[open], nicht nur
+    // die CSS-Regel unten) — moderne Browser rendern den Inhalt eines geschlossenen <details>
+    // per content-visibility, das eine reine display:block-Regel auf .phasebody NICHT
+    // uebersteuert. Store.offenePhasen bleibt dabei unveraendert; afterprint (App.start())
+    // baut die Ansicht daraus neu auf und stellt den Bildschirm-Zustand wieder her.
+    el("#btnDruck").addEventListener("click", () => {
+      document.querySelectorAll("details.phase").forEach(d => { d.open = true; });
+      window.print();
+    });
     el("#btnZurueck").addEventListener("click", () => App.schliessen());
     el("#btnExport").addEventListener("click", () => App.exportEinzeln());
+    el("#btnRecherche") && el("#btnRecherche").addEventListener("click", () => App.rechercheOeffnen());
     // AP-0305: Backprotokoll-Formular — je nach Zustand entweder Anstoss-Button oder Felder+Speichern.
     if(be){
       el("#beDatum").addEventListener("input", e => { be.datum = e.target.value; });
@@ -1286,6 +1844,7 @@ const View = {
     }else{
       el("#btnEintrag").addEventListener("click", () => App.backEintragOeffnen());
     }
+    View.entwEreignisse(rz);
   },
 
   /* ---------- Import-Dialog (AP-0315) ------------------------------------
@@ -1300,16 +1859,27 @@ const View = {
       <section class="card" id="importKarte">
         <h2>Rezept importieren</h2>
         <div class="body">
-          <div class="hint">Datei wählen (.json, Format <code>rezept/1</code>) oder Text einfügen.
-            Freitext lässt sich mit «Freitext umwandeln» in ein Gerüst überführen — Baeckerprozente
-            fehlen danach meist und müssen von Hand ergänzt werden, bevor die Prüfung durchläuft.</div>
-          <input type="file" id="importDatei" accept=".json,application/json" style="margin:.5rem 0">
+          <div class="hint">Datei wählen (.json im Format <code>rezept/1</code>, oder .xlsx einer Bestandsdatei)
+            oder Text einfügen. Freitext lässt sich mit «Freitext umwandeln» in ein Gerüst überführen —
+            Baeckerprozente fehlen danach meist und müssen von Hand ergänzt werden, bevor die Prüfung
+            durchläuft. Bei einer .xlsx-Bestandsdatei erkennt der Import automatisch, was sicher zuordenbar
+            ist (AP-0316) — der Rest steht als Meldung da und muss vor «Prüfen» von Hand ergänzt werden.</div>
+          <input type="file" id="importDatei" accept=".json,.xlsx,.xls,application/json" style="margin:.5rem 0">
           <textarea class="importtext" id="importText" placeholder='{"format":"rezept/1","rezepte":[…]} oder Freitext'>${esc(st.text)}</textarea>
           <div class="actions" style="margin-top:.6rem">
             <button id="importFreitext" class="ghost">Freitext umwandeln</button>
             <button id="importPruefen">Prüfen</button>
             <button id="importAbbrechen" class="ghost">Abbrechen</button>
           </div>
+          ${Service.verfuegbar() ? `
+          <div class="hint" style="margin-top:.8rem">KI-Import (AP-0318): erzeugt einen Vorschlag im selben
+            Textfeld — läuft danach durch dieselbe Prüfung/Vorschau wie jeder andere Import, wird nie
+            ungeprüft übernommen.</div>
+          <div class="actions" style="margin-top:.4rem">
+            <button id="importKiText" class="ghost">Aus Text erzeugen (KI)</button>
+            <label class="ghost" style="display:inline-block;cursor:pointer" for="importKiBild">Aus Bild erzeugen (KI)</label>
+            <input type="file" id="importKiBild" accept="image/*" style="display:none">
+          </div>` : ""}
         </div>
       </section>`;
 
@@ -1394,6 +1964,7 @@ const View = {
     el("#importText") && el("#importText").addEventListener("input", e => { st.text = e.target.value; });
     el("#importDatei") && el("#importDatei").addEventListener("change", e => {
       const datei = e.target.files[0]; if(!datei) return;
+      if(/\.xlsx?$/i.test(datei.name)){ App.importExcelAltdatei(datei); return; }
       const reader = new FileReader();
       reader.onload = () => { st.text = String(reader.result || ""); App.importAuswerten(); };
       reader.readAsText(datei);
@@ -1403,6 +1974,17 @@ const View = {
       View.import();
     });
     el("#importPruefen") && el("#importPruefen").addEventListener("click", () => App.importPruefen());
+    el("#importKiText") && el("#importKiText").addEventListener("click", (e) => {
+      const textEl = el("#importText"); if(textEl) st.text = textEl.value;
+      const btn = e.currentTarget; btn.disabled = true;
+      App.importAusKiText(st.text).finally(() => { if(btn) btn.disabled = false; });
+    });
+    el("#importKiBild") && el("#importKiBild").addEventListener("change", (e) => {
+      const datei = e.target.files[0]; if(!datei) return;
+      const reader = new FileReader();
+      reader.onload = () => App.importAusKiBild(String(reader.result || ""));
+      reader.readAsDataURL(datei);
+    });
     el("#importAbbrechen") && el("#importAbbrechen").addEventListener("click", () => App.importSchliessen());
     el("#importAbbrechen2") && el("#importAbbrechen2").addEventListener("click", () => App.importSchliessen());
     el("#importUebernehmen") && el("#importUebernehmen").addEventListener("click", () => App.importUebernehmen());
@@ -1410,6 +1992,67 @@ const View = {
       sel.addEventListener("change", e => App.importZuordnen(e.target.dataset.unbekannt, e.target.value)));
     document.querySelectorAll("[data-konflikt]").forEach(btn =>
       btn.addEventListener("click", e => App.importEntscheiden(Number(e.target.dataset.konflikt), e.target.dataset.wahl)));
+  },
+
+  /* ---------- Recherche-Dialog (AP-0318, «Preise aktualisieren») ---------------------
+     Store.recherche === null -> Dialog geschlossen, nichts rendern. Gleiche Regel wie im
+     Import-Dialog: nichts wird ungefragt geschrieben, jede Zeile braucht ein Häkchen. */
+  recherche(){
+    const box = el("#rechercheBereich");
+    const st = Store.recherche;
+    if(!st){ box.innerHTML = ""; return; }
+
+    if(st.laedt){
+      box.innerHTML = `<section class="card" id="rechercheKarte"><h2>Preise aktualisieren</h2>
+        <div class="body"><div class="hint">Anfrage läuft für ${st.namen.length} Rohstoff(e) …</div></div></section>`;
+      return;
+    }
+    if(st.fehler){
+      box.innerHTML = `<section class="card" id="rechercheKarte"><h2>Preise aktualisieren</h2>
+        <div class="body">
+          <div class="msg err">Anfrage fehlgeschlagen: ${esc(st.fehler)}</div>
+          <div class="actions" style="margin-top:.6rem"><button class="ghost" id="rechercheAbbrechen">Schliessen</button></div>
+        </div></section>`;
+      View.rechercheEreignisse();
+      return;
+    }
+
+    const zeilen = st.vorschlaege.map(v => {
+      if(v.gefunden === false)
+        return `<div class="msg warn"><b>${esc(v.name)}</b> — nicht gefunden, alter Wert bleibt stehen.</div>`;
+      const rohstoff = Store.rohstoffe.find(r => Model.normKey(r.name) === Model.normKey(v.name));
+      const altPreis = rohstoff && rohstoff.kostenProKg != null ? chf(rohstoff.kostenProKg) + "/kg" : "—";
+      const neuPreis = v.kostenProKg != null ? chf(v.kostenProKg) + "/kg" : "—";
+      return `<div class="zuordnungzeile">
+        <label style="display:flex;gap:.5rem;align-items:flex-start;cursor:pointer">
+          <input type="checkbox" data-recherche="${esc(v.name)}"${st.entscheidung[v.name] ? " checked" : ""}>
+          <span><b>${esc(v.name)}</b><br>
+            ${esc(altPreis)} → ${esc(neuPreis)}<br>
+            <span class="hint" style="display:inline">Quelle: ${esc(v.quelle||"—")} · Stand: ${esc(v.stand||"—")}</span>
+          </span>
+        </label>
+      </div>`;
+    }).join("");
+
+    box.innerHTML = `<section class="card" id="rechercheKarte">
+      <h2>Preise aktualisieren</h2>
+      <div class="body">
+        <div class="hint">Vorschlag je Rohstoff mit Quelle und Stand — nur angehakte Zeilen werden geschrieben.</div>
+        ${zeilen || '<div class="hint">Keine Vorschläge erhalten.</div>'}
+        <div class="actions" style="margin-top:.8rem">
+          <button id="rechercheUebernehmen">Übernehmen</button>
+          <button class="ghost" id="rechercheAbbrechen">Abbrechen</button>
+        </div>
+      </div>
+    </section>`;
+    View.rechercheEreignisse();
+  },
+
+  rechercheEreignisse(){
+    document.querySelectorAll("[data-recherche]").forEach(cb =>
+      cb.addEventListener("change", e => App.rechercheEntscheiden(e.target.dataset.recherche, e.target.checked)));
+    el("#rechercheUebernehmen") && el("#rechercheUebernehmen").addEventListener("click", () => App.rechercheUebernehmen());
+    el("#rechercheAbbrechen") && el("#rechercheAbbrechen").addEventListener("click", () => App.rechercheSchliessen());
   }
 };
 
@@ -1536,6 +2179,58 @@ function selfTest(){
                                 && zurueck.phasen[0].zutaten.length === original.phasen[0].zutaten.length
                                 && zurueck.phasen[0].zutaten[0].prozent === original.phasen[0].zutaten[0].prozent;
                             })()],
+    // ---- AP-0316 Excel-Import Altdateien — Testblock (4 Fälle) ----
+    // Nachgebautes Muster aus AP-0101/St. Galler Bürli: Kopfzeile "Sollgewicht", zwei
+    // Teigphasen-Spalten (Autolyse, Hauptteig), eine mehrphasige Zutat (Halbweissmehl).
+    (() => {
+      const aoa = [
+        ["Sollgewicht", 24, "Bürli", "a", 140.6, "g", 3374.4],
+        ["", "%", "1 Leib", "", "", "Autolyse", "Hauptteig"],
+        ["Wasser", 0.1326, 449.92, "g", "", 449.92, ""],
+        ["Halbweissmehl", 0.3271, 1109.8, "g", 0.405, 449.47, 660.33],
+        ["Ruchmehl", 0.2210, 749.87, "g", "", "", 749.87],
+        ["Mehlanteil gesamt", "", 1859.67, "g", "", "", ""],
+        ["Vorteig\nDen Sauerteig mit dem Wasser verrühren.\nMehl dazugeben und vermischen.", "", "", "", "", "", ""],
+        ["Hauptteig\nAlle Zutaten kneten.\nTeig ruhen lassen.", "", "", "", "", "", ""]
+      ];
+      const { rezept, protokoll } = Import.excelBlattErkennen("Bürli-Test", aoa, { dateipfad:"Test.xlsx", kategorieHinweis:"Backen" });
+      const hauptteig = rezept && rezept.phasen.find(p => p.name === "Hauptteig");
+      const okStruktur = rezept && rezept.basisName === "Halbweissmehl" && rezept.basisMengeG === 1109.8
+        && rezept.sollgewichtG === 3374.4 && rezept.portionen === 24 && rezept.phasen.length === 3
+        && rezept.phasen.some(p => p.name === "Autolyse") && rezept.phasen.some(p => p.name === "Vorteig")
+        // Phasenspalte "Hauptteig" und Text-Ueberschrift "Hauptteig" werden zusammengefuehrt,
+        // nicht als zwei gleichnamige Phasen nebeneinander gefuehrt.
+        && !!hauptteig && hauptteig.zutaten.length === 2 && hauptteig.schritte.length === 2;
+      return ["AP0316-1 mehrphasiges Muster (Bürli) korrekt erkannt, Prüfung besteht",
+        okStruktur && Import.pruefen({ format:"rezept/1", rezepte:[rezept] }).ok === true
+          && protokoll.geraten.length === 0];
+    })(),
+    // Einphasiges Muster (Gelato): keine Phasenspalten, generische Phase "Zutaten" aus Spalte C.
+    (() => {
+      const aoa = [
+        ["Sollgewicht", 30, "Portionen", "a", 80, "g", 2400],
+        ["", "%", "", "", "", "", "", "", "", "", "Grundrezept"],
+        ["Latte intero", 0.59, 1298.5, "g", "", "", "", "", "", "", 0.59],
+        ["Zucchero", 0.144, 316.7, "g", "", "", "", "", "", "", 0.144],
+        ["Anleitung:\nLatte erwärmen.\nZucker einrühren.\nAbkühlen lassen.", "", "", "", "", "", "", "", "", "", ""]
+      ];
+      const { rezept } = Import.excelBlattErkennen("Gelato-Test", aoa, {});
+      return ["AP0316-2 einphasiges Muster (Gelato) — keine Prozent-Spalte als Phase missverstanden",
+        !!rezept && rezept.phasen.length === 2 && rezept.phasen[0].name === "Zutaten"
+          && rezept.phasen[0].zutaten.length === 2 && rezept.basisName === "Latte intero"];
+    })(),
+    // Blatt ohne "Sollgewicht"-Kopf (z.B. Wurstrezeptur mit abweichender Konvention, oder ein
+    // Hilfsblatt wie "Umrechnungsfaktoren"): kein Rezept, Grund steht im Protokoll — kein Raten.
+    (() => {
+      const aoa = [["", "", "", "Nr1"], ["Zutaten", "", "%", ""], ["Kalbfleisch", 0.7, "", ""]];
+      const { rezept, protokoll } = Import.excelBlattErkennen("Wurst-Test", aoa, {});
+      return ["AP0316-3 abweichende Datei-Konvention (kein \"Sollgewicht\"-Kopf) — kein Rezept, keine Vermutung",
+        rezept === null && protokoll.status === "kopf_nicht_erkannt" && protokoll.geraten.length === 0];
+    })(),
+    // Prinzip "kein Rater": in keinem der drei Fälle oben wird protokoll.geraten befüllt —
+    // der Erkenner kennt diese Kategorie bewusst nur als (immer leeren) Kontrollpunkt.
+    ["AP0316-4 Prinzip eingehalten: geraten bleibt in jedem Fall leer",
+                            Import.excelBlattErkennen("x", [["Sollgewicht"]], {}).protokoll.geraten.length === 0],
     // ---- AP-0305 Backprotokoll + Speichern — Testblock (2 Fälle) ----
     // Produktive Rezepte.xlsx traegt aktuell in jeder Zeile denselben unausgefuellten
     // Platzhalter (Datum "YYYY-MM-DD", Felder soll_g/ist_g statt sollG/istG) — Model.parseRezepte
@@ -1554,7 +2249,103 @@ function selfTest(){
     // Zelladresse fuer die gezielten Workbook-API-Updates: Spalte per Name gefunden,
     // 0-indexiert in einen Buchstaben umgerechnet, mit der uebergebenen Excel-Zeile kombiniert.
     ["AP0305-2 Zelladresse (Spalte „Backprotokoll (JSON)“, Zeile 5) → C5",
-                            Model.zelladresse(["Rezept-ID","Name","Backprotokoll (JSON)"], "Backprotokoll (JSON)", 5) === "C5"]
+                            Model.zelladresse(["Rezept-ID","Name","Backprotokoll (JSON)"], "Backprotokoll (JSON)", 5) === "C5"],
+    // ---- AP-0318 Service-Schnittstelle — Testblock (4 Fälle) ----
+    // Ohne CONFIG.serviceUrl ist der Dienst nicht verfuegbar — der Default-Zustand dieser App
+    // (kein Schluessel im Repo, Abnahmekriterium 1).
+    ["AP0318-1 ohne serviceUrl ist kein Dienst verfuegbar", Service.verfuegbar() === false],
+    (() => {
+      const alt = CONFIG.serviceUrl;
+      CONFIG.serviceUrl = "https://beispiel.invalid/service";
+      const okAn = Service.verfuegbar() === true;
+      CONFIG.serviceUrl = "  ";
+      const okLeer = Service.verfuegbar() === false;
+      CONFIG.serviceUrl = alt;
+      return ["AP0318-2 mit gesetzter, nicht-leerer serviceUrl ist der Dienst verfuegbar", okAn && okLeer];
+    })(),
+    // AP-0317 schreibt das Stand-Datum als "TT.MM.JJJJ" oder den Text "unbekannt" — beides muss
+    // die Preisalter-Berechnung sauber behandeln, "unbekannt" ergibt bewusst null (kein Alter
+    // vortaeuschen), nicht 0 Tage.
+    ["AP0318-3 Preisalter aus Schweizer Datumsformat (400 Tage vor 05.01.2027 → 01.12.2025)",
+                            Calc.preisAlterTage("01.12.2025", new Date(2027,0,5)) === 400],
+    ["AP0318-4 Preisalter bei „unbekannt“ ist null, nicht 0",
+                            Calc.preisAlterTage("unbekannt", new Date()) === null
+                              && Calc.preisAlterTage(null, new Date()) === null],
+    // ---- AP-0311 Entwicklungsmodus — Versionen + Versuchsprotokoll — Testblock (6 Fälle) ----
+    // Spalte "Entwicklung (JSON)" wird gelesen; fehlt sie in der Datei (aeltere Rezepte.xlsx-
+    // Stände), bleibt entwicklung null statt einen Ladefehler zu werfen (Abnahmekriterium 3).
+    (() => {
+      const header = ["Rezept-ID","Name","Kategorie","Unterkategorie","Basis-Rohstoff","Basis-Menge (g)",
+        "Sollgewicht (g)","Portionen","Einheit","Quelle","Phasen (JSON)","Backprotokoll (JSON)","Entwicklung (JSON)"];
+      const entwicklung = { status:"entwicklung", zielwerte:{}, aktivV:1,
+        versionen:[{v:1,datum:"2026-08-16",notiz:"Start",phasen:[{name:"P",zutaten:[],schritte:[]}]}], versuche:[] };
+      const row = ["RZP-T","Test","Backen",null,"Mehl",1000,1000,1,"Stk",null,"[]","[]", JSON.stringify(entwicklung)];
+      const mitSpalte = Model.parseRezepte([header, row]).rezepte[0];
+      const ohneSpalte = Model.parseRezepte([header.slice(0,-1), row.slice(0,-1)]).rezepte[0];
+      return ["AP0311-1 Entwicklung (JSON)-Spalte wird gelesen, fehlende Spalte bleibt null",
+        mitSpalte.entwicklung.aktivV === 1 && mitSpalte.entwicklung.versionen.length === 1
+          && ohneSpalte.entwicklung === null];
+    })(),
+    // aktive Version = entwicklung.aktivV; ein Wert ohne Treffer (z.B. von Hand in Excel
+    // veraendert) faellt auf die zuletzt angelegte Version zurueck statt null zu liefern.
+    ["AP0311-2 aktive Version: aktivV-Treffer, sonst letzte Version als Rückfall",
+                            (() => {
+                              const e1 = { aktivV:2, versionen:[{v:1},{v:2},{v:3}] };
+                              const e2 = { aktivV:99, versionen:[{v:1},{v:2}] };
+                              return Calc.entwAktiveVersion(e1).v === 2 && Calc.entwAktiveVersion(e2).v === 2;
+                            })()],
+    // Versions-Diff (§3): Delta je gemeinsamer Zutat, entfernte/neue Zutat als fehlender Wert
+    // (nicht 0), geänderte Schritte einer Phase erkannt.
+    (() => {
+      const vA = { v:1, phasen:[{name:"Teig", zutaten:[{name:"Mehl",prozent:0.30},{name:"Wasser",prozent:0.10}], schritte:[{nr:1,text:"Mischen"}]}] };
+      const vB = { v:2, phasen:[{name:"Teig", zutaten:[{name:"Mehl",prozent:0.32},{name:"Salz",prozent:0.02}], schritte:[{nr:1,text:"Mischen, dann ruhen"}]}] };
+      const diff = Calc.entwDiff(vA, vB);
+      const mehl = diff.zutaten.find(z => z.name === "Mehl");
+      const wasser = diff.zutaten.find(z => z.name === "Wasser");
+      const salz = diff.zutaten.find(z => z.name === "Salz");
+      return ["AP0311-3 Versions-Diff: Delta korrekt, entfernte/neue Zutat als Lücke, geänderte Schritte erkannt",
+        nah(mehl.delta, 0.02, 0.0001) && wasser.bPct === null && salz.aPct === null
+          && diff.schritte.find(s => s.phase === "Teig").geaendert === true];
+    })(),
+    // Versions-Bearbeitung im Entwicklungsmodus prüft eine einzelne phasen-Liste mit derselben
+    // Regel wie der volle rezept/1-Import (Import.phasenFehler, aus Import.pruefen ausgelagert).
+    ["AP0311-4 Versions-Phasen-Prüfung: gültige Phasen bestehen, fehlender Prozent wird gemeldet",
+                            Import.phasenFehler([{name:"P",zutaten:[{name:"Mehl",prozent:1,einheit:"g"}],schritte:[]}], "phasen").length === 0
+                              && Import.phasenFehler([{name:"P",zutaten:[{name:"Mehl",einheit:"g"}],schritte:[]}], "phasen")
+                                .some(f => f.pfad === "phasen[0].zutaten[0].prozent")],
+    // Befördern (§3): kopiert die Phasen der gewählten Version nach "Phasen (JSON)" (hier
+    // rz.phasen) und setzt status="produktiv" — die Versionsliste bleibt vollständig erhalten,
+    // nichts wird gelöscht (Abnahmekriterium 2).
+    (() => {
+      const rz = { phasen:[{name:"Alt",zutaten:[{name:"X",prozent:0.5,einheit:"g"}],schritte:[]}],
+        entwicklung:{ status:"entwicklung", zielwerte:{}, aktivV:2, versionen:[
+          {v:1,datum:"2026-08-16",notiz:"Start",phasen:[{name:"Alt",zutaten:[{name:"X",prozent:0.5,einheit:"g"}],schritte:[]}]},
+          {v:2,datum:"2026-08-20",notiz:"Salz runter",phasen:[{name:"Neu",zutaten:[{name:"Y",prozent:0.3,einheit:"g"}],schritte:[]}]}
+        ], versuche:[] } };
+      const version = rz.entwicklung.versionen.find(v => v.v === 2);
+      const versionenVorher = rz.entwicklung.versionen.length;
+      rz.phasen = Import.phasenExport(version.phasen);
+      rz.entwicklung = { ...rz.entwicklung, status:"produktiv", aktivV: version.v };
+      return ["AP0311-5 Befördern kopiert Phasen der Version, Versionsliste bleibt vollständig erhalten",
+        rz.phasen[0].name === "Neu" && rz.phasen[0].zutaten[0].name === "Y"
+          && rz.entwicklung.status === "produktiv" && rz.entwicklung.versionen.length === versionenVorher];
+    })(),
+    // Excel-Roundtrip (Umsetzungsschritt 5): entwicklung inkl. Versionen und Versuchen übersteht
+    // Export -> Prüfung -> Import unverändert (FORMAT.md: Struktur wird v1 nicht geprüft, muss
+    // aber unangetastet durchgereicht werden).
+    (() => {
+      const original = { id:"RZP-X", name:"Testbrot", kategorie:"Backen", unterkategorie:null, quelle:null,
+        basisName:"Mehl", basisMengeG:1000, sollgewichtG:1000, portionen:1, einheit:"Stk",
+        phasen:[{name:"P",zutaten:[{name:"Mehl",prozent:1,einheit:"g"}],schritte:[{nr:1,text:"Mischen"}]}],
+        backprotokoll:[], entwicklung:{ status:"entwicklung", zielwerte:{}, aktivV:1,
+          versionen:[{v:1,datum:"2026-08-16",notiz:"Start",phasen:[{name:"P",zutaten:[{name:"Mehl",prozent:1,einheit:"g"}],schritte:[]}]}],
+          versuche:[{datum:"2026-08-21",version:1,soll_g:1000,ist_g:950,bewertung:4,erkenntnis:"gut"}] } };
+      const exportiert = Import.alsExport(original);
+      const pruefung = Import.pruefen({ format:"rezept/1", rezepte:[exportiert] });
+      const zurueck = Import.zuIntern(exportiert);
+      return ["AP0311-6 Excel-Roundtrip: entwicklung übersteht Export → Prüfung → Import unverändert",
+        pruefung.ok === true && JSON.stringify(zurueck.entwicklung) === JSON.stringify(original.entwicklung)];
+    })()
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
   return { anzahl:t.length, fehler };
@@ -1575,6 +2366,11 @@ const App = {
     el("#btnAltDB").addEventListener("click", App.altDBKlick);
     el("#btnImport").addEventListener("click", App.importOeffnen);
     el("#btnExportAlle").addEventListener("click", App.exportAlle);
+
+    // AP-0306: nach dem Druckdialog die Phasen wieder in den Zustand vor dem Drucken bringen.
+    // Einmalig am window registriert (nicht in View.rezept(), das bei jedem Rendern neu
+    // aufgerufen wird) — sonst haeuften sich bei jedem Rezeptwechsel weitere Listener an.
+    window.addEventListener("afterprint", () => { if(Store.aktuellesRezept) View.rezept(); });
 
     const st = selfTest();
     el("#selftest").textContent = st.fehler.length
@@ -1640,6 +2436,8 @@ const App = {
       // (kein falscher Konflikt-Alarm) statt den Ladevorgang selbst scheitern zu lassen.
       try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
       catch(e){ Store.rezepteETag = null; }
+      try{ Store.rohstoffeETag = (await Data.getItemMeta(CONFIG.rohstoffePfad)).eTag; }
+      catch(e){ Store.rohstoffeETag = null; }
       el("#modus").textContent = "OneDrive — " + Store.rezepte.length + " Rezepte";
       View.kategorienFuellen();
       View.liste();
@@ -1786,6 +2584,253 @@ const App = {
     }
   },
 
+  /* ---------- Entwicklungsmodus (AP-0311) ----------------------------------
+     §1.1+§3 der Spezifikation AP-0203: eigene Excel-Spalte "Entwicklung (JSON)", Versionen
+     (Kopie -> frei editierbar), Versuchsprotokoll je Version, Befördern (kopiert die Phasen
+     der gewählten Version nach "Phasen (JSON)", Versionsliste bleibt vollständig erhalten —
+     nichts wird gelöscht). Schreibpfad identisch zu backprotokollSpeichern oben: Konflikt
+     prüfen (eTag), Backup, gezielte Zell-Updates statt Ganzdatei-PUT (Entscheid O-9). */
+  entwStarten(){
+    const rz = Store.aktuellesRezept;
+    if(!rz || rz.entwicklung) return;
+    const heute = new Date().toISOString().slice(0, 10);
+    const neu = {
+      status: "entwicklung", zielwerte: {}, aktivV: 1,
+      versionen: [{ v:1, datum: heute, notiz: "Startpunkt, Kopie der produktiven Rezeptur",
+                    phasen: Import.phasenExport(rz.phasen) }],
+      versuche: []
+    };
+    App.entwSpeichern(rz, neu, "Entwicklungsmodus gestartet — v1 ist eine Kopie der aktuellen Rezeptur.");
+  },
+
+  entwVersionNeuOeffnen(){
+    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
+    if(!e) return;
+    const aktiv = Calc.entwAktiveVersion(e);
+    const naechsteV = e.versionen.reduce((m,v) => Math.max(m, v.v || 0), 0) + 1;
+    Store.devForm = { art:"version", modus:"neu", v: naechsteV, notiz:"",
+      phasenText: JSON.stringify(aktiv ? aktiv.phasen : [], null, 2) };
+    View.rezept();
+  },
+
+  entwVersionBearbeitenOeffnen(v){
+    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
+    if(!e) return;
+    const version = e.versionen.find(x => x.v === v);
+    if(!version) return;
+    Store.devForm = { art:"version", modus:"bearbeiten", v,
+      notiz: version.notiz || "", phasenText: JSON.stringify(version.phasen, null, 2) };
+    View.rezept();
+  },
+
+  entwFormAbbrechen(){ Store.devForm = null; View.rezept(); },
+
+  async entwVersionSpeichern(){
+    const rz = Store.aktuellesRezept, df = Store.devForm;
+    if(!rz || !rz.entwicklung || !df || df.art !== "version") return;
+    let phasen;
+    try{ phasen = JSON.parse(df.phasenText); }
+    catch(err){ View.meldung("Phasen (JSON) ist kein gültiges JSON — " + err.message, "err", "Version nicht gespeichert"); return; }
+    const fehler = Import.phasenFehler(phasen, "phasen");
+    if(fehler.length){
+      View.meldung(fehler.map(f => f.pfad + ": " + f.meldung).join(" · "), "err", "Version nicht gespeichert");
+      return;
+    }
+    const notiz = (df.notiz || "").trim();
+    const heute = new Date().toISOString().slice(0, 10);
+    const neueEntwicklung = JSON.parse(JSON.stringify(rz.entwicklung));
+    const phasenExportiert = Import.phasenExport(phasen);
+    if(df.modus === "neu"){
+      neueEntwicklung.versionen = [...neueEntwicklung.versionen, { v: df.v, datum: heute, notiz, phasen: phasenExportiert }];
+    }else{
+      const idx = neueEntwicklung.versionen.findIndex(x => x.v === df.v);
+      if(idx === -1) return;
+      neueEntwicklung.versionen[idx] = { ...neueEntwicklung.versionen[idx], notiz, phasen: phasenExportiert };
+    }
+    neueEntwicklung.aktivV = df.v;
+    await App.entwSpeichern(rz, neueEntwicklung,
+      df.modus === "neu" ? "Neue Version v" + df.v + " angelegt." : "Version v" + df.v + " gespeichert.");
+  },
+
+  entwAktivSetzen(v){
+    const rz = Store.aktuellesRezept;
+    if(!rz || !rz.entwicklung) return;
+    App.entwSpeichern(rz, { ...rz.entwicklung, aktivV: v }, "Version v" + v + " ist jetzt aktiv.");
+  },
+
+  entwDiffOeffnen(){
+    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
+    if(!e || !e.versionen.length) return;
+    const sortiert = e.versionen.slice().sort((a,b) => a.v - b.v);
+    const aktiv = Calc.entwAktiveVersion(e);
+    const vorherige = sortiert.filter(v => !aktiv || v.v !== aktiv.v).pop();
+    Store.devForm = { art:"diff", a: (vorherige || sortiert[0]).v, b: (aktiv || sortiert[sortiert.length-1]).v };
+    View.rezept();
+  },
+
+  entwDiffAendern(feld, wert){
+    if(!Store.devForm || Store.devForm.art !== "diff") return;
+    Store.devForm[feld] = Number(wert);
+    View.rezept();
+  },
+
+  entwBefoerdernOeffnen(){
+    const rz = Store.aktuellesRezept;
+    const aktiv = rz && rz.entwicklung && Calc.entwAktiveVersion(rz.entwicklung);
+    if(!aktiv) return;
+    Store.devForm = { art:"befoerdern", v: aktiv.v };
+    View.rezept();
+  },
+
+  // Kopiert die Phasen der gewählten Version nach "Phasen (JSON)" und setzt status="produktiv"
+  // (§1.1) — die Versionsliste selbst bleibt unverändert, nichts wird gelöscht. Anders als
+  // entwSpeichern() unten schreibt das zwei Zellen (Phasen + Entwicklung); bei jedem Fehler
+  // rollt die gesamte Operation zurück, damit rz.phasen und rz.entwicklung nie auseinanderlaufen.
+  async entwBefoerdernBestaetigt(){
+    const rz = Store.aktuellesRezept, df = Store.devForm;
+    if(!rz || !rz.entwicklung || !df || df.art !== "befoerdern") return;
+    const version = rz.entwicklung.versionen.find(x => x.v === df.v);
+    if(!version) return;
+    const altePhasen = rz.phasen, alteEntwicklung = rz.entwicklung;
+    rz.phasen = Import.phasenExport(version.phasen);
+    Model.aufloesen([rz], Store.rohstoffe);
+    rz.entwicklung = { ...rz.entwicklung, status:"produktiv", aktivV: version.v };
+
+    const verbunden = Store.rezepteWorkbook && Data.verfuegbar() && msalApp.getActiveAccount();
+    if(!verbunden){
+      Store.devForm = null;
+      View.meldung("Version v" + version.v + " ist jetzt die produktive Rezeptur — nur in dieser Sitzung, keine "
+        + "OneDrive-Verbindung. Bisherige Rezeptur bleibt als Version erhalten.", "warn", "Nicht dauerhaft gespeichert");
+      View.rezept();
+      return;
+    }
+    if(!rz._raw){
+      rz.phasen = altePhasen; rz.entwicklung = alteEntwicklung; Model.aufloesen([rz], Store.rohstoffe);
+      View.meldung("Zeilenposition dieses Rezepts ist unbekannt (frisch importiert, noch nicht neu geladen). "
+        + "Seite neu laden und erneut versuchen.", "err", "Befördern nicht möglich");
+      return;
+    }
+    try{
+      if(Store.rezepteETag){
+        const meta = await Data.getItemMeta(CONFIG.rezeptePfad);
+        if(meta.eTag !== Store.rezepteETag){
+          rz.phasen = altePhasen; rz.entwicklung = alteEntwicklung; Model.aufloesen([rz], Store.rohstoffe);
+          Store.devForm = null;
+          View.meldung("Rezepte.xlsx wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. "
+            + "Bitte erneut befördern.", "warn", "Konflikt erkannt");
+          const konto = msalApp.getActiveAccount();
+          await App.datenLaden(konto);
+          App.rezeptOeffnen(rz.id);
+          return;
+        }
+      }
+      await Data.backup(CONFIG.rezeptePfad);
+      const header = rz._raw.spalten, zeileExcel = rz._raw.zeile + 1;
+      const iPhasen = header.indexOf("Phasen (JSON)"), iEntw = header.indexOf("Entwicklung (JSON)");
+      if(iPhasen === -1) throw new Error('Spalte "Phasen (JSON)" fehlt in Rezepte.xlsx');
+      if(iEntw === -1) throw new Error('Spalte "Entwicklung (JSON)" fehlt in Rezepte.xlsx');
+      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
+        Model.zelladresse(header, "Phasen (JSON)", zeileExcel), JSON.stringify(rz.phasen));
+      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
+        Model.zelladresse(header, "Entwicklung (JSON)", zeileExcel), JSON.stringify(rz.entwicklung));
+      try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
+      catch(e){ Store.rezepteETag = null; }
+      Store.devForm = null;
+      View.meldung("Version v" + version.v + " ist jetzt die produktive Rezeptur, Backup angelegt. "
+        + "Bisherige Rezeptur bleibt als Version erhalten.", "ok", "Befördert");
+      View.rezept();
+    }catch(e){
+      rz.phasen = altePhasen; rz.entwicklung = alteEntwicklung; Model.aufloesen([rz], Store.rohstoffe);
+      View.meldung("Befördern fehlgeschlagen: " + e.message + " — Rezept in OneDrive nicht verändert.", "err", "Fehler beim Speichern");
+      View.rezept();
+    }
+  },
+
+  entwVersuchOeffnen(){
+    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
+    if(!e || !e.versionen.length) return;
+    const aktiv = Calc.entwAktiveVersion(e);
+    Store.devForm = { art:"versuch", datum: new Date().toISOString().slice(0, 10),
+      version: aktiv.v, soll:"", ist:"", bewertung:3, erkenntnis:"" };
+    View.rezept();
+  },
+
+  async entwVersuchSpeichern(){
+    const rz = Store.aktuellesRezept, df = Store.devForm;
+    if(!rz || !rz.entwicklung || !df || df.art !== "versuch") return;
+    const datum = (df.datum || "").trim();
+    const soll = Number(df.soll), ist = Number(df.ist), bewertung = Number(df.bewertung), version = Number(df.version);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(datum)){ View.meldung("Datum fehlt oder ungültig.", "err", "Versuch unvollständig"); return; }
+    if(!(soll > 0)){ View.meldung("Soll (g) muss grösser als 0 sein.", "err", "Versuch unvollständig"); return; }
+    if(!(ist > 0)){ View.meldung("Ist (g) muss grösser als 0 sein.", "err", "Versuch unvollständig"); return; }
+    if(!(bewertung >= 1 && bewertung <= 5)){ View.meldung("Bewertung muss zwischen 1 und 5 liegen.", "err", "Versuch unvollständig"); return; }
+    if(!rz.entwicklung.versionen.some(v => v.v === version)){ View.meldung("Version existiert nicht.", "err", "Versuch unvollständig"); return; }
+    // Feldnamen soll_g/ist_g bewusst wie Spezifikation AP-0203/§1.1 (abweichend von der
+    // camelCase-Konvention des produktiven Backprotokolls — Versuchsdaten speisen dessen
+    // Schwund-Logik ausdrücklich NICHT, siehe §3, sind also kein Alias desselben Felds).
+    const eintrag = { datum, version, soll_g: soll, ist_g: ist, bewertung, erkenntnis: (df.erkenntnis || "").trim() || null };
+    const neueEntwicklung = JSON.parse(JSON.stringify(rz.entwicklung));
+    neueEntwicklung.versuche = [...(neueEntwicklung.versuche || []), eintrag];
+    await App.entwSpeichern(rz, neueEntwicklung, "Versuch erfasst.");
+  },
+
+  // Gemeinsamer Schreibpfad fuer jede reine Entwicklung-Aenderung (Start, neue/bearbeitete
+  // Version, aktive Version wechseln, neuer Versuch) — nur die Spalte "Entwicklung (JSON)"
+  // aendert sich. Befoerdern hat einen eigenen Pfad oben, weil dort zusaetzlich "Phasen (JSON)"
+  // mitgeschrieben wird. Muster identisch zu backprotokollSpeichern: optimistisch anwenden,
+  // bei jedem Fehlschlag zurueckrollen statt einen Erfolg vorzutaeuschen, den OneDrive nicht hat.
+  async entwSpeichern(rz, neueEntwicklung, erfolgstext){
+    const vorher = rz.entwicklung;
+    rz.entwicklung = neueEntwicklung;
+    const verbunden = Store.rezepteWorkbook && Data.verfuegbar() && msalApp.getActiveAccount();
+    if(!verbunden){
+      Store.devForm = null;
+      View.meldung(erfolgstext + " — nur in dieser Sitzung, keine OneDrive-Verbindung.", "warn", "Nicht dauerhaft gespeichert");
+      View.rezept();
+      return;
+    }
+    if(!rz._raw){
+      rz.entwicklung = vorher;
+      View.meldung("Zeilenposition dieses Rezepts ist unbekannt (frisch importiert, noch nicht neu geladen). "
+        + "Seite neu laden und erneut versuchen.", "err", "Speichern nicht möglich");
+      return;
+    }
+    try{
+      if(Store.rezepteETag){
+        const meta = await Data.getItemMeta(CONFIG.rezeptePfad);
+        if(meta.eTag !== Store.rezepteETag){
+          rz.entwicklung = vorher;
+          Store.devForm = null;
+          View.meldung("Rezepte.xlsx wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. "
+            + "Bitte erneut versuchen.", "warn", "Konflikt erkannt");
+          const konto = msalApp.getActiveAccount();
+          await App.datenLaden(konto);
+          App.rezeptOeffnen(rz.id);
+          return;
+        }
+      }
+      await Data.backup(CONFIG.rezeptePfad);
+      const header = rz._raw.spalten, zeileExcel = rz._raw.zeile + 1;
+      const iEntw = header.indexOf("Entwicklung (JSON)");
+      if(iEntw === -1) throw new Error('Spalte "Entwicklung (JSON)" fehlt in Rezepte.xlsx');
+      const wert = JSON.stringify(rz.entwicklung);
+      if(wert.length > CONFIG.zellenWarnung)
+        View.meldung("Entwicklung (JSON) ist " + wert.length + " Zeichen lang (Warnschwelle " + CONFIG.zellenWarnung
+          + ") — Excel-Zellenlimit liegt bei 32'767.", "warn", "Nahe am Zellenlimit");
+      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
+        Model.zelladresse(header, "Entwicklung (JSON)", zeileExcel), wert);
+      try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
+      catch(e){ Store.rezepteETag = null; }
+      Store.devForm = null;
+      View.meldung(erfolgstext + " Backup in " + (CONFIG.backupOrdner || "/Backups") + " angelegt.", "ok", "Gespeichert");
+      View.rezept();
+    }catch(e){
+      rz.entwicklung = vorher;
+      View.meldung("Speichern fehlgeschlagen: " + e.message + " — Entwicklung in OneDrive nicht verändert.", "err", "Fehler beim Speichern");
+      View.rezept();
+    }
+  },
+
   /* ---------- Import (AP-0315) --------------------------------------------
      Ablauf: parsen -> pruefen -> aufloesen -> Vorschau -> uebernehmen (Feinkonzept §6b.2).
      Store.import haelt den gesamten Zustand eines Durchlaufs. */
@@ -1806,6 +2851,55 @@ const App = {
     const textEl = el("#importText");
     if(textEl) Store.import.text = textEl.value;
     App.importAuswerten();
+  },
+
+  // AP-0316: Excel-Altdatei einlesen, erkennen, als rezept/1-Text ins selbe Feld stellen —
+  // ab hier laeuft exakt derselbe Weg wie ein .json-Dateiupload (kein zweiter Uebernahmeweg).
+  async importExcelAltdatei(datei){
+    const buf = await datei.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array", cellDates: true });
+    const ergebnis = Import.excelDateiErkennen(wb, datei.name, null);
+    const st = Store.import;
+    st.text = JSON.stringify({ format: ergebnis.format, rezepte: ergebnis.rezepte }, null, 2);
+
+    const offene = ergebnis.protokolle.flatMap(p => p.nicht_zugeordnet.map(n => `${p.blatt} Zeile ${n.zeile}: ${n.grund}`));
+    const nichtErkannt = ergebnis.protokolle.filter(p => p.status !== "erkannt").map(p => p.blatt);
+    let text = ergebnis.rezepte.length
+      ? ergebnis.rezepte.length + " von " + ergebnis.protokolle.length + " Blatt/Blätter erkannt und ins Feld unten übertragen."
+      : "Kein Blatt der Datei entspricht dem erkannten Muster — nichts übertragen.";
+    if(nichtErkannt.length) text += " Nicht erkannt: " + nichtErkannt.join(", ") + ".";
+    if(offene.length) text += " " + offene.length + " Stelle(n) offen (siehe Konsole) — vor «Prüfen» ergänzen.";
+    if(offene.length) console.log("Import-Protokoll " + datei.name + ":\n" + offene.join("\n"));
+    View.meldung(text, ergebnis.rezepte.length ? "warn" : "err", "Excel-Altdatei erkannt");
+    View.import();
+  },
+
+  // AP-0318: LLM-Import. Genau wie beim Excel-Erkenner landet die Antwort NUR im Textfeld —
+  // erst der bestehende «Prüfen»-Klick validiert sie gegen rezept/1 und zeigt die Vorschau
+  // (FR-1210: eine Modellantwort ist eine Quelle wie jede andere, keine Autorität). Ein Fehler
+  // des Dienstes (Netz, falsches Format) darf den Bestand nie veraendern — es passiert schlicht
+  // nichts ausser einer Fehlermeldung.
+  async importAusKiText(text){
+    if(!Service.verfuegbar()) return;
+    try{
+      const antwort = await Service.rezeptAusText(text);
+      Store.import.text = JSON.stringify(antwort, null, 2);
+      View.meldung("Vorschlag erzeugt — vor «Prüfen» kontrollieren, insbesondere Baeckerprozente.", "warn", "KI-Import");
+    }catch(e){
+      View.meldung("KI-Import fehlgeschlagen: " + e.message, "err", "Kein Vorschlag übernommen");
+    }
+    View.import();
+  },
+  async importAusKiBild(dataUrl){
+    if(!Service.verfuegbar()) return;
+    try{
+      const antwort = await Service.rezeptAusBild(dataUrl);
+      Store.import.text = JSON.stringify(antwort, null, 2);
+      View.meldung("Vorschlag aus Bild erzeugt — vor «Prüfen» kontrollieren, insbesondere Baeckerprozente.", "warn", "KI-Import");
+    }catch(e){
+      View.meldung("KI-Import fehlgeschlagen: " + e.message, "err", "Kein Vorschlag übernommen");
+    }
+    View.import();
   },
 
   importAuswerten(){
@@ -1889,10 +2983,6 @@ const App = {
       }
     });
 
-    const versionsHinweis = uebernommen.some(u => u.modus === "version")
-      ? " Hinweis: Als Version angehängte Einträge sind aktuell nur in dieser Sitzung sichtbar — ein Excel-Feld für Entwicklungsversionen gibt es noch nicht (Ausbau AP-0311)."
-      : "";
-
     if(Store.rezepteWorkbook && Store.rohstoffeWorkbook){
       try{
         uebernommen.filter(u => u.modus === "neu")
@@ -1900,13 +2990,29 @@ const App = {
         neueAliase.forEach(a => Import.aliasAnhaengen(Store.rohstoffeWorkbook, a.variante, a.ziel, heute));
         await Data.writeWorkbook(CONFIG.rezeptePfad, Import.alsArrayBuffer(Store.rezepteWorkbook));
         if(neueAliase.length) await Data.writeWorkbook(CONFIG.rohstoffePfad, Import.alsArrayBuffer(Store.rohstoffeWorkbook));
-        View.meldung(uebernommen.length + " Rezept(e) importiert und nach OneDrive geschrieben." + versionsHinweis, "ok", "Import übernommen");
+        // Als Version angehaengte Rezepte (AP-0311) aendern nur rz.entwicklung einer bestehenden
+        // Zeile, keine neue Zeile — gezieltes Zell-Update statt eines weiteren Ganzdatei-PUT
+        // (Entscheid O-9), analog zu App.entwSpeichern().
+        const versionFehler = [];
+        for(const u of uebernommen.filter(x => x.modus === "version")){
+          if(!u.rz._raw){ versionFehler.push(u.rz.name + " (Zeilenposition unbekannt)"); continue; }
+          const header = u.rz._raw.spalten, zeileExcel = u.rz._raw.zeile + 1;
+          const addr = Model.zelladresse(header, "Entwicklung (JSON)", zeileExcel);
+          if(!addr){ versionFehler.push(u.rz.name + " (Spalte „Entwicklung (JSON)“ fehlt)"); continue; }
+          try{ await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName, addr, JSON.stringify(u.rz.entwicklung)); }
+          catch(e){ versionFehler.push(u.rz.name + ": " + e.message); }
+        }
+        try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
+        catch(e){ Store.rezepteETag = null; }
+        View.meldung(uebernommen.length + " Rezept(e) importiert und nach OneDrive geschrieben."
+          + (versionFehler.length ? " Als Version angehängt, aber Entwicklung nicht gespeichert bei: " + versionFehler.join("; ") + "." : ""),
+          versionFehler.length ? "warn" : "ok", "Import übernommen");
       }catch(e){
         View.meldung("In OneDrive schreiben fehlgeschlagen: " + e.message + " — im Bestand dieser Sitzung bleibt der Import trotzdem sichtbar.",
           "err", "Import teilweise übernommen");
       }
     }else{
-      View.meldung(uebernommen.length + " Rezept(e) importiert (nur im Speicher dieser Sitzung — keine OneDrive-Verbindung)." + versionsHinweis,
+      View.meldung(uebernommen.length + " Rezept(e) importiert (nur im Speicher dieser Sitzung — keine OneDrive-Verbindung).",
         "warn", "Import übernommen");
     }
 
@@ -1935,6 +3041,93 @@ const App = {
     a.href = url; a.download = dateiname;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
+  /* ---------- Rohstoff-Recherche (AP-0318, «Preise aktualisieren») ---------------------
+     Gleiches Prinzip wie AP-0317 (Cowork-Recherche): der Dienst liefert nur einen Vorschlag
+     mit Quelle/Stand, geschrieben wird ausschliesslich, was hier einzeln akzeptiert wurde —
+     nie automatisch. Schreibpfad wie AP-0305: eTag-Konflikterkennung, Backup, gezielte
+     Zell-Updates (Data.updateCell), keine Ganzdatei-PUT. */
+  async rechercheOeffnen(){
+    if(!Service.verfuegbar() || !Store.aktuellesRezept) return;
+    const namen = [...new Map(Calc.zutatenFlach(Store.aktuellesRezept)
+      .filter(z => z.rohstoff).map(z => [z.rohstoff.id, z.rohstoff])).values()].map(r => r.name);
+    if(!namen.length) return;
+    Store.recherche = { namen, laedt: true, vorschlaege: [], entscheidung: {}, fehler: null };
+    View.recherche();
+    try{
+      const vorschlaege = await Service.rohstoffRecherche(namen);
+      Store.recherche.vorschlaege = Array.isArray(vorschlaege) ? vorschlaege : [];
+      Store.recherche.entscheidung = Object.fromEntries(Store.recherche.vorschlaege.map(v => [v.name, false]));
+    }catch(e){
+      Store.recherche.fehler = e.message;
+    }
+    Store.recherche.laedt = false;
+    View.recherche();
+  },
+
+  rechercheSchliessen(){ Store.recherche = null; View.recherche(); },
+
+  rechercheEntscheiden(name, wert){
+    Store.recherche.entscheidung[name] = wert;
+    View.recherche();
+  },
+
+  async rechercheUebernehmen(){
+    const st = Store.recherche;
+    const akzeptiert = st.vorschlaege.filter(v => st.entscheidung[v.name] && v.gefunden !== false);
+    if(!akzeptiert.length){ App.rechercheSchliessen(); return; }
+    if(!Store.rohstoffeWorkbook){
+      View.meldung("Keine OneDrive-Verbindung — Vorschläge nicht geschrieben.", "warn", "Recherche nicht übernommen");
+      App.rechercheSchliessen();
+      return;
+    }
+    try{
+      if(Store.rohstoffeETag){
+        const meta = await Data.getItemMeta(CONFIG.rohstoffePfad);
+        if(meta.eTag !== Store.rohstoffeETag){
+          View.meldung("Rohstoffe.xlsx wurde zwischenzeitlich extern geändert — bitte Seite neu laden und erneut versuchen.",
+            "warn", "Konflikt erkannt");
+          return;
+        }
+      }
+      await Data.backup(CONFIG.rohstoffePfad);
+      const heute = new Date().toISOString().slice(0, 10).split("-").reverse().join(".");
+      let geschrieben = 0; const fehlerListe = [];
+      for(const v of akzeptiert){
+        const rohstoff = Store.rohstoffe.find(r => Model.normKey(r.name) === Model.normKey(v.name));
+        if(!rohstoff || !rohstoff._raw){ fehlerListe.push(v.name + " (Zeile unbekannt)"); continue; }
+        const header = rohstoff._raw.spalten, zeileExcel = rohstoff._raw.zeile + 1;
+        const felder = [];
+        if(v.kostenProKg != null)
+          felder.push(["Kosten/kg (CHF)", v.kostenProKg], ["Preis Quelle", v.quelle || "KI-Recherche"], ["Preis Stand", v.stand || heute]);
+        if(v.naehrwerte){
+          const n = v.naehrwerte, vorher = felder.length;
+          if(n.kcal != null) felder.push(["kcal/100g", n.kcal]);
+          if(n.eiweiss != null) felder.push(["Eiweiss g/100g", n.eiweiss]);
+          if(n.fett != null) felder.push(["Fett g/100g", n.fett]);
+          if(n.kh != null) felder.push(["KH g/100g", n.kh]);
+          if(felder.length > vorher) felder.push(["Nährwert Quelle", v.quelle || "KI-Recherche"], ["Nährwert Stand", v.stand || heute]);
+        }
+        for(const [spalte, wert] of felder){
+          const addr = Model.zelladresse(header, spalte, zeileExcel);
+          if(!addr) continue;
+          try{ await Data.updateCell(CONFIG.rohstoffePfad, Store.rohstoffeSheetName, addr, wert); }
+          catch(e){ fehlerListe.push(v.name + "/" + spalte + ": " + e.message); }
+        }
+        geschrieben++;
+      }
+      try{ Store.rohstoffeETag = (await Data.getItemMeta(CONFIG.rohstoffePfad)).eTag; }
+      catch(e){ Store.rohstoffeETag = null; }
+      const konto = msalApp && msalApp.getActiveAccount();
+      if(konto) await App.datenLaden(konto);
+      View.meldung(geschrieben + " Rohstoff(e) aktualisiert." + (fehlerListe.length ? " Fehler bei: " + fehlerListe.join("; ") : ""),
+        fehlerListe.length ? "warn" : "ok", "Recherche übernommen");
+    }catch(e){
+      View.meldung("Schreiben fehlgeschlagen: " + e.message, "err", "Recherche nicht übernommen");
+    }
+    App.rechercheSchliessen();
+    if(Store.aktuellesRezept) View.rezept();
   }
 };
 
