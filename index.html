@@ -70,6 +70,7 @@ table.zutaten td.menge{text-align:right;white-space:nowrap;font-variant-numeric:
 table.zutaten td.pct{text-align:right;color:var(--muted);font-size:.82rem;width:4.5rem;
   font-variant-numeric:tabular-nums}
 .warn-inline{color:var(--rot);font-size:.78rem;margin-left:.4rem}
+.fodmap-ampel{margin-left:.35rem;font-size:.8rem;cursor:default}
 ol.schritte{margin:0;padding-left:1.3rem}
 ol.schritte li{margin:.3rem 0}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.75rem}
@@ -113,6 +114,11 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
   .card{border:0;box-shadow:none;margin:0 0 .6rem}
   .card > h2{border:0;padding:.2rem 0;color:#000}
   .card .body{padding:0}
+  /* AP-0306 Nachbesserung: Nährwerte- und Kosten-Karte wurden beim Seitenumbruch
+     mittendurch geschnitten. Schutz gezielt über .zusammenhalten, nicht über .card —
+     die Zubereitungs-Karte kann länger als eine Seite werden und würde sonst einen
+     erzwungenen Umbruch mit grossem Leerraum davor auslösen. */
+  .card.zusammenhalten{break-inside:avoid}
   details.phase{break-inside:avoid;border-bottom:1px solid #ccc}
   details.phase .phasebody{display:block !important;padding:0 0 .5rem}
   details.phase > summary::before{content:""}
@@ -524,6 +530,21 @@ const Calc = {
     if(ist == null || ziel == null || !ziel) return null;
     const abw = Math.abs(ist - ziel) / ziel;
     return abw <= 0.05 ? "gruen" : abw <= 0.15 ? "gelb" : "rot";
+  },
+
+  // AP-0312/§4: "Rahmen herleiten" — aus gesetzten Zielwerten ein Startgerüst als einzelne
+  // Phase (Wasser = Hydration-Ziel, Salz = Salz-Ziel, Zucker = Süsse-Ziel ÷ Süsskraft der
+  // gewählten Zuckerart, sonst leer). Reine Funktion, mutiert nichts — zuckerart ist optional
+  // (Rohstoff-Objekt mit .name/.suesskraft); ohne sie oder ohne Süsse-Ziel bleibt der
+  // Zucker-Posten schlicht aus, auch wenn suesse_pct gesetzt ist.
+  rahmenHerleiten(zielwerte, zuckerart){
+    const zw = zielwerte || {};
+    const zutaten = [];
+    if(zw.hydration_pct != null) zutaten.push({ name:"Wasser", prozent:zw.hydration_pct, einheit:"ml" });
+    if(zw.salz_pct != null) zutaten.push({ name:"Salz", prozent:zw.salz_pct, einheit:"g" });
+    if(zw.suesse_pct != null && zuckerart && zuckerart.suesskraft)
+      zutaten.push({ name:zuckerart.name, prozent: zw.suesse_pct / zuckerart.suesskraft, einheit:"g" });
+    return [{ name:"Rahmen", zutaten, schritte:[] }];
   },
 
   substitutionsMenge(mengeG, suesskraftAlt, suesskraftNeu){
@@ -1470,16 +1491,41 @@ const View = {
       ? `${Calc.rundenStueck(stk.stueck)} Stk <span style="color:var(--muted);font-weight:400">(${Calc.runden(g, z.einheit)})</span>`
       : Calc.runden(g, z.einheit);
     const unbekannt = z.rohstoff ? "" : '<span class="warn-inline">unbekannter Rohstoff</span>';
-    return `<tr><td>${esc(z.name)}${unbekannt}</td>
+    // AP-0314/§6: FODMAP-Ampel je Zutat, in Normal- UND Entwicklungsmodus sichtbar (beide
+    // nutzen diese Funktion). Sichere Portion (g) nur als Tooltip — fliesst nirgends in eine
+    // Rechnung ein (Spec-Vorgabe "nicht verrechnet").
+    const fodmap = z.rohstoff && z.rohstoff.fodmap;
+    const portion = z.rohstoff && z.rohstoff.fodmapPortionG;
+    const fodmapHtml = fodmap
+      ? `<span class="fodmap-ampel" style="color:var(--${fodmap})" title="FODMAP: ${esc(fodmap)}${portion ? " · sichere Portion " + portion + " g" : ""}">●</span>`
+      : "";
+    return `<tr><td>${esc(z.name)}${unbekannt}${fodmapHtml}</td>
       <td class="pct">${(z.prozent*100).toFixed(1)} %</td>
       <td class="menge">${menge}</td></tr>`;
   },
 
-  /* ---------- Entwicklungsmodus (AP-0311/§3) -------------------------------
+  // AP-0312/AP-0314: Versionen (entwicklung.versionen[].phasen) tragen keine aufgeloesten
+  // Rohstoffverweise — anders als rz.phasen, das Model.aufloesen() nach jeder Aenderung
+  // durchlaeuft. Fuer Ist-Kennzahlen, FODMAP-Ampeln und den Substitutions-Dialog braucht es
+  // dieselbe Aufloesung, hier auf einer Kopie (mutiert weder rz noch die Version).
+  entwVersionAufgeloest(rz, version){
+    if(!version) return null;
+    const idx = Model.rohstoffIndex(Store.rohstoffe);
+    const phasen = (version.phasen || []).map(ph => ({
+      name: ph.name,
+      zutaten: (ph.zutaten || []).map(z => {
+        const nameKey = Model.nameKey(z.name);
+        return { ...z, nameKey, rohstoff: idx.get(nameKey) || null };
+      })
+    }));
+    return { basisMengeG: rz.basisMengeG, portionen: rz.portionen, backprotokoll: rz.backprotokoll, phasen };
+  },
+
+  /* ---------- Entwicklungsmodus (AP-0311/§3, AP-0312/§4, AP-0314/§6) -------
      rz.entwicklung == null -> nur der Anstoss-Button (Abnahmekriterium 3: unveraendertes
      Verhalten ohne das Feld). Store.devForm haelt das jeweils eine offene Formular
-     (Versions-Bearbeitung/-Neuanlage, Diff, Befoerdern-Bestaetigung, Versuchseintrag) —
-     gleiches Prinzip wie Store.backEintrag. */
+     (Versions-Bearbeitung/-Neuanlage, Diff, Befoerdern-Bestaetigung, Versuchseintrag,
+     Zielwerte, Substitution) — gleiches Prinzip wie Store.backEintrag. */
   entwKarte(rz){
     const e = rz.entwicklung;
     if(!e){
@@ -1497,6 +1543,15 @@ const View = {
     const df = Store.devForm;
     const sortiert = (e.versionen || []).slice().sort((a,b) => a.v - b.v);
     const aktiv = Calc.entwAktiveVersion(e);
+    // AP-0312/§2+§4: Ist-Kennzahlen der aktiven Version (nicht der produktiven rz.phasen) —
+    // dieselben reinen Calc-Funktionen wie im Normalmodus, nur auf der aufgeloesten Version.
+    const aktivResolved = View.entwVersionAufgeloest(rz, aktiv);
+    const ist = aktivResolved ? (() => {
+      const k = Calc.kennzahlen(aktivResolved, 1);
+      const kosten = Calc.kosten(aktivResolved, 1, Calc.schwundAktuell(rz.backprotokoll));
+      return { hydration:k.hydration, suesse:k.suesse, fett:k.fett, salz:k.salz, kosten_portion_chf:kosten.proPortion };
+    })() : null;
+    const fdAktiv = aktivResolved ? Calc.fodmapGesamt(Calc.zutatenFlach(aktivResolved)) : null;
 
     const versionenHtml = sortiert.map(v => `
       <div class="zuordnungzeile">
@@ -1566,6 +1621,117 @@ const View = {
         </div>`;
     }
 
+    // AP-0312/§4: Zielwerte-Panel — Ziel/Ist/Ampel je Kennzahl, plus Bearbeiten-Formular
+    // (devForm art "zielwerte") mit "Rahmen herleiten" als zweiter Speicherpfad (erzeugt eine
+    // neue Version statt nur die Zielwerte zu schreiben).
+    const zw = e.zielwerte || {};
+    const kzZeile = (label, istWert, zielWert, fmt) => {
+      const amp = Calc.ampel(istWert, zielWert);
+      return `<tr><td>${esc(label)}</td><td class="num">${zielWert==null?"—":fmt(zielWert)}</td>
+        <td class="num">${istWert==null?"—":fmt(istWert)}</td>
+        <td>${amp ? `<span style="color:var(--${amp})">●</span> ${esc(amp)}` : "—"}</td></tr>`;
+    };
+    let zielwerteForm = "";
+    if(df && df.art === "zielwerte"){
+      const zuckerarten = Store.rohstoffe.filter(r => r.suesskraft);
+      zielwerteForm = `
+        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
+          <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
+            <label>Hydration (%)<input id="zwHydration" type="number" step="0.1" value="${esc(df.hydration)}"></label>
+            <label>Süsse (%)<input id="zwSuesse" type="number" step="0.1" value="${esc(df.suesse)}"></label>
+            <label>Fett (%)<input id="zwFett" type="number" step="0.1" value="${esc(df.fett)}"></label>
+            <label>Salz (%)<input id="zwSalz" type="number" step="0.1" value="${esc(df.salz)}"></label>
+            <label>Kosten/Portion (CHF)<input id="zwKosten" type="number" step="0.01" value="${esc(df.kosten)}"></label>
+          </div>
+          <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">
+            Zuckerart für «Rahmen herleiten» (nur nötig, wenn Süsse-Ziel gesetzt ist)
+            <select id="zwZuckerart" style="width:100%;margin-top:.25rem">
+              <option value="">— keine —</option>
+              ${zuckerarten.map(r => `<option value="${esc(r.id)}"${r.id===df.zuckerartId?" selected":""}>
+                ${esc(r.name)} (Süsskraft ${r.suesskraft})</option>`).join("")}
+            </select></label>
+          <div class="actions noprint" style="margin-top:.7rem">
+            <button id="btnEntwZielwerteSpeichern">Zielwerte speichern</button>
+            <button class="ghost" id="btnEntwRahmenHerleiten">Rahmen herleiten — neue Version</button>
+            <button class="ghost" id="btnEntwFormAbbrechen">Abbrechen</button>
+          </div>
+        </div>`;
+    }
+    const zielwerteHtml = `
+      <h3 style="margin:1.1rem 0 .4rem;font-size:.95rem">Zielwerte</h3>
+      <table class="log">
+        <tr><th>Kennzahl</th><th class="num">Ziel</th><th class="num">Ist</th><th>Ampel</th></tr>
+        ${kzZeile("Hydration", ist && ist.hydration, zw.hydration_pct, v=>pct(v,1))}
+        ${kzZeile("Süsse", ist && ist.suesse, zw.suesse_pct, v=>pct(v,1))}
+        ${kzZeile("Fett", ist && ist.fett, zw.fett_pct, v=>pct(v,1))}
+        ${kzZeile("Salz", ist && ist.salz, zw.salz_pct, v=>pct(v,1))}
+        ${kzZeile("Kosten/Portion", ist && ist.kosten_portion_chf, zw.kosten_portion_chf, v=>chf(v))}
+      </table>
+      ${!ist ? '<div class="hint">Noch keine Version — Ist-Kennzahlen erst nach der ersten Version verfügbar.</div>' : ""}
+      <div class="actions noprint" style="margin-top:.7rem">
+        <button class="ghost" id="btnEntwZielwerte">Zielwerte bearbeiten</button>
+      </div>
+      ${zielwerteForm}`;
+
+    // AP-0314/§6: Austausch-Formular (devForm art "substitution") — vor der Zutatenliste
+    // berechnet, weil diese den fertigen substForm-String direkt unter der betroffenen Zeile
+    // einhaengt (kein zweiter Rendering-Durchlauf noetig).
+    let substForm = "";
+    if(df && df.art === "substitution"){
+      const kandidaten = Store.rohstoffe.filter(r => r.kategorie === df.altKategorie && r.id !== df.altRohstoffId);
+      const kandidat = kandidaten.find(r => r.id === df.kandidatId);
+      let rechnungHtml = "";
+      if(kandidat){
+        const umrechnung = Calc.substitutionsMenge(df.altMengeG, df.altSuesskraft, kandidat.suesskraft || 0);
+        rechnungHtml = umrechnung.hinweis
+          ? `<div class="hint"><span class="warn-inline" style="margin-left:0">${esc(umrechnung.hinweis)}</span> — neue Menge: ${Calc.runden(umrechnung.menge, df.altEinheit)}.</div>`
+          : `<div class="hint">Rechnung: ${Calc.runden(df.altMengeG,"g")} × (${df.altSuesskraft} ÷ ${kandidat.suesskraft}) = ${Calc.runden(umrechnung.menge,"g")}</div>`;
+      }
+      substForm = `
+        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
+          <div class="hint">Ersatz für <b>${esc(df.altName)}</b> (${Calc.runden(df.altMengeG, df.altEinheit)})</div>
+          <label style="display:block;margin-top:.5rem;font-size:.85rem;color:var(--muted)">Ersatzprodukt
+            <select id="substKandidat" style="width:100%;margin-top:.25rem">
+              <option value="">— wählen —</option>
+              ${kandidaten.map(r => `<option value="${esc(r.id)}"${r.id===df.kandidatId?" selected":""}>
+                ${esc(r.name)} — Süsskraft ${r.suesskraft ?? "—"} · FODMAP ${r.fodmap ?? "—"} · CHF ${r.kostenProKg ?? "—"}/kg</option>`).join("")}
+            </select></label>
+          ${rechnungHtml}
+          <div class="actions noprint" style="margin-top:.7rem">
+            <button id="btnEntwSubstUebernehmen"${kandidat?"":" disabled"}>Übernehmen — neue Version</button>
+            <button class="ghost" id="btnEntwFormAbbrechen">Abbrechen</button>
+          </div>
+        </div>`;
+    }
+
+    // AP-0314/§6: Zutaten der aktiven Version mit FODMAP-Ampel + Austausch-Anstoss je Zutat.
+    // Ersetzt niemals rz.phasen direkt — jede Substitution läuft über App.entwSpeichern und
+    // legt immer eine neue Version an.
+    let aktivZutatenHtml = "";
+    if(aktivResolved){
+      const zeilen = [];
+      aktivResolved.phasen.forEach((ph, pi) => (ph.zutaten || []).forEach((z, zi) => {
+        const g = Calc.mengeG(z, rz.basisMengeG, 1);
+        const fodmap = z.rohstoff && z.rohstoff.fodmap;
+        const fodmapHtml = fodmap
+          ? `<span class="fodmap-ampel" style="color:var(--${fodmap})" title="FODMAP: ${esc(fodmap)}${
+              z.rohstoff.fodmapPortionG ? " · sichere Portion " + z.rohstoff.fodmapPortionG + " g" : ""}">●</span>` : "";
+        const offen = df && df.art === "substitution" && df.phaseIdx === pi && df.zutatIdx === zi;
+        zeilen.push(`<tr><td>${esc(ph.name)} · ${esc(z.name)}${z.rohstoff?"":' <span class="warn-inline">unbekannt</span>'}${fodmapHtml}</td>
+          <td class="pct">${(z.prozent*100).toFixed(1)} %</td>
+          <td class="menge">${Calc.runden(g, z.einheit)}</td>
+          <td class="noprint"><button class="ghost" data-subst-phase="${pi}" data-subst-zutat="${zi}">Ersetzen</button></td>
+        </tr>${offen ? `<tr class="noprint"><td colspan="4" style="padding:0">${substForm}</td></tr>` : ""}`);
+      }));
+      if(zeilen.length){
+        aktivZutatenHtml = `
+          <h3 style="margin:1.1rem 0 .4rem;font-size:.95rem">Zutaten v${aktiv.v} — Substitution</h3>
+          <table class="zutaten">${zeilen.join("")}</table>
+          <div class="hint">FODMAP gesamt (v${aktiv.v}): <b>${fdAktiv.ampel ? esc(fdAktiv.ampel) : "—"}</b>${
+            fdAktiv.unbewertet ? ` · ${fdAktiv.unbewertet} Zutat(en) unbewertet` : ""}</div>`;
+      }
+    }
+
     const versuche = (e.versuche || []).slice().sort((a,b) => (a.datum||"").localeCompare(b.datum||""));
     const versucheHtml = versuche.length ? `
       <table class="log">
@@ -1609,6 +1775,8 @@ const View = {
           ${aktiv ? `<button class="ghost" id="btnEntwBefoerdern">Version befördern</button>` : ""}
         </div>
         ${versionForm}${diffForm}${befoerdernForm}
+        ${zielwerteHtml}
+        ${aktivZutatenHtml}
         <h3 style="margin:1.1rem 0 .4rem;font-size:.95rem">Versuche</h3>
         ${versucheHtml}
         <div class="actions noprint" style="margin-top:.7rem">
@@ -1631,6 +1799,9 @@ const View = {
     el("#btnEntwBefoerdern") && el("#btnEntwBefoerdern").addEventListener("click", () => App.entwBefoerdernOeffnen());
     el("#btnEntwVersuchNeu") && el("#btnEntwVersuchNeu").addEventListener("click", () => App.entwVersuchOeffnen());
     el("#btnEntwFormAbbrechen") && el("#btnEntwFormAbbrechen").addEventListener("click", () => App.entwFormAbbrechen());
+    el("#btnEntwZielwerte") && el("#btnEntwZielwerte").addEventListener("click", () => App.entwZielwerteOeffnen());
+    document.querySelectorAll("[data-subst-phase]").forEach(b =>
+      b.addEventListener("click", () => App.entwSubstitutionOeffnen(Number(b.dataset.substPhase), Number(b.dataset.substZutat))));
 
     const df = Store.devForm;
     if(df && df.art === "version"){
@@ -1661,6 +1832,29 @@ const View = {
       el("#btnEntwVersuchSpeichern").addEventListener("click", (e) => {
         const btn = e.currentTarget; btn.disabled = true;
         App.entwVersuchSpeichern().finally(() => { if(btn) btn.disabled = false; });
+      });
+    }
+    if(df && df.art === "zielwerte"){
+      el("#zwHydration").addEventListener("input", e => { df.hydration = e.target.value; });
+      el("#zwSuesse").addEventListener("input", e => { df.suesse = e.target.value; });
+      el("#zwFett").addEventListener("input", e => { df.fett = e.target.value; });
+      el("#zwSalz").addEventListener("input", e => { df.salz = e.target.value; });
+      el("#zwKosten").addEventListener("input", e => { df.kosten = e.target.value; });
+      el("#zwZuckerart").addEventListener("change", e => { df.zuckerartId = e.target.value; });
+      el("#btnEntwZielwerteSpeichern").addEventListener("click", (e) => {
+        const btn = e.currentTarget; btn.disabled = true;
+        App.entwZielwerteSpeichern().finally(() => { if(btn) btn.disabled = false; });
+      });
+      el("#btnEntwRahmenHerleiten").addEventListener("click", (e) => {
+        const btn = e.currentTarget; btn.disabled = true;
+        App.entwRahmenHerleiten().finally(() => { if(btn) btn.disabled = false; });
+      });
+    }
+    if(df && df.art === "substitution"){
+      el("#substKandidat").addEventListener("change", e => App.entwSubstitutionKandidatWaehlen(e.target.value));
+      el("#btnEntwSubstUebernehmen") && el("#btnEntwSubstUebernehmen").addEventListener("click", (e) => {
+        const btn = e.currentTarget; btn.disabled = true;
+        App.entwSubstitutionUebernehmen().finally(() => { if(btn) btn.disabled = false; });
       });
     }
   },
@@ -1759,7 +1953,7 @@ const View = {
         ${phasen}
       </section>
 
-      <section class="card">
+      <section class="card zusammenhalten">
         <h2>Nährwerte</h2>
         <div class="body">
           <div class="kpis">
@@ -1774,7 +1968,7 @@ const View = {
         </div>
       </section>
 
-      <section class="card">
+      <section class="card zusammenhalten">
         <h2>Kosten</h2>
         <div class="body">
           <div class="kpis">
@@ -2345,7 +2539,64 @@ function selfTest(){
       const zurueck = Import.zuIntern(exportiert);
       return ["AP0311-6 Excel-Roundtrip: entwicklung übersteht Export → Prüfung → Import unverändert",
         pruefung.ok === true && JSON.stringify(zurueck.entwicklung) === JSON.stringify(original.entwicklung)];
-    })()
+    })(),
+    // ---- AP-0312 Zielwerte-Rechner — Testblock (4 Fälle) ----
+    // Spec-Rechenbeispiel 1 (§2): Basis 1000 g Mehl, 650 ml Wasser, 30 g Milch 3.5% → Hydration
+    // exakt 68.0%. rzT/idx stammen von oben (Zeile ~2063).
+    ["AP0312-1 Kennzahl Hydration exakt reproduziert (Spec-Beispiel 1: 68.0%)",
+                            nah(Calc.kennzahlen(rzT,1).hydration, 0.680, 0.0001)],
+    // Spec-Rechenbeispiel 2 (§2): 100 g Zucker (Süsskraft 1.0) + 50 g Tagatose (0.92) auf
+    // Basis 1000 g → Süsse exakt 14.6%.
+    ["AP0312-2 Kennzahl Süsse exakt reproduziert (Spec-Beispiel 2: 14.6%)",
+                            nah(Calc.kennzahlen(suT,1).suesse, 0.146, 0.0001)],
+    // Ampel-Schwellen (§4): grün ≤5% relative Abweichung, gelb ≤15%, rot >15% — mit Ziel 100
+    // (glatte Prozentzahlen, keine Fliesskomma-Rundung an der Schwelle selbst).
+    ["AP0312-3 Ampel wechselt exakt an den Schwellen 5%/15%",
+                            Calc.ampel(105, 100) === "gruen"
+                              && Calc.ampel(115, 100) === "gelb"
+                              && Calc.ampel(116, 100) === "rot"],
+    // "Rahmen herleiten" (§4): Wasser = Hydration-Ziel, Salz = Salz-Ziel, Zucker = Süsse-Ziel
+    // ÷ Süsskraft der gewählten Zuckerart, alles als Prozent der Basis — Rest bleibt leer.
+    ["AP0312-4 Rahmen herleiten: Wasser/Salz/Zucker exakt aus den Zielwerten",
+                            (() => {
+                              const phasen = Calc.rahmenHerleiten(
+                                { hydration_pct:0.68, salz_pct:0.02, suesse_pct:0.10 }, { name:"Zucker", suesskraft:1.0 });
+                              const zt = phasen[0].zutaten;
+                              const wasser = zt.find(z => z.name === "Wasser"), salz = zt.find(z => z.name === "Salz"),
+                                    zucker = zt.find(z => z.name === "Zucker");
+                              return nah(wasser.prozent, 0.68, 0.0001) && wasser.einheit === "ml"
+                                && nah(salz.prozent, 0.02, 0.0001) && nah(zucker.prozent, 0.10, 0.0001);
+                            })()],
+    // ---- AP-0314 Substitutions-Rechner — Testblock (2 Fälle) ----
+    // Spec-Beispiel §6: 100 g Zucker → Tagatose (0.92) = 109 g, gerundet. Original-Version
+    // bleibt unangetastet (deep copy), eine neue Version entsteht — dieselbe Transformation
+    // wie App.entwSubstitutionUebernehmen, hier ohne Store/DOM als reine Berechnung nachgebaut.
+    (() => {
+      const entwOriginal = { status:"entwicklung", zielwerte:{}, aktivV:1,
+        versionen:[{v:1,datum:"2026-08-16",notiz:"Start",
+          phasen:[{name:"P",zutaten:[{name:"Zucker",prozent:0.100,einheit:"g"}],schritte:[]}]}], versuche:[] };
+      const rz = { basisMengeG:1000, entwicklung: JSON.parse(JSON.stringify(entwOriginal)) };
+      const aktiv = Calc.entwAktiveVersion(rz.entwicklung);
+      const alt = aktiv.phasen[0].zutaten[0];
+      const altMengeG = Calc.mengeG(alt, rz.basisMengeG, 1);
+      const umrechnung = Calc.substitutionsMenge(altMengeG, 1.0, 0.92);
+      const phasenKopie = JSON.parse(JSON.stringify(aktiv.phasen));
+      phasenKopie[0].zutaten[0] = { name:"Tagatose", prozent: umrechnung.menge / rz.basisMengeG, einheit:"g" };
+      const naechsteV = rz.entwicklung.versionen.reduce((m,v) => Math.max(m, v.v || 0), 0) + 1;
+      const neueEntwicklung = { ...rz.entwicklung,
+        versionen:[...rz.entwicklung.versionen, {v:naechsteV,datum:"2026-08-21",notiz:"Substitution",phasen:phasenKopie}],
+        aktivV: naechsteV };
+      const originalUnveraendert = JSON.stringify(rz.entwicklung.versionen[0]) === JSON.stringify(entwOriginal.versionen[0]);
+      const neueVersion = neueEntwicklung.versionen.find(v => v.v === naechsteV);
+      return ["AP0314-1 Substitution Zucker→Tagatose exakt 109 g, Original unverändert, neue Version entsteht",
+        Math.round(umrechnung.menge) === 109
+          && originalUnveraendert
+          && neueEntwicklung.versionen.length === entwOriginal.versionen.length + 1
+          && neueVersion.phasen[0].zutaten[0].name === "Tagatose"];
+    })(),
+    // FODMAP-Gesamtbewertung (§6) = schlechteste Ampel der Zutaten.
+    ["AP0314-2 FODMAP-Gesamtbewertung entspricht der schlechtesten Zutaten-Ampel",
+                            Calc.fodmapGesamt([{rohstoff:{fodmap:"gruen"}},{rohstoff:{fodmap:"gelb"}},{rohstoff:{fodmap:"gruen"}}]).ampel === "gelb"]
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
   return { anzahl:t.length, fehler };
@@ -2772,6 +3023,119 @@ const App = {
     const neueEntwicklung = JSON.parse(JSON.stringify(rz.entwicklung));
     neueEntwicklung.versuche = [...(neueEntwicklung.versuche || []), eintrag];
     await App.entwSpeichern(rz, neueEntwicklung, "Versuch erfasst.");
+  },
+
+  /* ---------- Zielwerte-Rechner (AP-0312/§4) --------------------------------
+     Formulare tragen Prozentwerte als Text im Editor-freundlichen "68" statt "0.68" —
+     App.zielwerteAusForm() ist die einzige Stelle, die dieses ×100 wieder aufloest. */
+  entwZielwerteOeffnen(){
+    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
+    if(!e) return;
+    const zw = e.zielwerte || {};
+    const pctStr = v => v == null ? "" : String(Math.round(v * 10000) / 100);
+    Store.devForm = { art:"zielwerte",
+      hydration: pctStr(zw.hydration_pct), suesse: pctStr(zw.suesse_pct), fett: pctStr(zw.fett_pct),
+      salz: pctStr(zw.salz_pct), kosten: zw.kosten_portion_chf != null ? String(zw.kosten_portion_chf) : "",
+      zuckerartId: "" };
+    View.rezept();
+  },
+
+  zielwerteAusForm(df){
+    const pct = s => (s === "" || s == null) ? null : Number(s) / 100;
+    const num = s => (s === "" || s == null) ? null : Number(s);
+    return {
+      hydration_pct: pct(df.hydration), suesse_pct: pct(df.suesse), fett_pct: pct(df.fett),
+      salz_pct: pct(df.salz), kosten_portion_chf: num(df.kosten)
+    };
+  },
+
+  async entwZielwerteSpeichern(){
+    const rz = Store.aktuellesRezept, df = Store.devForm;
+    if(!rz || !rz.entwicklung || !df || df.art !== "zielwerte") return;
+    const neueEntwicklung = { ...rz.entwicklung, zielwerte: App.zielwerteAusForm(df) };
+    await App.entwSpeichern(rz, neueEntwicklung, "Zielwerte gespeichert.");
+  },
+
+  // §4 "Rahmen herleiten": Basis-Wasser/-Salz/-Zucker aus den (gerade eingegebenen, ggf. noch
+  // nicht gespeicherten) Zielwerten — legt IMMER eine neue Version an, speichert dabei auch
+  // gleich die Zielwerte selbst (ein Schreibvorgang statt zwei).
+  async entwRahmenHerleiten(){
+    const rz = Store.aktuellesRezept, df = Store.devForm;
+    if(!rz || !rz.entwicklung || !df || df.art !== "zielwerte") return;
+    const zielwerte = App.zielwerteAusForm(df);
+    if(zielwerte.hydration_pct == null && zielwerte.salz_pct == null && zielwerte.suesse_pct == null){
+      View.meldung("Mindestens ein Zielwert (Hydration, Salz oder Süsse) nötig, um einen Rahmen herzuleiten.",
+        "err", "Rahmen nicht erzeugt");
+      return;
+    }
+    let zuckerart = null;
+    if(zielwerte.suesse_pct != null){
+      zuckerart = Store.rohstoffe.find(r => r.id === df.zuckerartId) || null;
+      if(!zuckerart || !zuckerart.suesskraft)
+        View.meldung("Süsse-Ziel gesetzt, aber keine Zuckerart mit Süsskraft gewählt — Zucker-Posten bleibt leer.",
+          "warn", "Rahmen unvollständig");
+    }
+    const phasen = Calc.rahmenHerleiten(zielwerte, zuckerart);
+    const heute = new Date().toISOString().slice(0, 10);
+    const naechsteV = rz.entwicklung.versionen.reduce((m,v) => Math.max(m, v.v || 0), 0) + 1;
+    const neueEntwicklung = { ...rz.entwicklung, zielwerte,
+      versionen: [...rz.entwicklung.versionen, { v: naechsteV, datum: heute,
+        notiz: "Rahmen aus Zielwerten hergeleitet", phasen }],
+      aktivV: naechsteV };
+    await App.entwSpeichern(rz, neueEntwicklung, "Rahmen v" + naechsteV + " aus Zielwerten hergeleitet.");
+  },
+
+  /* ---------- Substitutions-Rechner (AP-0314/§6) ----------------------------
+     Austausch bezieht sich immer auf die AKTIVE Version (nicht rz.phasen) und erzeugt beim
+     Uebernehmen immer eine neue Version — das Original (auch die bisher aktive Version) bleibt
+     unveraendert, exakt wie jede andere Versions-Aenderung in diesem Modus. */
+  entwSubstitutionOeffnen(phaseIdx, zutatIdx){
+    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
+    const aktiv = e && Calc.entwAktiveVersion(e);
+    if(!aktiv) return;
+    const zutat = aktiv.phasen[phaseIdx] && aktiv.phasen[phaseIdx].zutaten[zutatIdx];
+    if(!zutat) return;
+    const idx = Model.rohstoffIndex(Store.rohstoffe);
+    const rohstoff = idx.get(Model.nameKey(zutat.name)) || null;
+    if(!rohstoff){
+      View.meldung("Rohstoff „" + zutat.name + "“ ist unbekannt — keine Kandidaten für einen Austausch.",
+        "err", "Substitution nicht möglich");
+      return;
+    }
+    Store.devForm = { art:"substitution", phaseIdx, zutatIdx,
+      altName: zutat.name, altEinheit: zutat.einheit,
+      altMengeG: Calc.mengeG(zutat, rz.basisMengeG, 1),
+      altSuesskraft: rohstoff.suesskraft || 0, altKategorie: rohstoff.kategorie, altRohstoffId: rohstoff.id,
+      kandidatId: "" };
+    View.rezept();
+  },
+
+  entwSubstitutionKandidatWaehlen(id){
+    if(!Store.devForm || Store.devForm.art !== "substitution") return;
+    Store.devForm.kandidatId = id;
+    View.rezept();
+  },
+
+  async entwSubstitutionUebernehmen(){
+    const rz = Store.aktuellesRezept, df = Store.devForm;
+    if(!rz || !rz.entwicklung || !df || df.art !== "substitution") return;
+    const kandidat = Store.rohstoffe.find(r => r.id === df.kandidatId);
+    if(!kandidat){ View.meldung("Bitte ein Ersatzprodukt wählen.", "err", "Substitution nicht möglich"); return; }
+    const aktiv = Calc.entwAktiveVersion(rz.entwicklung);
+    const alt = aktiv && aktiv.phasen[df.phaseIdx] && aktiv.phasen[df.phaseIdx].zutaten[df.zutatIdx];
+    if(!alt) return;
+    const umrechnung = Calc.substitutionsMenge(df.altMengeG, df.altSuesskraft, kandidat.suesskraft || 0);
+    const neuesProzent = umrechnung.menge / rz.basisMengeG;
+    const phasenKopie = JSON.parse(JSON.stringify(aktiv.phasen));
+    phasenKopie[df.phaseIdx].zutaten[df.zutatIdx] = { name: kandidat.name, prozent: neuesProzent, einheit: alt.einheit };
+    const heute = new Date().toISOString().slice(0, 10);
+    const naechsteV = rz.entwicklung.versionen.reduce((m,v) => Math.max(m, v.v || 0), 0) + 1;
+    const notiz = "Substitution: " + alt.name + " → " + kandidat.name
+      + (umrechnung.hinweis ? " (" + umrechnung.hinweis + ")" : "");
+    const neueEntwicklung = { ...rz.entwicklung,
+      versionen: [...rz.entwicklung.versionen, { v: naechsteV, datum: heute, notiz, phasen: phasenKopie }],
+      aktivV: naechsteV };
+    await App.entwSpeichern(rz, neueEntwicklung, "Substitution übernommen — Version v" + naechsteV + " angelegt.");
   },
 
   // Gemeinsamer Schreibpfad fuer jede reine Entwicklung-Aenderung (Start, neue/bearbeitete
