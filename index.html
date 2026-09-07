@@ -83,6 +83,24 @@ table.log th{text-align:left;font-size:.75rem;text-transform:uppercase;letter-sp
   color:var(--muted);font-weight:600;padding:.3rem 0;border-bottom:1px solid var(--line)}
 table.log td{padding:.45rem 0;border-bottom:1px solid var(--line)}
 table.log td.num{text-align:right}
+/* AP-0313: Vergleichstabelle. Mehrere Referenzspalten passen auf dem iPad nicht nebeneinander —
+   die Tabelle scrollt darum in ihrem eigenen Container statt die Seite breit zu machen.
+   Die Markierung «> 20 % Abweichung» trägt zusätzlich zur Farbe eine Glyphe und Fettschrift,
+   damit sie den Schwarz-Weiss-Druck aus AP-0306 überlebt. */
+.tabellescroll{overflow-x:auto}
+table.vergleich td,table.vergleich th{padding-right:.9rem;white-space:nowrap}
+table.vergleich td.abw{color:var(--rot);font-weight:600}
+table.vergleich td.abw::after{content:" ▲";font-size:.75rem}
+table.vergleich tr.gruppe td{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);font-weight:600;padding-top:.8rem}
+.refchip{display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--line);
+  border-radius:999px;padding:.15rem .3rem .15rem .6rem;margin:0 .4rem .4rem 0;font-size:.85rem}
+.refliste{max-height:11rem;overflow-y:auto;border:1px solid var(--line);border-radius:8px;
+  margin-top:.5rem}
+.refliste button{display:block;width:100%;text-align:left;background:none;border:0;
+  border-bottom:1px solid var(--line);padding:.45rem .6rem;font:inherit;color:inherit;cursor:pointer}
+.refliste button:hover{background:var(--accent-soft)}
+.refliste button:last-child{border-bottom:0}
 .actions{display:flex;gap:.6rem;flex-wrap:wrap}
 #meldungen:empty{display:none}
 #meldungen{margin-bottom:1rem}
@@ -122,6 +140,10 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
   details.phase{break-inside:avoid;border-bottom:1px solid #ccc}
   details.phase .phasebody{display:block !important;padding:0 0 .5rem}
   details.phase > summary::before{content:""}
+  /* AP-0313: der Scroll-Container darf im Druck nichts abschneiden, und die Markierung
+     «> 20 %» muss ohne Farbe erkennbar bleiben — die Glyphe aus ::after trägt sie. */
+  .tabellescroll{overflow:visible}
+  table.vergleich td.abw{color:#000;font-weight:700}
 }
 </style>
 </head>
@@ -616,6 +638,64 @@ const Calc = {
     }));
 
     return { zutaten, schritte };
+  },
+
+  // AP-0313/§5 Referenz-Vergleich: eine Tabelle, Spalte 0 = Entwicklungsversion, danach bis zu
+  // drei Bestandsrezepte. Zeilen sind die Kennzahlen aus §2 plus die Union aller Zutaten in %
+  // der Basis. Reine Funktion — alle Spalten muessen bereits aufgeloest sein (z.B. via
+  // View.entwVersionAufgeloest bzw. direkt aus Store.rezepte), damit hier dieselben
+  // Calc-Funktionen laufen wie in der Einzelansicht und die Werte zwingend uebereinstimmen.
+  relAbweichung(wert, referenz){
+    if(wert == null || referenz == null || !referenz) return null;
+    return Math.abs(wert - referenz) / Math.abs(referenz);
+  },
+
+  referenzVergleich(entwRezept, referenzen){
+    const spalten = [entwRezept, ...(referenzen || [])].filter(Boolean);
+    // Schwelle aus der Spez: > 20 % relativ. Genau 20.0 % bleibt unmarkiert.
+    const SCHWELLE = 0.20;
+    const zeile = (label, art, werte) => {
+      const wert = werte[0] == null ? null : werte[0];
+      return { label, art, wert, refs: werte.slice(1).map(w => {
+        const abw = Calc.relAbweichung(wert, w);
+        return { wert: w, abw, markiert: abw != null && abw > SCHWELLE };
+      }) };
+    };
+
+    const kz = spalten.map(rz => {
+      const k = Calc.kennzahlen(rz, 1);
+      const kosten = Calc.kosten(rz, 1, Calc.schwundAktuell(rz.backprotokoll));
+      return { ...k, kosten: kosten.proPortion };
+    });
+    const kennzahlen = [
+      zeile("Hydration",      "pct", kz.map(k => k.hydration)),
+      zeile("Salz",           "pct", kz.map(k => k.salz)),
+      zeile("Süsse",          "pct", kz.map(k => k.suesse)),
+      zeile("Fett",           "pct", kz.map(k => k.fett)),
+      zeile("Zucker roh",     "pct", kz.map(k => k.zuckerRoh)),
+      zeile("Kosten/Portion", "chf", kz.map(k => k.kosten))
+    ];
+
+    // Zutaten-Union: Reihenfolge folgt den Spalten (Entwicklungsversion zuerst), damit die
+    // eigenen Zutaten oben stehen; nur in einer Referenz vorhandene Zutaten haengen hinten an.
+    const proRezept = spalten.map(rz => {
+      const m = new Map();
+      Calc.zutatenFlach(rz).forEach(z => {
+        const key = Model.nameKey(z.name);
+        const e = m.get(key);
+        if(e) e.prozent += (z.prozent || 0);
+        else m.set(key, { name: z.name, prozent: z.prozent || 0 });
+      });
+      return m;
+    });
+    const namen = [];
+    proRezept.forEach(m => m.forEach((v, key) => {
+      if(!namen.some(n => n.key === key)) namen.push({ key, name: v.name });
+    }));
+    const zutaten = namen.map(n =>
+      zeile(n.name, "pct", proRezept.map(m => m.has(n.key) ? m.get(n.key).prozent : null)));
+
+    return { kennzahlen, zutaten, spalten: spalten.length };
   }
 };
 
@@ -1429,7 +1509,11 @@ const Store = {
   // AP-0311: Zustand des jeweils einen offenen Formulars im Entwicklungsmodus-Block — nur eins
   // gleichzeitig, gleiches Prinzip wie Store.backEintrag/Store.import. art unterscheidet
   // "version" (neu/bearbeiten), "versuch", "diff" und "befoerdern"; null = kein Formular offen.
-  devForm:null
+  devForm:null,
+  // AP-0313: IDs der bis zu 3 gewaehlten Referenzrezepte. Bewusst nur sitzungslokal — der
+  // Vergleich ist eine Ansicht, kein Rezeptinhalt; nichts davon wird nach Rezepte.xlsx
+  // geschrieben (Spez. AP-0203 §5 verlangt keine Persistenz).
+  referenzIds:[]
 };
 
 /* ---------- View -------------------------------------------------------- */
@@ -1732,6 +1816,85 @@ const View = {
       }
     }
 
+    // AP-0313/§5: Referenz-Vergleich. Die Auswahl (Suche + Kategoriefilter + Trefferliste) ist
+    // noprint, die Tabelle selbst nicht — sie soll über das Print-CSS aus AP-0306 mitdrucken.
+    // Suchtext/Kategorie liegen bewusst in devForm und nicht in Store.suchtext/Store.kategorie:
+    // die Referenzsuche darf die Rezeptliste links nicht mitfiltern.
+    const refs = Store.referenzIds
+      .map(id => Store.rezepte.find(r => r.id === id))
+      .filter(Boolean)
+      .filter(r => r.id !== rz.id);
+    let referenzWahl = "";
+    if(df && df.art === "referenz"){
+      const q = (df.suchtext || "").trim().toLowerCase();
+      const kats = [...new Set(Store.rezepte.map(r => r.kategorie).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de"));
+      const treffer = Store.rezepte.filter(r =>
+        r.id !== rz.id
+        && !Store.referenzIds.includes(r.id)
+        && (!df.kategorie || r.kategorie === df.kategorie)
+        && (!q || (r.name + " " + r.kategorie + " " + (r.unterkategorie||"")).toLowerCase().includes(q))
+      ).slice(0, 40);
+      const voll = refs.length >= 3;
+      referenzWahl = `
+        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
+          <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
+            <label>Suche<input id="refSuche" type="search" value="${esc(df.suchtext || "")}"
+              placeholder="Rezept suchen…" autocomplete="off"></label>
+            <label>Kategorie<select id="refKategorie">
+              <option value="">Alle Kategorien</option>
+              ${kats.map(k => `<option value="${esc(k)}"${k===df.kategorie?" selected":""}>${esc(k)}</option>`).join("")}
+            </select></label>
+          </div>
+          ${voll
+            ? '<div class="hint">Drei Referenzen gewählt — für eine weitere zuerst eine entfernen.</div>'
+            : treffer.length
+              ? `<div class="refliste">${treffer.map(r => `<button data-ref-add="${esc(r.id)}">
+                  ${esc(r.name)} <span style="color:var(--muted);font-size:.82rem">· ${esc(r.kategorie)}</span>
+                </button>`).join("")}</div>`
+              : '<div class="hint">Kein Rezept gefunden.</div>'}
+          <div class="actions noprint" style="margin-top:.7rem">
+            <button class="ghost" id="btnEntwFormAbbrechen">Schliessen</button>
+          </div>
+        </div>`;
+    }
+
+    let vergleichHtml = "";
+    if(aktivResolved && refs.length){
+      const vg = Calc.referenzVergleich(aktivResolved, refs);
+      const fmt = (art, v) => v == null ? "—" : (art === "chf" ? chf(v) : pct(v, 1));
+      const zeileHtml = z => `<tr><td>${esc(z.label)}</td>
+        <td class="num">${fmt(z.art, z.wert)}</td>
+        ${z.refs.map(r => `<td class="num${r.markiert ? " abw" : ""}"${
+          r.abw != null ? ` title="Abweichung ${(r.abw*100).toFixed(0)} % gegenüber der Entwicklungsversion"` : ""
+        }>${fmt(z.art, r.wert)}</td>`).join("")}</tr>`;
+      vergleichHtml = `
+        <div class="tabellescroll">
+          <table class="log vergleich">
+            <tr><th>Kennzahl</th><th class="num">v${aktiv.v} (Entwicklung)</th>
+              ${refs.map(r => `<th class="num">${esc(r.name)}</th>`).join("")}</tr>
+            ${vg.kennzahlen.map(zeileHtml).join("")}
+            <tr class="gruppe"><td colspan="${refs.length + 2}">Zutaten (% der Basis)</td></tr>
+            ${vg.zutaten.map(zeileHtml).join("")}
+          </table>
+        </div>
+        <div class="hint">▲ markiert: mehr als 20 % relative Abweichung der Referenz gegenüber
+          der Entwicklungsversion v${aktiv.v}.</div>`;
+    }
+    const referenzHtml = `
+      <h3 style="margin:1.1rem 0 .4rem;font-size:.95rem">Referenz-Vergleich</h3>
+      ${refs.length ? `<div class="noprint">${refs.map(r => `<span class="refchip">${esc(r.name)}
+        <button class="ghost" data-ref-del="${esc(r.id)}" title="Referenz entfernen">✕</button></span>`).join("")}</div>` : ""}
+      ${vergleichHtml}
+      ${!aktivResolved
+        ? '<div class="hint">Noch keine Version — der Vergleich braucht eine Entwicklungsversion.</div>'
+        : !refs.length
+          ? '<div class="hint">Keine Referenz gewählt — bis zu 3 Bestandsrezepte zum Vergleich hinzufügen.</div>'
+          : ""}
+      <div class="actions noprint" style="margin-top:.7rem">
+        <button class="ghost" id="btnEntwReferenz">Referenzen wählen</button>
+      </div>
+      ${referenzWahl}`;
+
     const versuche = (e.versuche || []).slice().sort((a,b) => (a.datum||"").localeCompare(b.datum||""));
     const versucheHtml = versuche.length ? `
       <table class="log">
@@ -1777,6 +1940,7 @@ const View = {
         ${versionForm}${diffForm}${befoerdernForm}
         ${zielwerteHtml}
         ${aktivZutatenHtml}
+        ${referenzHtml}
         <h3 style="margin:1.1rem 0 .4rem;font-size:.95rem">Versuche</h3>
         ${versucheHtml}
         <div class="actions noprint" style="margin-top:.7rem">
@@ -1800,6 +1964,11 @@ const View = {
     el("#btnEntwVersuchNeu") && el("#btnEntwVersuchNeu").addEventListener("click", () => App.entwVersuchOeffnen());
     el("#btnEntwFormAbbrechen") && el("#btnEntwFormAbbrechen").addEventListener("click", () => App.entwFormAbbrechen());
     el("#btnEntwZielwerte") && el("#btnEntwZielwerte").addEventListener("click", () => App.entwZielwerteOeffnen());
+    el("#btnEntwReferenz") && el("#btnEntwReferenz").addEventListener("click", () => App.entwReferenzOeffnen());
+    document.querySelectorAll("[data-ref-add]").forEach(b =>
+      b.addEventListener("click", () => App.entwReferenzHinzufuegen(b.dataset.refAdd)));
+    document.querySelectorAll("[data-ref-del]").forEach(b =>
+      b.addEventListener("click", () => App.entwReferenzEntfernen(b.dataset.refDel)));
     document.querySelectorAll("[data-subst-phase]").forEach(b =>
       b.addEventListener("click", () => App.entwSubstitutionOeffnen(Number(b.dataset.substPhase), Number(b.dataset.substZutat))));
 
@@ -1849,6 +2018,17 @@ const View = {
         const btn = e.currentTarget; btn.disabled = true;
         App.entwRahmenHerleiten().finally(() => { if(btn) btn.disabled = false; });
       });
+    }
+    if(df && df.art === "referenz"){
+      // Die Trefferliste muss beim Tippen mitlaufen, dafuer wird die Karte neu gezeichnet —
+      // das Suchfeld verliert dabei den Fokus. Darum hier gezielt zurueckholen und den Cursor
+      // ans Ende setzen, sonst tippt man nach dem ersten Zeichen ins Leere.
+      const suche = el("#refSuche");
+      if(suche){
+        suche.addEventListener("input", e => App.entwReferenzSuche(e.target.value));
+        if(df.fokus){ suche.focus(); suche.setSelectionRange(suche.value.length, suche.value.length); }
+      }
+      el("#refKategorie") && el("#refKategorie").addEventListener("change", e => App.entwReferenzKategorie(e.target.value));
     }
     if(df && df.art === "substitution"){
       el("#substKandidat").addEventListener("change", e => App.entwSubstitutionKandidatWaehlen(e.target.value));
@@ -2596,7 +2776,60 @@ function selfTest(){
     })(),
     // FODMAP-Gesamtbewertung (§6) = schlechteste Ampel der Zutaten.
     ["AP0314-2 FODMAP-Gesamtbewertung entspricht der schlechtesten Zutaten-Ampel",
-                            Calc.fodmapGesamt([{rohstoff:{fodmap:"gruen"}},{rohstoff:{fodmap:"gelb"}},{rohstoff:{fodmap:"gruen"}}]).ampel === "gelb"]
+                            Calc.fodmapGesamt([{rohstoff:{fodmap:"gruen"}},{rohstoff:{fodmap:"gelb"}},{rohstoff:{fodmap:"gruen"}}]).ampel === "gelb"],
+    // ---- AP-0313 Referenz-Vergleich — Testblock (3 Fälle) ----
+    // Abnahmekriterium 1: die Kennzahlwerte in der Vergleichstabelle müssen mit denen der
+    // Einzelansicht übereinstimmen — hier gegen Calc.kennzahlen jeder Spalte einzeln geprüft,
+    // mit 3 Referenzen (Maximum laut Spez. §5).
+    (() => {
+      const ref1 = { basisMengeG:1000, portionen:1, backprotokoll:[], phasen:[{zutaten:[
+        {name:"Wasser",prozent:0.600,rohstoff:idx.get("wasser"),nameKey:"wasser"}]}] };
+      const ref2 = { basisMengeG:1000, portionen:1, backprotokoll:[], phasen:[{zutaten:[
+        {name:"Wasser",prozent:0.500,rohstoff:idx.get("wasser"),nameKey:"wasser"}]}] };
+      const ref3 = { basisMengeG:1000, portionen:1, backprotokoll:[], phasen:[{zutaten:[
+        {name:"Zucker",prozent:0.100,rohstoff:idx.get("zucker"),nameKey:"zucker"}]}] };
+      const entw = { ...rzT, backprotokoll:[] };
+      const vg = Calc.referenzVergleich(entw, [ref1, ref2, ref3]);
+      const hyd = vg.kennzahlen.find(z => z.label === "Hydration");
+      const einzeln = [entw, ref1, ref2, ref3].map(r => Calc.kennzahlen(r, 1).hydration);
+      return ["AP0313-1 Vergleichsspalten zeigen exakt die Kennzahlen der Einzelansichten (3 Referenzen)",
+        vg.spalten === 4
+          && nah(hyd.wert, einzeln[0], 1e-9)
+          && hyd.refs.every((r, i) => nah(r.wert, einzeln[i+1], 1e-9))];
+    })(),
+    // Abnahmekriterium 2: Markierung genau oberhalb 20 % relativer Abweichung — 20.0 % gilt
+    // noch als unmarkiert, erst darüber wird hervorgehoben.
+    ["AP0313-2 Markierung greift erst über 20 % relativer Abweichung",
+                            (() => {
+                              const grenze = Calc.relAbweichung(0.80, 1.00);   // exakt 20 %
+                              const drueber = Calc.relAbweichung(0.799, 1.00); // 20.1 %
+                              const zeile = Calc.referenzVergleich(
+                                { basisMengeG:1000, portionen:1, backprotokoll:[], phasen:[{zutaten:[
+                                  {name:"Wasser",prozent:0.500,rohstoff:idx.get("wasser"),nameKey:"wasser"}]}] },
+                                [{ basisMengeG:1000, portionen:1, backprotokoll:[], phasen:[{zutaten:[
+                                  {name:"Wasser",prozent:0.625,rohstoff:idx.get("wasser"),nameKey:"wasser"}]}] }]
+                              ).kennzahlen.find(z => z.label === "Hydration");
+                              // 0.500 gegen 0.625 = 20 % relativ zur Referenz → noch unmarkiert
+                              return nah(grenze, 0.20, 1e-9) && drueber > 0.20
+                                && nah(zeile.refs[0].abw, 0.20, 1e-9) && zeile.refs[0].markiert === false;
+                            })()],
+    // Zeilen-Union (§5): eine nur in der Referenz vorhandene Zutat bekommt trotzdem eine Zeile;
+    // ohne eigenen Wert ist keine relative Abweichung berechenbar, also auch keine Markierung.
+    ["AP0313-3 Zutaten-Union: nur in der Referenz vorhandene Zutat ergibt Zeile ohne Markierung",
+                            (() => {
+                              const vg = Calc.referenzVergleich(
+                                { basisMengeG:1000, portionen:1, backprotokoll:[], phasen:[{zutaten:[
+                                  {name:"Wasser",prozent:0.600,rohstoff:idx.get("wasser"),nameKey:"wasser"}]}] },
+                                [{ basisMengeG:1000, portionen:1, backprotokoll:[], phasen:[{zutaten:[
+                                  {name:"Wasser",prozent:0.600,rohstoff:idx.get("wasser"),nameKey:"wasser"},
+                                  {name:"Zucker",prozent:0.100,rohstoff:idx.get("zucker"),nameKey:"zucker"}]}] }]
+                              );
+                              const zucker = vg.zutaten.find(z => z.label === "Zucker");
+                              const wasser = vg.zutaten.find(z => z.label === "Wasser");
+                              return zucker != null && zucker.wert === null
+                                && zucker.refs[0].wert === 0.100 && zucker.refs[0].markiert === false
+                                && wasser.refs[0].markiert === false;
+                            })()]
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
   return { anzahl:t.length, fehler };
@@ -2724,6 +2957,10 @@ const App = {
     Store.aktuellesRezept = Store.rezepte.find(r => r.id === id) || null;
     Store.faktor = 1;
     Store.offenePhasen = new Set([0]);
+    // AP-0313: Referenzen gehören zum verglichenen Rezept — beim Wechsel zurücksetzen, sonst
+    // stünden im nächsten Rezept die Vergleichsspalten des vorigen.
+    Store.referenzIds = [];
+    Store.devForm = null;
     View.rezept();
     window.scrollTo({top:0, behavior:"smooth"});
   },
@@ -3083,6 +3320,49 @@ const App = {
         notiz: "Rahmen aus Zielwerten hergeleitet", phasen }],
       aktivV: naechsteV };
     await App.entwSpeichern(rz, neueEntwicklung, "Rahmen v" + naechsteV + " aus Zielwerten hergeleitet.");
+  },
+
+  /* ---------- Referenz-Vergleich (AP-0313/§5) -------------------------------
+     Reine Ansichtsfunktion: die Auswahl liegt in Store.referenzIds (sitzungslokal), es wird
+     nichts gespeichert und nichts am Rezept veraendert. Maximal 3 Referenzen (Spez. §5). */
+  entwReferenzOeffnen(){
+    const rz = Store.aktuellesRezept;
+    if(!rz || !rz.entwicklung) return;
+    Store.devForm = { art:"referenz", suchtext:"", kategorie:"", fokus:false };
+    View.rezept();
+  },
+
+  entwReferenzSuche(text){
+    if(!Store.devForm || Store.devForm.art !== "referenz") return;
+    Store.devForm.suchtext = text;
+    Store.devForm.fokus = true;
+    View.rezept();
+  },
+
+  entwReferenzKategorie(kat){
+    if(!Store.devForm || Store.devForm.art !== "referenz") return;
+    Store.devForm.kategorie = kat;
+    Store.devForm.fokus = false;
+    View.rezept();
+  },
+
+  entwReferenzHinzufuegen(id){
+    const rz = Store.aktuellesRezept;
+    if(!rz || id === rz.id || Store.referenzIds.includes(id)) return;
+    if(Store.referenzIds.length >= 3){
+      View.meldung("Mehr als 3 Referenzen sind nicht vorgesehen — zuerst eine entfernen.",
+        "err", "Referenz nicht hinzugefügt");
+      return;
+    }
+    Store.referenzIds = [...Store.referenzIds, id];
+    if(Store.devForm && Store.devForm.art === "referenz") Store.devForm.fokus = false;
+    View.rezept();
+  },
+
+  entwReferenzEntfernen(id){
+    Store.referenzIds = Store.referenzIds.filter(x => x !== id);
+    if(Store.devForm && Store.devForm.art === "referenz") Store.devForm.fokus = false;
+    View.rezept();
   },
 
   /* ---------- Substitutions-Rechner (AP-0314/§6) ----------------------------
