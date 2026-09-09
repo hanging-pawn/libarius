@@ -284,8 +284,80 @@ textarea.importtext{width:100%;min-height:10rem;font:13px/1.4 ui-monospace,Menlo
 .editorwarnung .ghost{margin-left:.5rem;padding:.15rem .5rem;min-height:auto;font-size:.78rem}
 .editorvorschau{border:1px solid var(--line);border-radius:8px;padding:.8rem .9rem;margin-top:.7rem;background:var(--bg)}
 .editorvorschau ul{margin:.4rem 0 0;padding-left:1.2rem}
+/* ---------- AP-0308: Entwicklungsmodus — Variantentabelle (AP-0204 §4/§5/§6) --------
+   Achse (klebend) + je Variante eine schmale Wertespalte, alle gleichzeitig offen und
+   bearbeitbar (R1) — kein modales Formular je Version mehr. Fixe Zeilenhoehe haelt die
+   unabhaengigen Spalten optisch ausgerichtet, ohne ein CSS-Grid mit dynamischen Zeilen
+   nachbilden zu muessen. */
+.entw-abzeichen{font-size:.78rem;color:var(--muted);border:1px solid var(--line);border-radius:99px;
+  padding:.2rem .7rem;display:inline-block;margin-bottom:.7rem}
+.entw-leiste{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:.6rem}
+.entw-leiste select{font-size:.82rem}
+.entw-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+.entw-tabelle{display:flex;align-items:stretch}
+.entw-achse,.entw-spalte{flex:none;display:flex;flex-direction:column}
+.entw-achse{width:150px;position:sticky;left:0;background:var(--panel);z-index:2;border-right:1px solid var(--line)}
+.entw-spalte{width:126px;border-right:1px dashed var(--line)}
+.entw-spalte.entw-aktiv{background:var(--accent-soft)}
+.entw-spalte.entw-eingeklappt{width:34px}
+.entw-spalte.entw-eingeklappt .entw-verbergen{display:none}
+.entw-zelle{min-height:2.15rem;display:flex;align-items:center;padding:.15rem .4rem;
+  border-bottom:1px dashed var(--line);font-size:.82rem;gap:.2rem}
+.entw-zelle.entw-phase{background:var(--bg);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--muted);font-weight:650;min-height:1.7rem}
+.entw-zelle.entw-neu{font-style:italic}
+.entw-zelle.entw-neu::after{content:" +";color:var(--gruen)}
+.entw-zelle input[type=number]{width:100%;font-size:.82rem;padding:.15rem .3rem}
+.entw-zelle input[type=text]{width:100%;font-size:.82rem;padding:.15rem .3rem}
+.entw-wert{font-variant-numeric:tabular-nums}
+.entw-wert.entw-geaendert{font-weight:700}
+.entw-delta{font-size:.72rem;color:var(--muted)}
+.entw-delta.entw-auf{color:var(--gruen)} .entw-delta.entw-ab{color:var(--rot)}
+.entw-schritt-zelle{cursor:pointer;color:var(--muted)}
+.entw-kopf{padding:.4rem .4rem .3rem;border-bottom:1px solid var(--line)}
+.entw-kopf .entw-v{font-weight:700;font-size:.88rem}
+.entw-kopf .entw-badge-aktiv{font-size:.68rem;color:var(--accent);border:1px solid var(--accent);
+  border-radius:99px;padding:0 .35rem;margin-left:.3rem}
+.entw-kopf .entw-diff{font-size:.7rem;color:var(--muted);margin-top:.15rem;line-height:1.3}
+.entw-kopf input[type=text]{width:100%;font-size:.76rem;margin-top:.25rem;padding:.15rem .3rem}
+.entw-kopf-knoepfe{display:flex;gap:.2rem;margin-top:.25rem}
+.entw-kopf-knoepfe button{font-size:.68rem;padding:.1rem .3rem;min-height:auto}
+.entw-fuss{padding:.4rem;border-top:1px solid var(--line);margin-top:auto}
+.entw-fuss .entw-letzter{font-size:.72rem;color:var(--muted);cursor:pointer}
+.entw-fuss .actions{margin-top:.35rem}
+.entw-overlay{border:1px solid var(--line);border-radius:8px;padding:.8rem .9rem;margin-top:.9rem;background:var(--bg)}
+.entw-merkmal{display:flex;align-items:center;gap:.5rem;margin:.3rem 0}
+.entw-merkmal label{flex:1;font-size:.85rem;color:var(--muted)}
+.entw-merkmal input[type=range]{flex:2}
+/* ---------- AP-0309: Nebenansicht Rechner — B7 (AP-0201 §1 Zeile B7) ----------------
+   Zielwerte/Referenz-Vergleich/Substitution nutzen denselben Overlay-Slot wie Bewertung/
+   Übernehmen aus AP-0308 (Store.entw.overlay, R2 "genau ein Overlay"), aber als "Overlay
+   über der Mitte" statt in der Schiene: dieselbe .entw-overlay-Karte bekommt zusaetzlich
+   .entw-overlay-b7 und wird per position:fixed zentriert (640 px, AP-0201 §1) — kein
+   eigenes Scrim-Element noetig, die bestehende .scrim-Klasse (AP-0301) wird mitbenutzt. */
+.entw-overlay-b7{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  margin:0;z-index:12;width:min(640px,92vw);max-height:86vh;overflow-y:auto;
+  box-shadow:0 10px 40px rgba(0,0,0,.35)}
 footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);font-size:.78rem}
 @media print{
+  /* AP-0310: Bestandsaufnahme aller Bereiche des Dreispalten-Layouts (AP-0201 §1) und wie sie
+     im Druck behandelt werden — Umsetzungsschritt 1. Geprüft gegen den Stand nach AP-0309:
+       B1 Navigation, B2 Einkaufsliste  -> .rail--links, .noprint auf den Karten     -> versteckt
+       B3 Rezeptur (Titel/Zubereitung)  -> #rezeptbereich, ausserhalb von .rail      -> gedruckt
+       B4 Notizsection, B6 Entwicklung  -> .rail--rechts (Reiter, ein Bereich)       -> versteckt
+       B5 Metadaten-Ausklapper          -> .metastapel/details.metablock (AP-0304)  -> gedruckt, aufgeklappt
+       B7 Nebenansicht Rechner          -> .entw-overlay-b7 + .scrim (AP-0309), noprint -> versteckt
+       B8 Kopfleiste                    -> header.app                              -> versteckt
+       Import-/Recherche-Dialog         -> #importbereich/#rechercheBereich        -> versteckt
+       Meldungen (Toasts)               -> #meldungen                             -> versteckt
+     B4 und B6 teilen sich dieselbe Schiene (Reiter) — beide sind ohnehin Teil von .rail und
+     damit bereits durch die .rail-Regel unten versteckt; die Klasse "noprint" auf B7 kommt
+     zusaetzlich dazu, weil B7 als position:fixed-Overlay die Schiene visuell verlaesst (kein
+     Nachkomme von .rail im DOM-Sinn ist die Regel dort nicht, der Selektor "noprint" schon).
+     Ergebnis: einzig B3 und B5 (zusammen #rezeptbereich) drucken — unveraendert seit AP-0306,
+     durch B4/B6/B7 nicht beruehrt, weil alle drei ausschliesslich in der Schiene bzw. als eigenes
+     noprint-Overlay leben. Kein neuer Selektor noetig (Umsetzungsschritt 2) — verifiziert im
+     Browser (Dokumentation), nicht nur angenommen. */
   /* AP-0306: #importbereich/#rechercheBereich sind eigene Top-Level-Container (nicht Teil von
      #rezeptbereich) — ohne diese beiden bliebe ein offener Import- oder Recherche-Dialog mit
      allen Eingabefeldern/Buttons im PDF sichtbar (Abnahmekriterium 1). */
@@ -300,7 +372,15 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
   /* AP-0306 Nachbesserung: Nährwerte- und Kosten-Karte wurden beim Seitenumbruch
      mittendurch geschnitten. Schutz gezielt über .zusammenhalten, nicht über .card —
      die Zubereitungs-Karte kann länger als eine Seite werden und würde sonst einen
-     erzwungenen Umbruch mit grossem Leerraum davor auslösen. */
+     erzwungenen Umbruch mit grossem Leerraum davor auslösen.
+     AP-0310, Umsetzungsschritt 4: seit AP-0304 sind Nährwerte/Kosten/Backprotokoll keine
+     eigenen .card mehr, sondern details.metablock im gemeinsamen .metastapel — der Schutz
+     sitzt seither direkt am details-Element (Zeile "details.metablock{break-inside:avoid}"
+     unten), feinkoerniger als vorher (je Block statt je Karte). Dieselbe Regel gilt fuer
+     details.phase. Kein heutiges .card braucht darum noch .zusammenhalten: die "Titel"-Karte
+     ist zu kurz, um mitten in einem Umbruch zu landen, und die "Zubereitung"-Karte darf
+     laut derselben Begruendung wie 2026 weiterhin ueber eine Seite hinausgehen. Regel bleibt
+     als Hook stehen, falls eine kuenftige Karte sie braucht — aktuell traegt sie niemand. */
   .card.zusammenhalten{break-inside:avoid}
   details.phase{break-inside:avoid;border-bottom:1px solid #ccc}
   details.phase .phasebody{display:block !important;padding:0 0 .5rem}
@@ -484,6 +564,147 @@ const CONFIG = {
 };
 const zahlOderNull = v => (v == null || v === "") ? null : Number(v);
 
+/* ---------- Verfahrenskatalog (AP-0202/AP-0307) ---------------------------
+   Kern (datum, optional sollG/istG, notizen) gilt fuer jedes Verfahren. Ob Soll/Ist im
+   Formular erscheinen, steuert kernSollIst: false bei den Verfahren, wo Schwund laut
+   AP-0202-Katalog "entfaellt normalerweise" (Fermentieren, Schokolade & Cremes, Gefrieren,
+   Mazerieren, Mischen) — bei allen anderen (auch ohne zugeordnetes Verfahren) true.
+   felder = zusaetzlicher Feldsatz je Verfahren; typ steuert den Eingabetyp im Formular
+   (zahl/bool/text/liste), einheit ist rein informativ (Feldbeschriftung). */
+const VERFAHREN_KATALOG = {
+  "Backen": { kernSollIst: true, felder: [
+    {key:"ofenC", label:"Ofentemperatur", typ:"zahl", einheit:"°C"},
+    {key:"backzeitMin", label:"Backzeit", typ:"zahl", einheit:"min"},
+    {key:"dampf", label:"Dampf", typ:"bool"},
+    {key:"teigtemperaturC", label:"Teigtemperatur", typ:"zahl", einheit:"°C"},
+    {key:"stueckgareMin", label:"Stückgare", typ:"zahl", einheit:"min"},
+    {key:"krustenfarbe", label:"Krustenfarbe", typ:"text"}
+  ]},
+  "Frittieren": { kernSollIst: true, felder: [
+    {key:"fetttemperaturC", label:"Fetttemperatur", typ:"zahl", einheit:"°C"},
+    {key:"zeitJeSeiteS", label:"Zeit je Seite", typ:"zahl", einheit:"s"},
+    {key:"fettart", label:"Fettart", typ:"text"},
+    {key:"fettaufnahmeG", label:"Fettaufnahme", typ:"zahl", einheit:"g"}
+  ]},
+  "Kochen & Reduzieren": { kernSollIst: true, felder: [
+    {key:"kochzeitMin", label:"Kochzeit", typ:"zahl", einheit:"min"},
+    {key:"endtemperaturC", label:"Endtemperatur", typ:"zahl", einheit:"°C"},
+    {key:"zielmengeMl", label:"Zielmenge", typ:"zahl", einheit:"ml"},
+    {key:"passiert", label:"Passiert", typ:"bool"}
+  ]},
+  "Schmoren & Dämpfen": { kernSollIst: true, felder: [
+    {key:"garzeitMin", label:"Garzeit", typ:"zahl", einheit:"min"},
+    {key:"gartemperaturC", label:"Gartemperatur", typ:"zahl", einheit:"°C"},
+    {key:"kerntemperaturC", label:"Kerntemperatur", typ:"zahl", einheit:"°C"},
+    {key:"fluessigkeitszugabeMl", label:"Flüssigkeitszugabe", typ:"zahl", einheit:"ml"}
+  ]},
+  "Räuchern": { kernSollIst: true, felder: [
+    {key:"poekeldauerD", label:"Pökeldauer", typ:"zahl", einheit:"d"},
+    {key:"rauchgaenge", label:"Rauchgänge", typ:"zahl", einheit:"Anzahl"},
+    {key:"rauchzeitH", label:"Rauchzeit", typ:"zahl", einheit:"h"},
+    {key:"holzart", label:"Holzart", typ:"text"},
+    {key:"rauchtemperaturC", label:"Rauchtemperatur", typ:"zahl", einheit:"°C"},
+    {key:"kerntemperaturC", label:"Kerntemperatur", typ:"zahl", einheit:"°C"}
+  ]},
+  "Pökeln & Einlegen": { kernSollIst: true, felder: [
+    {key:"standzeitD", label:"Standzeit", typ:"zahl", einheit:"d"},
+    {key:"salzgehaltProzent", label:"Salzgehalt", typ:"zahl", einheit:"%"},
+    {key:"saeureProzent", label:"Säure", typ:"zahl", einheit:"%"},
+    {key:"temperaturC", label:"Temperatur", typ:"zahl", einheit:"°C"}
+  ]},
+  "Fermentieren": { kernSollIst: false, felder: [
+    {key:"dauer", label:"Dauer", typ:"zahl", einheit:"h/d"},
+    {key:"temperaturC", label:"Temperatur", typ:"zahl", einheit:"°C"},
+    {key:"ph", label:"pH", typ:"zahl", einheit:"pH"},
+    {key:"salzgehaltProzent", label:"Salzgehalt", typ:"zahl", einheit:"%"},
+    {key:"triebhoehe", label:"Triebhöhe", typ:"zahl", einheit:"cm"}
+  ]},
+  "Käsen": { kernSollIst: true, felder: [
+    {key:"milchmengeL", label:"Milchmenge", typ:"zahl", einheit:"l"},
+    {key:"dicklegungstemperaturC", label:"Dicklegungstemperatur", typ:"zahl", einheit:"°C"},
+    {key:"labMl", label:"Lab", typ:"zahl", einheit:"ml"},
+    {key:"phBeiBruch", label:"pH bei Bruch", typ:"zahl", einheit:"pH"},
+    {key:"bruchgroesseMm", label:"Bruchgrösse", typ:"zahl", einheit:"mm"},
+    {key:"presszeitH", label:"Presszeit", typ:"zahl", einheit:"h"},
+    {key:"reifezeitD", label:"Reifezeit", typ:"zahl", einheit:"d"},
+    {key:"luftfeuchteProzent", label:"Luftfeuchte", typ:"zahl", einheit:"%"}
+  ]},
+  "Wursten": { kernSollIst: true, felder: [
+    {key:"braettemperaturC", label:"Brättemperatur", typ:"zahl", einheit:"°C"},
+    {key:"kutterzeitMin", label:"Kutterzeit", typ:"zahl", einheit:"min"},
+    {key:"kaliberMm", label:"Kaliber", typ:"zahl", einheit:"mm"},
+    {key:"bruehtemperaturC", label:"Brühtemperatur", typ:"zahl", einheit:"°C"},
+    {key:"kerntemperaturC", label:"Kerntemperatur", typ:"zahl", einheit:"°C"}
+  ]},
+  "Schokolade & Cremes": { kernSollIst: false, felder: [
+    {key:"schmelztemperaturC", label:"Schmelztemperatur", typ:"zahl", einheit:"°C"},
+    {key:"impftemperaturC", label:"Impftemperatur", typ:"zahl", einheit:"°C"},
+    {key:"verarbeitungstemperaturC", label:"Verarbeitungstemperatur", typ:"zahl", einheit:"°C"},
+    {key:"emulsionGebrochen", label:"Emulsion gebrochen", typ:"bool"}
+  ]},
+  "Gefrieren": { kernSollIst: false, felder: [
+    {key:"reifezeitMixH", label:"Reifezeit Mix", typ:"zahl", einheit:"h"},
+    {key:"ziehtemperaturC", label:"Ziehtemperatur", typ:"zahl", einheit:"°C"},
+    {key:"aufschlagProzent", label:"Aufschlag", typ:"zahl", einheit:"%"},
+    {key:"haertetemperaturC", label:"Härtetemperatur", typ:"zahl", einheit:"°C"},
+    {key:"trockenmasseProzent", label:"Trockenmasse", typ:"zahl", einheit:"%"}
+  ]},
+  "Mazerieren": { kernSollIst: false, felder: [
+    {key:"ansatzzeitD", label:"Ansatzzeit", typ:"zahl", einheit:"d"},
+    {key:"alkoholstaerkeVolProzent", label:"Alkoholstärke", typ:"zahl", einheit:"% vol"},
+    {key:"botanicals", label:"Botanicals", typ:"liste"},
+    {key:"abtropfmengeMl", label:"Abtropfmenge", typ:"zahl", einheit:"ml"}
+  ]},
+  "Mischen": { kernSollIst: false, felder: [] },
+  "Waffeln": { kernSollIst: true, felder: [
+    {key:"eisentemperaturC", label:"Eisentemperatur", typ:"zahl", einheit:"°C"},
+    {key:"backzeitJeSeiteS", label:"Backzeit je Seite", typ:"zahl", einheit:"s"}
+  ]}
+};
+const Verfahren = {
+  KATALOG: VERFAHREN_KATALOG,
+  // Fallback fuer kein/unbekanntes Verfahren (RZP-048/079/080, Beispieldaten): nur Kern + Notiz,
+  // Soll/Ist bleiben Teil des Kerns (Umsetzungsschritt 1: "ohne Verfahren erscheinen nur die
+  // Kernfelder plus Notiz").
+  feldsatz(verfahren){
+    return (verfahren && VERFAHREN_KATALOG[verfahren]) || { kernSollIst: true, felder: [] };
+  }
+};
+
+/* ---------- Merkmalskatalog (AP-0204 §7, AP-0308) --------------------------------
+   Das Versuchsprotokoll des Entwicklungsmodus nutzt die Feldsaetze aus VERFAHREN_KATALOG
+   fuer die MESSUNGEN mit (kein zweiter Katalog, siehe AP-0204 §7), ergaenzt sie aber um
+   URTEILE ("merkmale") — Aussehen, Textur, Geschmack u.ae. sind keine Messgroessen und
+   gehoeren darum nicht in VERFAHREN_KATALOG. "Backen" ist das im Konzept vorgegebene
+   Beispiel; die uebrigen 13 Saetze sind hier nach demselben Muster (4 Skalen 1-5 +
+   2 Kaestchen) neu festgelegt (AP-0204 §10 offener Punkt, verbindlich abgeschlossen
+   durch dieses AP) — Bedienoberflaeche, keine Datenmodelländerung: "merkmale" bleibt ein
+   offenes Objekt (FORMAT.md-Nachtrag folgt in AP-0501). */
+const MERKMALE_KATALOG = {
+  "Backen":               { skalen:["aussehen","ofentrieb","krume","geschmack"], kaesten:["nachbacken","wiederholen"] },
+  "Frittieren":           { skalen:["aussehen","kruste","geschmack","oeligkeit"], kaesten:["wiederholen","anpassen"] },
+  "Kochen & Reduzieren":  { skalen:["konsistenz","geschmack","saeurebalance","aussehen"], kaesten:["wiederholen","anpassen"] },
+  "Schmoren & Dämpfen":   { skalen:["zartheit","geschmack","sauce","aussehen"], kaesten:["wiederholen","anpassen"] },
+  "Räuchern":             { skalen:["raucharoma","farbe","textur","geschmack"], kaesten:["wiederholen","anpassen"] },
+  "Pökeln & Einlegen":    { skalen:["salzigkeit","textur","geschmack","aussehen"], kaesten:["wiederholen","anpassen"] },
+  "Fermentieren":         { skalen:["aroma","saeure","textur","triebkraft"], kaesten:["wiederholen","anpassen"] },
+  "Käsen":                { skalen:["textur","geschmack","reifearoma","aussehen"], kaesten:["wiederholen","anpassen"] },
+  "Wursten":              { skalen:["textur","wuerzung","biss","aussehen"], kaesten:["wiederholen","anpassen"] },
+  "Schokolade & Cremes":  { skalen:["glanz","snap","textur","geschmack"], kaesten:["wiederholen","anpassen"] },
+  "Gefrieren":            { skalen:["cremigkeit","eiskristalle","geschmack","schmelzverhalten"], kaesten:["wiederholen","anpassen"] },
+  "Mazerieren":           { skalen:["aroma","klarheit","geschmack","staerke"], kaesten:["wiederholen","anpassen"] },
+  "Mischen":              { skalen:["konsistenz","geschmack","aussehen","homogenitaet"], kaesten:["wiederholen","anpassen"] },
+  "Waffeln":              { skalen:["knusprigkeit","aussehen","geschmack","textur"], kaesten:["wiederholen","anpassen"] }
+};
+const Merkmale = {
+  KATALOG: MERKMALE_KATALOG,
+  // Fallback wie Verfahren.feldsatz: kein/unbekanntes Verfahren -> generischer Minimalsatz,
+  // damit ein Versuch immer bewertbar bleibt, auch ohne zugeordnetes Verfahren.
+  satz(verfahren){
+    return (verfahren && MERKMALE_KATALOG[verfahren]) || { skalen:["aussehen","geschmack"], kaesten:["wiederholen"] };
+  }
+};
+
 /* ---------- Settings: nutzerbezogene Werte in localStorage --------------- */
 const Settings = {
   schluessel(feld){ return "libarius." + feld; },
@@ -537,10 +758,16 @@ const Model = {
   // Bestand mit den im Dialog gewaehlten, noch nicht gespeicherten Zuordnungen).
   aufloesen(rezepte, rohstoffe, idxOverride){
     const idx = idxOverride || Model.rohstoffIndex(rohstoffe);
-    rezepte.forEach(rz => rz.phasen.forEach(ph => ph.zutaten.forEach(z => {
-      z.nameKey  = Model.nameKey(z.name);
-      z.rohstoff = idx.get(z.nameKey) || null;
-    })));
+    rezepte.forEach(rz => {
+      // AP-0307: Quellen ohne eigene Protokoll (JSON)-Spalte (Beispieldaten, frisch importierte
+      // Rezepte) fallen auf das vorhandene Backprotokoll zurueck — dieselbe Leseregel wie in
+      // Model.parseRezepte, hier fuer Objekte, die nicht durch parseRezepte gelaufen sind.
+      if(rz.protokoll == null) rz.protokoll = rz.backprotokoll || [];
+      rz.phasen.forEach(ph => ph.zutaten.forEach(z => {
+        z.nameKey  = Model.nameKey(z.name);
+        z.rohstoff = idx.get(z.nameKey) || null;
+      }));
+    });
     return rezepte;
   },
 
@@ -598,12 +825,15 @@ const Model = {
           // Zellenlimit). Fehlt die Spalte (aeltere Rezepte.xlsx-Stände) bleibt entwicklung
           // schlicht null — Abwärtskompatibilität ist Abnahmekriterium 3 dieses AP.
           iEntwicklung = i("Entwicklung (JSON)"),
-          // AP-0304: Spalte "Verfahren" (in AP-0306 dieses Sprints angelegt, Q2:Q81) wird
-          // fuer den Metadatenblock "Verfahren & Protokoll" gelesen. Fehlt die Spalte oder
-          // ist die Zelle leer (RZP-048/079/080), bleibt verfahren null — kein Ladefehler.
-          // Die Spalte "Protokoll (JSON)" bleibt hier bewusst unberuehrt: sie befuellt und
-          // liest AP-0307, dieses AP baut nur den Platz dafuer.
-          iVerfahren = i("Verfahren");
+          // AP-0304: Spalte "Verfahren" (in AP-0306 angelegt, Q2:Q81) speist den Metadatenblock
+          // "Verfahren & Protokoll". Fehlt die Spalte oder ist die Zelle leer (RZP-048/079/080),
+          // bleibt verfahren null — kein Ladefehler.
+          iVerfahren = i("Verfahren"),
+          // AP-0307: Spalte "Protokoll (JSON)" (in AP-0306 angelegt, R1, bisher leer) ersetzt das
+          // Backprotokoll fuer neu geschriebene Eintraege. Leseregel AP-0202: ist sie fuer ein
+          // Rezept gesetzt, gilt sie ausschliesslich; ist sie leer, dient Backprotokoll (JSON)
+          // rein lesend als Fallback bis zum ersten Schreiben (Migration siehe App.protokollSpeichern).
+          iProtokoll = i("Protokoll (JSON)");
     const rezepte = [], fehlerhaft = [];
     for(let r = 1; r < aoa.length; r++){
       const row = aoa[r];
@@ -612,9 +842,11 @@ const Model = {
       try{
         const phasen = row[iPhasen] ? JSON.parse(row[iPhasen]) : [];
         const backprotokollRoh = row[iBackprot] ? JSON.parse(row[iBackprot]) : [];
+        const protokollRoh = (iProtokoll > -1 && row[iProtokoll]) ? JSON.parse(row[iProtokoll]) : [];
         const entwicklung = (iEntwicklung > -1 && row[iEntwicklung]) ? JSON.parse(row[iEntwicklung]) : null;
         if(!Array.isArray(phasen)) throw new Error("Phasen (JSON) ist kein Array");
         if(!Array.isArray(backprotokollRoh)) throw new Error("Backprotokoll (JSON) ist kein Array");
+        if(!Array.isArray(protokollRoh)) throw new Error("Protokoll (JSON) ist kein Array");
         if(entwicklung != null && typeof entwicklung !== "object") throw new Error("Entwicklung (JSON) ist kein Objekt");
         // AP-0305: Zeile intern immer als {datum,sollG,istG,notizen} — toleriert das
         // Alt-/Platzhalterschema (soll_g/ist_g) und verwirft nicht ausgefuellte Platzhalter-
@@ -630,6 +862,21 @@ const Model = {
             notizen: (e && e.notizen) || null
           }))
           .filter(e => e.datum && /^\d{4}-\d{2}-\d{2}$/.test(e.datum) && e.sollG != null && e.istG != null);
+        // AP-0307: Kern optional (Frage 4, AP-0202) — anders als beim Altschema wird ein Eintrag
+        // NICHT verworfen, nur weil sollG/istG fehlen (z. B. Mazerieren). felder bleibt ein rohes
+        // Objekt, sein Inhalt ist verfahrensabhaengig und wird beim Lesen nicht geprueft.
+        const protokollNeu = protokollRoh
+          .map(e => ({
+            datum: e && e.datum,
+            sollG: zahlOderNull(e && e.sollG),
+            istG: zahlOderNull(e && e.istG),
+            notizen: (e && e.notizen) || null,
+            felder: (e && e.felder && typeof e.felder === "object") ? e.felder : null
+          }))
+          .filter(e => e.datum && /^\d{4}-\d{2}-\d{2}$/.test(e.datum));
+        // Leseregel AP-0202: eigene Protokoll (JSON)-Eintraege gelten ausschliesslich; ohne sie
+        // dient Backprotokoll (JSON) rein lesend als Fallback, bis zum ersten Schreiben.
+        const protokoll = protokollNeu.length ? protokollNeu : backprotokoll;
         rezepte.push({
           id: row[iId], name, kategorie: row[iKat] || null, unterkategorie: row[iUnterkat] || null,
           basisName: row[iBasisName] || null,
@@ -637,7 +884,7 @@ const Model = {
           portionen: zahlOderNull(row[iPortionen]), einheit: row[iEinheit] || null,
           quelle: row[iQuelle] || null,
           verfahren: (iVerfahren > -1 && row[iVerfahren]) ? String(row[iVerfahren]).trim() || null : null,
-          phasen, backprotokoll, entwicklung,
+          phasen, backprotokoll, protokoll, entwicklung,
           _raw: { zeile: r, spalten: header, werte: row }
         });
       }catch(e){
@@ -892,6 +1139,14 @@ const Calc = {
     return { zutaten, schritte };
   },
 
+  // AP-0308/AP-0204 §8.3: Leseregel fuer den einzigen echten Migrationspunkt der Struktur
+  // "entwicklung" — ein Versuch traegt entweder soll_g/ist_g (Spezifikation AP-0203/§1.1,
+  // Bestand P2-P81) oder sollG/istG (AP-0202-Schreibweise, ab diesem AP). Gelesen wird IMMER
+  // beides, geschrieben wird nur noch die neue Schreibweise (App.entwBewertungSpeichern) —
+  // Alteintraege bleiben dabei unangetastet (kein stilles Umschreiben fremder Daten).
+  versuchSollG(v){ return v.sollG != null ? v.sollG : v.soll_g; },
+  versuchIstG(v){ return v.istG != null ? v.istG : v.ist_g; },
+
   // AP-0313/§5 Referenz-Vergleich: eine Tabelle, Spalte 0 = Entwicklungsversion, danach bis zu
   // drei Bestandsrezepte. Zeilen sind die Kennzahlen aus §2 plus die Union aller Zutaten in %
   // der Basis. Reine Funktion — alle Spalten muessen bereits aufgeloest sein (z.B. via
@@ -916,7 +1171,7 @@ const Calc = {
 
     const kz = spalten.map(rz => {
       const k = Calc.kennzahlen(rz, 1);
-      const kosten = Calc.kosten(rz, 1, Calc.schwundAktuell(rz.backprotokoll));
+      const kosten = Calc.kosten(rz, 1, Calc.schwundAktuell(rz.protokoll));
       return { ...k, kosten: kosten.proPortion };
     });
     const kennzahlen = [
@@ -1063,7 +1318,7 @@ const Data = {
 
   // Metadaten statt Inhalt — fuer die Konflikterkennung (AP-0305/Entscheid O-9): die
   // Workbook-Range-API kennt kein If-Match, darum wird der eTag des Elements selbst als
-  // Vergleichsbasis genommen (App.backprotokollSpeichern prueft ihn vor jedem Schreiben neu).
+  // Vergleichsbasis genommen (App.protokollSpeichern prueft ihn vor jedem Schreiben neu).
   async getItemMeta(pfad){
     const token = await Data.token();
     const url = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(pfad) + "?$select=eTag,name";
@@ -1663,6 +1918,50 @@ const Import = {
   }
 };
 
+/* ---------- EntwModell: Zustandsmodell Entwicklungsmodus (AP-0308/AP-0204 §5+§8) -----
+   Reine Umformung zwischen der persistierten Struktur "entwicklung" (FORMAT.md, Spalte
+   "Entwicklung (JSON)" — versionen[] + ein globales versuche[] mit "version"-Referenz)
+   und Store.entw (AP-0204 §5.1 — je Spalte ihre eigenen Versuche, "gehoeren zur Spalte,
+   nicht global"). Kein DOM, kein Store-Zugriff — dieselbe Trennung wie Calc/Import/Editor,
+   damit Hydrieren/Dehydrieren ohne App/View testbar bleibt (Abnahmekriterium 5: P2-P81
+   muessen nach der Aenderung unveraendert lesbar sein). */
+const EntwModell = {
+  // §8.4 Migrationsweg: eine Version ohne "herkunft" (aller heutige Bestand, belegt an
+  // RZP-029 v1) gilt per Default als "produktiv" — v1 IST die Kopie der produktiven
+  // Rezeptur, der Default trifft zu, kein Schreibvorgang noetig.
+  hydrieren(entwicklung){
+    if(!entwicklung) return null;
+    const versuche = entwicklung.versuche || [];
+    const spalten = (entwicklung.versionen || []).map(v => ({
+      v: v.v, datum: v.datum, notiz: v.notiz || "",
+      herkunft: v.herkunft || "produktiv",
+      eingeklappt: !!v.eingeklappt,
+      phasen: v.phasen,
+      versuche: versuche.filter(x => x.version === v.v)
+    }));
+    return {
+      status: entwicklung.status, zielwerte: entwicklung.zielwerte || {},
+      aktivV: entwicklung.aktivV, basis: "produktiv", spalten
+    };
+  },
+
+  // Kehrform von hydrieren() — Grundlage jedes Schreibvorgangs nach "Entwicklung (JSON)"
+  // (App.entwVariantenSichern/App.entwUebernehmenBestaetigt). Versuche werden dabei aus den
+  // Spalten wieder zu einer globalen Liste mit "version"-Referenz zusammengefuehrt, unveraendert
+  // in der Reihenfolge und den Feldern jedes einzelnen Eintrags (kein Umschreiben Alteintraege,
+  // §8.3) — nur neue Eintraege (App.entwBewertungSpeichern) tragen bereits sollG/istG.
+  dehydrieren(zustand){
+    return {
+      status: zustand.status, zielwerte: zustand.zielwerte || {}, aktivV: zustand.aktivV,
+      versionen: zustand.spalten.map(s => ({
+        v: s.v, datum: s.datum, notiz: s.notiz, herkunft: s.herkunft, eingeklappt: s.eingeklappt,
+        phasen: Import.phasenExport(s.phasen)
+      })),
+      versuche: zustand.spalten.flatMap(s => (s.versuche || []).map(x => ({ ...x, version: s.v })))
+    };
+  }
+};
+
 /* ---------- Editor: reine Regeln des Zutaten-Editors (AP-0305) --------------------
    Kein DOM, kein Netz, kein Store-Schreibzugriff — nur Store.rohstoffe wird lesend
    herangezogen (V-3, dieselbe Quelle wie Model.aufloesen). Feldumfang nach
@@ -1897,17 +2196,28 @@ const Store = {
   // AP-0318: gleiches Prinzip fuer Rohstoffe.xlsx — Basis fuer die Konflikterkennung vor
   // jedem Schreiben aus dem Recherche-Dialog (App.rechercheUebernehmen()).
   rohstoffeETag:null,
-  // AP-0305: Zustand des Backprotokoll-Eingabeformulars, null = geschlossen (App.backEintragOeffnen()).
-  backEintrag:null,
+  // AP-0307: Zustand des Verfahrensprotokoll-Eingabeformulars, null = geschlossen
+  // (App.protokollEintragOeffnen()).
+  protokollEintrag:null,
   // AP-0315: Zustand des Import-Dialogs, ein Objekt pro Durchlauf (App.importOeffnen()).
   import:null,
   // AP-0318: Zustand des Recherche-Dialogs ("Preise aktualisieren"), ein Objekt pro Durchlauf
   // (App.rechercheOeffnen()); null = Dialog geschlossen.
   recherche:null,
-  // AP-0311: Zustand des jeweils einen offenen Formulars im Entwicklungsmodus-Block — nur eins
-  // gleichzeitig, gleiches Prinzip wie Store.backEintrag/Store.import. art unterscheidet
-  // "version" (neu/bearbeiten), "versuch", "diff" und "befoerdern"; null = kein Formular offen.
-  devForm:null,
+  // AP-0308: Zustand des Entwicklungsmodus nach AP-0204 §5 — ersetzt Store.devForm ERSATZLOS
+  // (R1): beliebig viele Spalten (Varianten) sind gleichzeitig offen UND bearbeitbar, kein
+  // Formularwechsel schliesst mehr etwas. { rezeptId, basis, aktivV, spalten:[Spalte...],
+  // overlay } — overlay ist der EINZIGE verbleibende modale Slot (R2, fuenf Inhalte:
+  // bewertung/zielwerte/referenz/substitution/uebernehmen). null = fuer das aktuelle Rezept
+  // nicht geoeffnet (App.entwOeffnen()). Persistiert vollstaendig in localStorage je rezeptId
+  // (R3, EntwEntwurf) — Rezepte.xlsx sieht nur "Varianten sichern" und "übernehmen" (R4).
+  entw:null,
+  // AP-0308: g oder % — Anzeige-Umschalter fuer alle Wertespalten gleichzeitig (AP-0204 §4.2:
+  // "Umschalter g ⇄ % wie im Zutaten-Editor"), sitzungslokal, kein Feld des Datenmodells.
+  entwEinheit:"g",
+  // AP-0308/§5.2 R8: localStorage fuer den Entwicklungsmodus-Entwurf nicht verfuegbar/voll —
+  // einmalige Warnkachel IN DER SCHIENE (nicht global), Bereich arbeitet sitzungslokal weiter.
+  entwFehler:false,
   // AP-0313: IDs der bis zu 3 gewaehlten Referenzrezepte. Bewusst nur sitzungslokal — der
   // Vergleich ist eine Ansicht, kein Rezeptinhalt; nichts davon wird nach Rezepte.xlsx
   // geschrieben (Spez. AP-0203 §5 verlangt keine Persistenz).
@@ -1919,7 +2229,7 @@ const Store = {
   // wie korrekturen[rezeptId] in §3.4, nur ohne dessen Persistenz.
   einkaufslisteAbgehakt:{},
   // AP-0303: Zustand des Bestaetigungsdialogs "Ins Rezept übernehmen" (B4) — analog zu
-  // Store.backEintrag/Store.devForm, aber ohne eigene Formularfelder (reine Vorschau +
+  // Store.protokollEintrag/Store.devForm, aber ohne eigene Formularfelder (reine Vorschau +
   // Bestaetigen/Abbrechen); false = geschlossen.
   korrekturUebernehmenOffen:false,
   // AP-0305: Zustand des Zutaten-Editors, null = geschlossen (App.zutatenEditorOeffnen()).
@@ -1975,6 +2285,34 @@ const Entwurf = {
     const alle = Entwurf.alle();
     delete alle[rezeptId];
     try{ localStorage.setItem(Entwurf.SCHLUESSEL, JSON.stringify(alle)); }catch(e){}
+  }
+};
+
+/* ---------- EntwEntwurf: Persistenz des Entwicklungsmodus-Zustands (AP-0308/AP-0204 §5.2 R3) ---
+   Eigener Schluessel (nicht Settings, gleiches Prinzip wie Entwurf oben) — der GESAMTE
+   Store.entw-Zustand liegt hier, je rezeptId, und wird bei jeder Eingabe neu geschrieben
+   ("entprellt" heisst hier: je abgeschlossener Bedienschritt, nicht je Tastendruck — jede
+   App.entw*-Aktion ruft speichern() genau einmal auf, deckungsgleich mit der Zaehlregel aus
+   AP-0204 §2.1). Ueberlebt Reload, Rezeptwechsel und Geraetedrehung (R3/R6/R7). Ist
+   localStorage nicht verfuegbar oder voll, arbeitet der Bereich sitzungslokal weiter (R8) —
+   Store.entwFehler haelt das fuer eine einmalige Kachel in der Schiene fest. */
+const EntwEntwurf = {
+  SCHLUESSEL: "libarius.entw.v1",
+  alle(){
+    try{ return JSON.parse(localStorage.getItem(EntwEntwurf.SCHLUESSEL) || "{}"); }
+    catch(e){ return {}; }
+  },
+  lesen(rezeptId){ return EntwEntwurf.alle()[rezeptId] || null; },
+  speichern(rezeptId, zustand){
+    const alle = EntwEntwurf.alle();
+    alle[rezeptId] = { ts: new Date().toISOString(), zustand };
+    try{ localStorage.setItem(EntwEntwurf.SCHLUESSEL, JSON.stringify(alle)); Store.entwFehler = false; }
+    catch(e){ Store.entwFehler = true; }
+  },
+  verwerfen(rezeptId){
+    const alle = EntwEntwurf.alle();
+    delete alle[rezeptId];
+    try{ localStorage.setItem(EntwEntwurf.SCHLUESSEL, JSON.stringify(alle)); }catch(e){}
   }
 };
 
@@ -2254,10 +2592,13 @@ const View = {
       <td class="menge">${menge}</td></tr>`;
   },
 
-  // AP-0312/AP-0314: Versionen (entwicklung.versionen[].phasen) tragen keine aufgeloesten
-  // Rohstoffverweise — anders als rz.phasen, das Model.aufloesen() nach jeder Aenderung
-  // durchlaeuft. Fuer Ist-Kennzahlen, FODMAP-Ampeln und den Substitutions-Dialog braucht es
-  // dieselbe Aufloesung, hier auf einer Kopie (mutiert weder rz noch die Version).
+  // AP-0312/AP-0314, Nebenansicht AP-0309: Versionen (entwicklung.versionen[].phasen /
+  // Store.entw.spalten[].phasen) tragen keine aufgeloesten Rohstoffverweise — anders als
+  // rz.phasen, das Model.aufloesen() nach jeder Aenderung durchlaeuft. Fuer Ist-Kennzahlen,
+  // FODMAP-Ampeln, Zielwerte-Ampeln und den Substitutions-Dialog braucht es dieselbe
+  // Aufloesung, hier auf einer Kopie (mutiert weder rz noch die Spalte). Von der Hauptansicht
+  // (AP-0308) aktuell nicht aufgerufen — Nr. 6-8 aus AP-0204 §3 sind AP-0309, der diese
+  // Funktion unveraendert weiterverwendet.
   entwVersionAufgeloest(rz, version){
     if(!version) return null;
     const idx = Model.rohstoffIndex(Store.rohstoffe);
@@ -2268,147 +2609,305 @@ const View = {
         return { ...z, nameKey, rohstoff: idx.get(nameKey) || null };
       })
     }));
-    return { basisMengeG: rz.basisMengeG, portionen: rz.portionen, backprotokoll: rz.backprotokoll, phasen };
+    return { basisMengeG: rz.basisMengeG, portionen: rz.portionen, protokoll: rz.protokoll, phasen };
   },
 
-  /* ---------- Entwicklungsmodus (AP-0311/§3, AP-0312/§4, AP-0314/§6) -------
-     rz.entwicklung == null -> nur der Anstoss-Button (Abnahmekriterium 3: unveraendertes
-     Verhalten ohne das Feld). Store.devForm haelt das jeweils eine offene Formular
-     (Versions-Bearbeitung/-Neuanlage, Diff, Befoerdern-Bestaetigung, Versuchseintrag,
-     Zielwerte, Substitution) — gleiches Prinzip wie Store.backEintrag. */
+  /* ---------- Entwicklungsmodus — Hauptansicht (AP-0308, Konzept AP-0204) -------------
+     Variantentabelle statt Formularkarte: eine klebende Achse (Zutaten-/Schrittnamen der
+     Basis) plus je Variante eine Wertespalte, ALLE gleichzeitig offen und bearbeitbar
+     (R1) — Store.devForm ist ersatzlos gestrichen. Getrennte Ansichtsteile (Ursache 3):
+     entwSicherstellen (Hydrieren) / entwZeilenplan (Zeilen) / entwAchseHtml / entwSpalteHtml /
+     entwZelle / entwOverlay — entwKarte() selbst ist nur noch die Klammer.
+     Nebenansicht (Zielwerte, Substitution, Referenz-Vergleich — AP-0204 §3 Nr. 6-8) ist
+     AP-0309, nicht hier: die zugrundeliegenden Calc-Funktionen bleiben unveraendert bestehen,
+     nur die Bedienung dazu fehlt in dieser Ansicht noch bewusst. */
+  entwSicherstellen(rz){
+    if(Store.entw && Store.entw.rezeptId === rz.id) return Store.entw;
+    const entwurf = EntwEntwurf.lesen(rz.id);
+    if(entwurf && entwurf.zustand){
+      Store.entw = { rezeptId: rz.id, overlay:null, schrittBearbeiten:null, ...entwurf.zustand };
+      return Store.entw;
+    }
+    if(rz.entwicklung){
+      Store.entw = { rezeptId: rz.id, overlay:null, schrittBearbeiten:null, ...EntwModell.hydrieren(rz.entwicklung) };
+      return Store.entw;
+    }
+    Store.entw = null;
+    return null;
+  },
+
+  // AP-0204 §4.1: Achse und Wertespalten teilen sich dieselbe Zeilenfolge, positionsbasiert
+  // (Phase-/Zutat-/Schritt-Index) statt namensbasiert — jede Spalte ist anfangs eine
+  // vollstaendige Kopie der Basis. Zeilen ueber Phase-/Zutaten-/Schrittzahl hinaus (z.B. eine
+  // laenger gewordene Spalte) werden ueber alle Spalten vereinigt, damit die Zeilenzahl je
+  // Phase fuer Achse und Spalten identisch bleibt.
+  entwZeilenplan(basisPhasen, spalten){
+    const zeilen = [];
+    const maxPhasen = Math.max(basisPhasen.length, ...spalten.map(s => s.phasen.length), 0);
+    for(let pi = 0; pi < maxPhasen; pi++){
+      const bp = basisPhasen[pi];
+      const name = bp ? bp.name : ((spalten.map(s => s.phasen[pi]).find(Boolean) || {}).name || ("Phase " + (pi + 1)));
+      zeilen.push({ typ:"phase", pi, name });
+      const maxZ = Math.max(bp ? bp.zutaten.length : 0, ...spalten.map(s => (s.phasen[pi] ? s.phasen[pi].zutaten.length : 0)), 0);
+      for(let zi = 0; zi < maxZ; zi++) zeilen.push({ typ:"zutat", pi, zi, basis: bp && bp.zutaten[zi] || null });
+      const maxS = Math.max(bp ? bp.schritte.length : 0, ...spalten.map(s => (s.phasen[pi] ? s.phasen[pi].schritte.length : 0)), 0);
+      for(let si = 0; si < maxS; si++) zeilen.push({ typ:"schritt", pi, si });
+    }
+    return zeilen;
+  },
+
+  // Name einer "neuen" Zeile (kein Treffer in der Basis) — erste Spalte, die an dieser
+  // Position tatsaechlich etwas traegt, liefert den Anzeigenamen (§4.2: Achse zeigt ihn
+  // kursiv mit "+").
+  entwZeileNeuName(r, spalten){
+    for(const s of spalten){
+      const ph = s.phasen[r.pi];
+      const z = ph && ph.zutaten[r.zi];
+      if(z) return z.name;
+    }
+    return "";
+  },
+
+  entwAchseHtml(zeilen){
+    return zeilen.map(r => {
+      if(r.typ === "phase") return `<div class="entw-zelle entw-phase">${esc(r.name)}</div>`;
+      if(r.typ === "zutat"){
+        const name = r.basis ? r.basis.name : View.entwZeileNeuName(r, (Store.entw && Store.entw.spalten) || []);
+        return `<div class="entw-zelle${r.basis ? "" : " entw-neu"}">${esc(name)}</div>`;
+      }
+      return `<div class="entw-zelle">Schritt ${r.si + 1}</div>`;
+    }).join("");
+  },
+
+  // Eine Zelle einer Wertespalte. basisPhasen liefert den Vergleichswert fuer Δ und
+  // "geaendert" (O2) — bezogen auf Store.entw.basis (O5), nicht zwingend auf die produktive
+  // Rezeptur. Gramm/Prozent folgt Store.entwEinheit (Umschalter "wie im Zutaten-Editor").
+  entwZelle(sp, r, rz, basisPhasen){
+    if(r.typ === "phase") return `<div class="entw-zelle entw-phase">&nbsp;</div>`;
+    const ph = sp.phasen[r.pi];
+    if(r.typ === "zutat"){
+      const zu = ph && ph.zutaten[r.zi];
+      if(!zu) return `<div class="entw-zelle entw-wert" style="color:var(--muted)">–</div>`;
+      const g = Calc.mengeG(zu, rz.basisMengeG, 1);
+      const basisZu = r.basis;
+      const basisG = basisZu ? Calc.mengeG(basisZu, rz.basisMengeG, 1) : null;
+      const deltaG = basisG != null ? g - basisG : null;
+      const geaendert = deltaG != null && Math.abs(deltaG) > 0.05;
+      const inG = Store.entwEinheit !== "%";
+      const anzeige = inG ? g : zu.prozent * 100;
+      const deltaAnzeige = deltaG != null ? (inG ? deltaG : deltaG / rz.basisMengeG * 100) : null;
+      const deltaHtml = geaendert
+        ? `<span class="entw-delta ${deltaG > 0 ? "entw-auf" : "entw-ab"}">${deltaG > 0 ? "▲" : "▼"}${Math.abs(deltaAnzeige).toFixed(inG ? 0 : 1)}</span>`
+        : "";
+      // AP-0309/§3 Nr.7: Substitutions-Dialog ist Nebenansicht (B7), der Anstoss dazu bleibt
+      // aber an der Zutatenzeile selbst — sonst waere er nicht mehr auffindbar.
+      return `<div class="entw-zelle">
+        <input type="number" step="any" data-entw-zutat="${sp.v}|${r.pi}|${r.zi}"
+          class="entw-wert${geaendert ? " entw-geaendert" : ""}" style="width:auto;flex:1;min-width:0"
+          value="${Number.isFinite(anzeige) ? Math.round(anzeige * 100) / 100 : ""}" title="${esc(zu.name)}">${deltaHtml}
+        <button type="button" class="ghost noprint" data-entw-subst="${sp.v}|${r.pi}|${r.zi}"
+          title="${esc(zu.name)} ersetzen (Substitution)" style="min-height:auto;padding:0 .25rem;font-size:.7rem;flex:none">⇄</button>
+      </div>`;
+    }
+    // Schritt: "—" unveraendert, "✎" geaendert (§4.2) — Klick oeffnet ein einzeiliges Textfeld
+    // IN DER ZELLE (kein Overlay, kein JSON), zweiter Klick/Enter/Blur schliesst es wieder.
+    const sc = ph && ph.schritte[r.si];
+    if(!sc) return `<div class="entw-zelle" style="color:var(--muted)">–</div>`;
+    const bp = basisPhasen[r.pi];
+    const basisText = bp && bp.schritte[r.si] ? bp.schritte[r.si].text : "";
+    const geaendert = (sc.text || "") !== basisText;
+    const eb = Store.entw.schrittBearbeiten;
+    if(eb && eb.v === sp.v && eb.pi === r.pi && eb.si === r.si)
+      return `<div class="entw-zelle"><input type="text" data-entw-schritt-feld="${sp.v}|${r.pi}|${r.si}" value="${esc(sc.text || "")}"></div>`;
+    return `<div class="entw-zelle entw-schritt-zelle" data-entw-schritt-oeffnen="${sp.v}|${r.pi}|${r.si}"
+      title="${esc(sc.text || "")}">${geaendert ? "✎" : "—"}</div>`;
+  },
+
+  // AP-0204 §6 O1/O2/O3: Spaltenkopf und -fuss sind DAUERHAFTE Anzeigen, kein Dialog. Δ-Zeile
+  // im Kopf nutzt Calc.entwDiff() unveraendert (der Diff-Dialog selbst entfaellt, §3 Nr. 3).
+  entwSpalteHtml(sp, zeilen, z, rz, basisPhasen){
+    const aktiv = sp.v === z.aktivV;
+    const diff = Calc.entwDiff({ phasen: basisPhasen }, { phasen: sp.phasen });
+    const zGeaendert = diff.zutaten.filter(x => x.delta != null && Math.abs(x.delta) > 0.0001).length;
+    const sGeaendert = diff.schritte.filter(x => x.geaendert).length;
+    const letzter = (sp.versuche || []).slice().sort((a, b) => (b.datum || "").localeCompare(a.datum || ""))[0];
+    const kopf = `<div class="entw-kopf">
+      <button type="button" class="ghost entw-v" data-entw-aktiv="${sp.v}" style="min-height:auto;padding:.1rem .35rem">v${sp.v}</button>
+      ${aktiv ? '<span class="entw-badge-aktiv">aktiv</span>' : ""}
+      <div class="entw-diff">${zGeaendert || sGeaendert
+        ? `${zGeaendert} Zutat(en) · ${sGeaendert} Schritt(e) geändert gegenüber ${z.basis === "produktiv" ? "produktiv" : "v" + z.basis}`
+        : "unverändert gegenüber " + (z.basis === "produktiv" ? "produktiv" : "v" + z.basis)}</div>
+      <input type="text" data-entw-notiz="${sp.v}" value="${esc(sp.notiz || "")}" placeholder="Notiz…">
+      <div class="entw-kopf-knoepfe noprint entw-verbergen">
+        <button class="ghost" data-entw-abzweigen="${sp.v}" title="Neue Variante als Kopie dieser Spalte">+ Var.</button>
+        <button class="ghost" data-entw-einklappen="${sp.v}">${sp.eingeklappt ? "▶" : "◀"}</button>
+      </div>
+    </div>`;
+    const zellen = `<div class="entw-verbergen">${zeilen.map(r => View.entwZelle(sp, r, rz, basisPhasen)).join("")}</div>`;
+    const fuss = `<div class="entw-fuss noprint entw-verbergen">
+      <div class="entw-letzter" data-entw-bewerten="${sp.v}">${letzter
+        ? "Letzter Versuch " + esc(letzter.datum) + " · " + "●".repeat(letzter.bewertung || 0) + "○".repeat(5 - (letzter.bewertung || 0))
+        : "noch kein Versuch"}</div>
+      <div class="actions">
+        <button class="ghost" data-entw-bewerten="${sp.v}">Bewerten</button>
+        <button data-entw-uebernehmen="${sp.v}">Übernehmen</button>
+      </div>
+    </div>`;
+    return `<div class="entw-spalte${aktiv ? " entw-aktiv" : ""}${sp.eingeklappt ? " entw-eingeklappt" : ""}">${kopf}${zellen}${fuss}</div>`;
+  },
+
   entwKarte(rz){
-    const e = rz.entwicklung;
-    if(!e){
+    const z = View.entwSicherstellen(rz);
+    if(!z){
       return `<section class="card">
         <h2>Entwicklung</h2>
         <div class="body">
           <div class="hint">Kein Entwicklungsverlauf — dieses Rezept läuft als produktive Rezeptur.</div>
           <div class="actions noprint" style="margin-top:.6rem">
-            <button class="ghost" id="btnEntwStarten">Entwicklungsmodus starten</button>
+            <button class="ghost" id="btnEntwVarianteHinzufuegen">+ Variante</button>
           </div>
         </div>
       </section>`;
     }
+    const basisPhasen = z.basis === "produktiv" ? rz.phasen : ((z.spalten.find(s => s.v === z.basis) || { phasen: rz.phasen }).phasen);
+    const zeilen = View.entwZeilenplan(basisPhasen, z.spalten);
+    const optionenBasis = ['<option value="produktiv"' + (z.basis === "produktiv" ? " selected" : "") + '>produktiv</option>']
+      .concat(z.spalten.map(s => `<option value="${s.v}"${z.basis === s.v ? " selected" : ""}>v${s.v}</option>`)).join("");
 
-    const df = Store.devForm;
-    const sortiert = (e.versionen || []).slice().sort((a,b) => a.v - b.v);
-    const aktiv = Calc.entwAktiveVersion(e);
-    // AP-0312/§2+§4: Ist-Kennzahlen der aktiven Version (nicht der produktiven rz.phasen) —
-    // dieselben reinen Calc-Funktionen wie im Normalmodus, nur auf der aufgeloesten Version.
-    const aktivResolved = View.entwVersionAufgeloest(rz, aktiv);
-    const ist = aktivResolved ? (() => {
-      const k = Calc.kennzahlen(aktivResolved, 1);
-      const kosten = Calc.kosten(aktivResolved, 1, Calc.schwundAktuell(rz.backprotokoll));
+    return `<section class="card">
+      <h2>Entwicklung</h2>
+      <div class="body">
+        <div class="entw-abzeichen">Entwicklung · Basis ${z.basis === "produktiv" ? "produktiv" : "v" + z.basis} · ${z.spalten.length} Variante${z.spalten.length===1?"":"n"}</div>
+        ${Store.entwFehler ? '<div class="msg warn">Zwischenspeicher (localStorage) nicht verfügbar — Änderungen bleiben nur für diese Sitzung erhalten.</div>' : ""}
+        <div class="entw-leiste noprint">
+          <button class="ghost" id="btnEntwVarianteHinzufuegen">+ Variante</button>
+          <label style="font-size:.78rem;color:var(--muted)">Δ gegen
+            <select id="entwBasisWahl">${optionenBasis}</select></label>
+          <button class="ghost" id="btnEntwEinheit">${Store.entwEinheit === "%" ? "% → g" : "g → %"}</button>
+          <button class="ghost" id="btnEntwZielwerte">Zielwerte</button>
+          <button class="ghost" id="btnEntwReferenz">Referenz-Vergleich</button>
+          <button class="ghost" id="btnEntwVariantenSichern">Varianten sichern</button>
+        </div>
+        <div class="entw-scroll"><div class="entw-tabelle">
+          <div class="entw-achse">
+            <div class="entw-kopf" style="min-height:6.6rem"><span style="font-size:.72rem;color:var(--muted)">Basis: ${z.basis === "produktiv" ? "produktive Rezeptur" : "v" + z.basis}</span></div>
+            ${View.entwAchseHtml(zeilen)}
+            <div class="entw-fuss" style="min-height:3.6rem">&nbsp;</div>
+          </div>
+          ${z.spalten.map(sp => View.entwSpalteHtml(sp, zeilen, z, rz, basisPhasen)).join("")}
+        </div></div>
+        ${View.entwOverlay(rz, z)}
+      </div>
+    </section>`;
+  },
+
+  // AP-0204 §5.1 R2: genau EIN Overlay gleichzeitig — alle fuenf Typen teilen sich
+  // Store.entw.overlay. Bewertung/Übernehmen (AP-0308) zeichnen in der Schiene, Zielwerte/
+  // Referenz/Substitution (AP-0309, §3 Nr. 6-8) als B7 "Overlay über der Mitte"
+  // (.entw-overlay-b7, AP-0201 §1 Zeile B7) — derselbe Slot, zwei Darstellungsorte.
+  entwOverlay(rz, z){
+    const ov = z.overlay;
+    if(!ov) return "";
+    if(ov.typ === "bewertung") return View.entwOverlayBewertung(rz, z, ov);
+    if(ov.typ === "uebernehmen") return View.entwOverlayUebernehmen(rz, z, ov);
+    if(ov.typ === "zielwerte") return View.entwOverlayZielwerte(rz, z, ov);
+    if(ov.typ === "referenz") return View.entwOverlayReferenz(rz, z, ov);
+    if(ov.typ === "substitution") return View.entwOverlaySubstitution(rz, z, ov);
+    return "";
+  },
+
+  entwOverlayBewertung(rz, z, ov){
+    const sp = z.spalten.find(s => s.v === ov.v);
+    if(!sp) return "";
+    const feldsatz = Verfahren.feldsatz(rz.verfahren);
+    const merkmalsatz = Merkmale.satz(rz.verfahren);
+    const liste = (sp.versuche || []).slice().sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
+    const listeHtml = liste.length ? `<table class="log">
+      <tr><th>Datum</th><th class="num">Soll</th><th class="num">Ist</th><th>Bewertung</th><th>Erkenntnis</th></tr>
+      ${liste.map(v => `<tr><td>${esc(v.datum)}</td>
+        <td class="num">${Calc.versuchSollG(v) != null ? Calc.versuchSollG(v) + " g" : "—"}</td>
+        <td class="num">${Calc.versuchIstG(v) != null ? Calc.versuchIstG(v) + " g" : "—"}</td>
+        <td>${"★".repeat(v.bewertung || 0)}${"☆".repeat(5 - (v.bewertung || 0))}</td>
+        <td>${esc(v.erkenntnis || "")}</td></tr>`).join("")}
+    </table>` : `<div class="hint">Noch kein Versuch für v${sp.v}.</div>`;
+
+    const feldHtml = feldsatz.felder.map(f => {
+      const val = ov.felder[f.key];
+      if(f.typ === "bool") return `<label class="entw-merkmal"><input type="checkbox" data-entw-bew-feld="${esc(f.key)}"${val ? " checked" : ""}> ${esc(f.label)}</label>`;
+      return `<label style="display:block;margin-top:.4rem;font-size:.85rem;color:var(--muted)">${esc(f.label)}${f.einheit ? " (" + esc(f.einheit) + ")" : ""}
+        <input type="${f.typ === "zahl" ? "number" : "text"}" data-entw-bew-feld="${esc(f.key)}" value="${esc(val == null ? "" : val)}" style="width:100%;margin-top:.2rem"></label>`;
+    }).join("");
+
+    const merkmaleHtml = merkmalsatz.skalen.map(k => `
+      <div class="entw-merkmal"><label>${esc(k)}</label>
+        <input type="range" min="1" max="5" data-entw-bew-skala="${esc(k)}" value="${ov.merkmale[k] || 3}">
+        <span>${ov.merkmale[k] || 3}</span></div>`).join("")
+      + merkmalsatz.kaesten.map(k => `<label class="entw-merkmal"><input type="checkbox" data-entw-bew-kasten="${esc(k)}"${ov.merkmale[k] ? " checked" : ""}> ${esc(k)}</label>`).join("");
+
+    return `<div class="entw-overlay noprint">
+      <h3 style="margin:0 0 .4rem;font-size:.95rem">Versuche v${sp.v}</h3>
+      ${listeHtml}
+      <div style="border-top:1px solid var(--line);padding-top:.7rem;margin-top:.7rem">
+        <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
+          <label>Datum<input id="entwBewDatum" type="date" value="${esc(ov.datum)}"></label>
+          ${feldsatz.kernSollIst ? `
+          <label>Soll (g)<input id="entwBewSoll" type="number" min="1" step="1" value="${esc(ov.sollG)}"></label>
+          <label>Ist (g)<input id="entwBewIst" type="number" min="1" step="1" value="${esc(ov.istG)}"></label>` : ""}
+          <label>Gesamtnote<select id="entwBewBewertung">${[1,2,3,4,5].map(n => `<option value="${n}"${n === ov.bewertung ? " selected" : ""}>${n} — ${"★".repeat(n)}${"☆".repeat(5-n)}</option>`).join("")}</select></label>
+        </div>
+        ${feldHtml}
+        <h4 style="margin:.8rem 0 .3rem;font-size:.8rem;color:var(--muted)">Merkmale (${esc(rz.verfahren || "generisch")})</h4>
+        ${merkmaleHtml}
+        <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">Erkenntnis
+          <input id="entwBewErkenntnis" type="text" style="width:100%;margin-top:.25rem" value="${esc(ov.erkenntnis)}"
+            placeholder="z. B. Krume offener, Kruste zu blass"></label>
+        <div class="actions noprint" style="margin-top:.7rem">
+          <button id="btnEntwBewertungSpeichern">Versuch speichern</button>
+          <button class="ghost" id="btnEntwOverlaySchliessen">Schliessen</button>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  entwOverlayUebernehmen(rz, z, ov){
+    const sp = z.spalten.find(s => s.v === ov.v);
+    if(!sp) return "";
+    return `<div class="entw-overlay noprint">
+      <div class="msg warn"><b>v${sp.v} wird produktive Rezeptur.</b> Bisherige Rezeptur bleibt als Version erhalten;
+        ${(sp.versuche || []).length ? "ihre " + sp.versuche.length + " Versuch(e) werden zusätzlich ins Verfahrensprotokoll kopiert." : "sie hat noch keine Versuche."}</div>
+      <div class="actions noprint" style="margin-top:.6rem">
+        <button id="btnEntwUebernehmenBestaetigt">Bestätigen</button>
+        <button class="ghost" id="btnEntwOverlaySchliessen">Abbrechen</button>
+      </div>
+    </div>`;
+  },
+
+  /* ---------- Nebenansicht — Zielwerte (AP-0309/AP-0312) ----------------------------
+     Ziel/Ist/Ampel bezogen auf die AKTIVE Variante (z.aktivV), aufgeloest ueber das
+     unveraenderte View.entwVersionAufgeloest — dieselben Calc-Funktionen wie ueberall sonst,
+     Werte muessen darum zwingend zeichengleich bleiben (Abnahmekriterium 1). "Rahmen
+     herleiten" legt eine NEUE Variante im lokalen Entwurf an (R4: kein Excel-Schreibvorgang
+     ausser durch "Varianten sichern"/"übernehmen") — anders als vor AP-0308, wo dieselbe
+     Aktion sofort schrieb. */
+  entwOverlayZielwerte(rz, z, ov){
+    const sp = z.spalten.find(s => s.v === z.aktivV);
+    const resolved = sp ? View.entwVersionAufgeloest(rz, sp) : null;
+    const ist = resolved ? (() => {
+      const k = Calc.kennzahlen(resolved, 1);
+      const kosten = Calc.kosten(resolved, 1, Calc.schwundAktuell(rz.protokoll));
       return { hydration:k.hydration, suesse:k.suesse, fett:k.fett, salz:k.salz, kosten_portion_chf:kosten.proPortion };
     })() : null;
-    const fdAktiv = aktivResolved ? Calc.fodmapGesamt(Calc.zutatenFlach(aktivResolved)) : null;
-
-    const versionenHtml = sortiert.map(v => `
-      <div class="zuordnungzeile">
-        <span class="nm">v${v.v}${aktiv && v.v === aktiv.v ? " ●" : ""} · ${esc(v.datum)}</span>
-        <span class="hint" style="display:inline;flex:1;margin:0">${esc(v.notiz || "")}</span>
-        <div class="actions noprint" style="flex:none">
-          ${!(aktiv && v.v === aktiv.v) ? `<button class="ghost" data-entw-aktiv="${v.v}">Aktiv setzen</button>` : ""}
-          <button class="ghost" data-entw-bearbeiten="${v.v}">Bearbeiten</button>
-        </div>
-      </div>`).join("") || '<div class="hint">Noch keine Version.</div>';
-
-    let versionForm = "";
-    if(df && df.art === "version"){
-      versionForm = `
-        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
-          <div class="hint">${df.modus === "neu"
-            ? "Neue Version v" + df.v + " — Kopie der aktiven Version, danach frei editierbar."
-            : "v" + df.v + " bearbeiten."}</div>
-          <label style="display:block;margin-top:.5rem;font-size:.85rem;color:var(--muted)">Notiz
-            <input id="devNotiz" type="text" style="width:100%;margin-top:.25rem" value="${esc(df.notiz)}"
-              placeholder="Was hat sich geändert?"></label>
-          <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">Phasen (JSON) dieser Version
-            <textarea id="devPhasenText" class="importtext" style="margin-top:.25rem">${esc(df.phasenText)}</textarea></label>
-          <div class="actions noprint" style="margin-top:.7rem">
-            <button id="btnEntwVersionSpeichern">Version speichern</button>
-            <button class="ghost" id="btnEntwFormAbbrechen">Abbrechen</button>
-          </div>
-        </div>`;
-    }
-
-    let diffForm = "";
-    if(df && df.art === "diff"){
-      const vA = e.versionen.find(v => v.v === df.a), vB = e.versionen.find(v => v.v === df.b);
-      const diff = Calc.entwDiff(vA, vB);
-      const opt = (sel) => sortiert.map(v => `<option value="${v.v}"${v.v===sel?" selected":""}>v${v.v} (${esc(v.datum)})</option>`).join("");
-      diffForm = `
-        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
-          <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
-            <label>Version A<select id="diffA">${opt(df.a)}</select></label>
-            <label>Version B<select id="diffB">${opt(df.b)}</select></label>
-          </div>
-          <table class="log" style="margin-top:.7rem">
-            <tr><th>Zutat</th><th class="num">v${df.a}</th><th class="num">v${df.b}</th><th class="num">Δ</th></tr>
-            ${diff.zutaten.map(z => `<tr${z.delta != null && Math.abs(z.delta) > 0.0001 ? ' style="font-weight:600"' : ""}>
-              <td>${esc(z.name)}</td><td class="num">${z.aPct==null?"—":pct(z.aPct,1)}</td>
-              <td class="num">${z.bPct==null?"—":pct(z.bPct,1)}</td>
-              <td class="num">${z.delta==null?"—":(z.delta>=0?"+":"")+pct(z.delta,1)}</td></tr>`).join("")}
-          </table>
-          <div class="hint">Schritte geändert: ${diff.schritte.filter(s=>s.geaendert).length
-            ? esc(diff.schritte.filter(s=>s.geaendert).map(s=>s.phase).join(", "))
-            : "keine"}</div>
-          <div class="actions noprint" style="margin-top:.7rem">
-            <button class="ghost" id="btnEntwFormAbbrechen">Schliessen</button>
-          </div>
-        </div>`;
-    }
-
-    let befoerdernForm = "";
-    if(df && df.art === "befoerdern"){
-      befoerdernForm = `
-        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
-          <div class="msg warn"><b>v${df.v} wird produktive Rezeptur.</b> Bisherige Rezeptur bleibt als Version erhalten.</div>
-          <div class="actions noprint" style="margin-top:.6rem">
-            <button id="btnEntwBefoerdernBestaetigt">Bestätigen</button>
-            <button class="ghost" id="btnEntwFormAbbrechen">Abbrechen</button>
-          </div>
-        </div>`;
-    }
-
-    // AP-0312/§4: Zielwerte-Panel — Ziel/Ist/Ampel je Kennzahl, plus Bearbeiten-Formular
-    // (devForm art "zielwerte") mit "Rahmen herleiten" als zweiter Speicherpfad (erzeugt eine
-    // neue Version statt nur die Zielwerte zu schreiben).
-    const zw = e.zielwerte || {};
+    const zw = z.zielwerte || {};
     const kzZeile = (label, istWert, zielWert, fmt) => {
       const amp = Calc.ampel(istWert, zielWert);
       return `<tr><td>${esc(label)}</td><td class="num">${zielWert==null?"—":fmt(zielWert)}</td>
         <td class="num">${istWert==null?"—":fmt(istWert)}</td>
         <td>${amp ? `<span style="color:var(--${amp})">●</span> ${esc(amp)}` : "—"}</td></tr>`;
     };
-    let zielwerteForm = "";
-    if(df && df.art === "zielwerte"){
-      const zuckerarten = Store.rohstoffe.filter(r => r.suesskraft);
-      zielwerteForm = `
-        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
-          <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
-            <label>Hydration (%)<input id="zwHydration" type="number" step="0.1" value="${esc(df.hydration)}"></label>
-            <label>Süsse (%)<input id="zwSuesse" type="number" step="0.1" value="${esc(df.suesse)}"></label>
-            <label>Fett (%)<input id="zwFett" type="number" step="0.1" value="${esc(df.fett)}"></label>
-            <label>Salz (%)<input id="zwSalz" type="number" step="0.1" value="${esc(df.salz)}"></label>
-            <label>Kosten/Portion (CHF)<input id="zwKosten" type="number" step="0.01" value="${esc(df.kosten)}"></label>
-          </div>
-          <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">
-            Zuckerart für «Rahmen herleiten» (nur nötig, wenn Süsse-Ziel gesetzt ist)
-            <select id="zwZuckerart" style="width:100%;margin-top:.25rem">
-              <option value="">— keine —</option>
-              ${zuckerarten.map(r => `<option value="${esc(r.id)}"${r.id===df.zuckerartId?" selected":""}>
-                ${esc(r.name)} (Süsskraft ${r.suesskraft})</option>`).join("")}
-            </select></label>
-          <div class="actions noprint" style="margin-top:.7rem">
-            <button id="btnEntwZielwerteSpeichern">Zielwerte speichern</button>
-            <button class="ghost" id="btnEntwRahmenHerleiten">Rahmen herleiten — neue Version</button>
-            <button class="ghost" id="btnEntwFormAbbrechen">Abbrechen</button>
-          </div>
-        </div>`;
-    }
-    const zielwerteHtml = `
-      <h3 style="margin:1.1rem 0 .4rem;font-size:.95rem">Zielwerte</h3>
+    const zuckerarten = Store.rohstoffe.filter(r => r.suesskraft);
+    return `<div class="scrim noprint" data-entw-b7-schliessen></div>
+    <div class="entw-overlay entw-overlay-b7 noprint">
+      <h3 style="margin:0 0 .4rem;font-size:.95rem">Zielwerte — bezogen auf v${sp ? sp.v : "—"} (aktiv)</h3>
       <table class="log">
         <tr><th>Kennzahl</th><th class="num">Ziel</th><th class="num">Ist</th><th>Ampel</th></tr>
         ${kzZeile("Hydration", ist && ist.hydration, zw.hydration_pct, v=>pct(v,1))}
@@ -2417,126 +2916,52 @@ const View = {
         ${kzZeile("Salz", ist && ist.salz, zw.salz_pct, v=>pct(v,1))}
         ${kzZeile("Kosten/Portion", ist && ist.kosten_portion_chf, zw.kosten_portion_chf, v=>chf(v))}
       </table>
-      ${!ist ? '<div class="hint">Noch keine Version — Ist-Kennzahlen erst nach der ersten Version verfügbar.</div>' : ""}
-      <div class="actions noprint" style="margin-top:.7rem">
-        <button class="ghost" id="btnEntwZielwerte">Zielwerte bearbeiten</button>
+      ${!ist ? '<div class="hint">Keine aktive Variante — Ist-Kennzahlen erst mit einer Variante verfügbar.</div>' : ""}
+      <div class="scaler" style="padding-top:.7rem;border-top:1px solid var(--line);margin-top:.7rem">
+        <label>Hydration (%)<input id="zwHydration" type="number" step="0.1" value="${esc(ov.hydration)}"></label>
+        <label>Süsse (%)<input id="zwSuesse" type="number" step="0.1" value="${esc(ov.suesse)}"></label>
+        <label>Fett (%)<input id="zwFett" type="number" step="0.1" value="${esc(ov.fett)}"></label>
+        <label>Salz (%)<input id="zwSalz" type="number" step="0.1" value="${esc(ov.salz)}"></label>
+        <label>Kosten/Portion (CHF)<input id="zwKosten" type="number" step="0.01" value="${esc(ov.kosten)}"></label>
       </div>
-      ${zielwerteForm}`;
+      <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">
+        Zuckerart für «Rahmen herleiten» (nur nötig, wenn Süsse-Ziel gesetzt ist)
+        <select id="zwZuckerart" style="width:100%;margin-top:.25rem">
+          <option value="">— keine —</option>
+          ${zuckerarten.map(r => `<option value="${esc(r.id)}"${r.id===ov.zuckerartId?" selected":""}>
+            ${esc(r.name)} (Süsskraft ${r.suesskraft})</option>`).join("")}
+        </select></label>
+      <div class="actions noprint" style="margin-top:.7rem">
+        <button id="btnEntwZielwerteSpeichern">Zielwerte speichern</button>
+        <button class="ghost" id="btnEntwRahmenHerleiten"${sp ? "" : " disabled"}>Rahmen herleiten — neue Variante</button>
+        <button class="ghost" id="btnEntwOverlaySchliessen">Schliessen</button>
+      </div>
+    </div>`;
+  },
 
-    // AP-0314/§6: Austausch-Formular (devForm art "substitution") — vor der Zutatenliste
-    // berechnet, weil diese den fertigen substForm-String direkt unter der betroffenen Zeile
-    // einhaengt (kein zweiter Rendering-Durchlauf noetig).
-    let substForm = "";
-    if(df && df.art === "substitution"){
-      const kandidaten = Store.rohstoffe.filter(r => r.kategorie === df.altKategorie && r.id !== df.altRohstoffId);
-      const kandidat = kandidaten.find(r => r.id === df.kandidatId);
-      let rechnungHtml = "";
-      if(kandidat){
-        const umrechnung = Calc.substitutionsMenge(df.altMengeG, df.altSuesskraft, kandidat.suesskraft || 0);
-        rechnungHtml = umrechnung.hinweis
-          ? `<div class="hint"><span class="warn-inline" style="margin-left:0">${esc(umrechnung.hinweis)}</span> — neue Menge: ${Calc.runden(umrechnung.menge, df.altEinheit)}.</div>`
-          : `<div class="hint">Rechnung: ${Calc.runden(df.altMengeG,"g")} × (${df.altSuesskraft} ÷ ${kandidat.suesskraft}) = ${Calc.runden(umrechnung.menge,"g")}</div>`;
-      }
-      substForm = `
-        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
-          <div class="hint">Ersatz für <b>${esc(df.altName)}</b> (${Calc.runden(df.altMengeG, df.altEinheit)})</div>
-          <label style="display:block;margin-top:.5rem;font-size:.85rem;color:var(--muted)">Ersatzprodukt
-            <select id="substKandidat" style="width:100%;margin-top:.25rem">
-              <option value="">— wählen —</option>
-              ${kandidaten.map(r => `<option value="${esc(r.id)}"${r.id===df.kandidatId?" selected":""}>
-                ${esc(r.name)} — Süsskraft ${r.suesskraft ?? "—"} · FODMAP ${r.fodmap ?? "—"} · CHF ${r.kostenProKg ?? "—"}/kg</option>`).join("")}
-            </select></label>
-          ${rechnungHtml}
-          <div class="actions noprint" style="margin-top:.7rem">
-            <button id="btnEntwSubstUebernehmen"${kandidat?"":" disabled"}>Übernehmen — neue Version</button>
-            <button class="ghost" id="btnEntwFormAbbrechen">Abbrechen</button>
-          </div>
-        </div>`;
-    }
-
-    // AP-0314/§6: Zutaten der aktiven Version mit FODMAP-Ampel + Austausch-Anstoss je Zutat.
-    // Ersetzt niemals rz.phasen direkt — jede Substitution läuft über App.entwSpeichern und
-    // legt immer eine neue Version an.
-    let aktivZutatenHtml = "";
-    if(aktivResolved){
-      const zeilen = [];
-      aktivResolved.phasen.forEach((ph, pi) => (ph.zutaten || []).forEach((z, zi) => {
-        const g = Calc.mengeG(z, rz.basisMengeG, 1);
-        const fodmap = z.rohstoff && z.rohstoff.fodmap;
-        const fodmapHtml = fodmap
-          ? `<span class="fodmap-ampel" style="color:var(--${fodmap})" title="FODMAP: ${esc(fodmap)}${
-              z.rohstoff.fodmapPortionG ? " · sichere Portion " + z.rohstoff.fodmapPortionG + " g" : ""}">●</span>` : "";
-        const offen = df && df.art === "substitution" && df.phaseIdx === pi && df.zutatIdx === zi;
-        zeilen.push(`<tr><td>${esc(ph.name)} · ${esc(z.name)}${z.rohstoff?"":' <span class="warn-inline">unbekannt</span>'}${fodmapHtml}</td>
-          <td class="pct">${(z.prozent*100).toFixed(1)} %</td>
-          <td class="menge">${Calc.runden(g, z.einheit)}</td>
-          <td class="noprint"><button class="ghost" data-subst-phase="${pi}" data-subst-zutat="${zi}">Ersetzen</button></td>
-        </tr>${offen ? `<tr class="noprint"><td colspan="4" style="padding:0">${substForm}</td></tr>` : ""}`);
-      }));
-      if(zeilen.length){
-        aktivZutatenHtml = `
-          <h3 style="margin:1.1rem 0 .4rem;font-size:.95rem">Zutaten v${aktiv.v} — Substitution</h3>
-          <table class="zutaten">${zeilen.join("")}</table>
-          <div class="hint">FODMAP gesamt (v${aktiv.v}): <b>${fdAktiv.ampel ? esc(fdAktiv.ampel) : "—"}</b>${
-            fdAktiv.unbewertet ? ` · ${fdAktiv.unbewertet} Zutat(en) unbewertet` : ""}</div>`;
-      }
-    }
-
-    // AP-0313/§5: Referenz-Vergleich. Die Auswahl (Suche + Kategoriefilter + Trefferliste) ist
-    // noprint, die Tabelle selbst nicht — sie soll über das Print-CSS aus AP-0306 mitdrucken.
-    // Suchtext/Kategorie liegen bewusst in devForm und nicht in Store.suchtext/Store.kategorie:
-    // die Referenzsuche darf die Rezeptliste links nicht mitfiltern.
-    const refs = Store.referenzIds
-      .map(id => Store.rezepte.find(r => r.id === id))
-      .filter(Boolean)
-      .filter(r => r.id !== rz.id);
-    let referenzWahl = "";
-    if(df && df.art === "referenz"){
-      const q = (df.suchtext || "").trim().toLowerCase();
-      const kats = [...new Set(Store.rezepte.map(r => r.kategorie).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de"));
-      const treffer = Store.rezepte.filter(r =>
-        r.id !== rz.id
-        && !Store.referenzIds.includes(r.id)
-        && (!df.kategorie || r.kategorie === df.kategorie)
-        && (!q || (r.name + " " + r.kategorie + " " + (r.unterkategorie||"")).toLowerCase().includes(q))
-      ).slice(0, 40);
-      const voll = refs.length >= 3;
-      referenzWahl = `
-        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
-          <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
-            <label>Suche<input id="refSuche" type="search" value="${esc(df.suchtext || "")}"
-              placeholder="Rezept suchen…" autocomplete="off"></label>
-            <label>Kategorie<select id="refKategorie">
-              <option value="">Alle Kategorien</option>
-              ${kats.map(k => `<option value="${esc(k)}"${k===df.kategorie?" selected":""}>${esc(k)}</option>`).join("")}
-            </select></label>
-          </div>
-          ${voll
-            ? '<div class="hint">Drei Referenzen gewählt — für eine weitere zuerst eine entfernen.</div>'
-            : treffer.length
-              ? `<div class="refliste">${treffer.map(r => `<button data-ref-add="${esc(r.id)}">
-                  ${esc(r.name)} <span style="color:var(--muted);font-size:.82rem">· ${esc(r.kategorie)}</span>
-                </button>`).join("")}</div>`
-              : '<div class="hint">Kein Rezept gefunden.</div>'}
-          <div class="actions noprint" style="margin-top:.7rem">
-            <button class="ghost" id="btnEntwFormAbbrechen">Schliessen</button>
-          </div>
-        </div>`;
-    }
+  /* ---------- Nebenansicht — Referenz-Vergleich (AP-0309/AP-0313) -------------------
+     Store.referenzIds bleibt sitzungslokal wie vor AP-0308; Suche/Kategorie liegen bewusst
+     in ov (Overlay), NICHT in Store.suchtext — sonst würde die Referenzsuche die Rezeptliste
+     links mitfiltern (Abnahmekriterium 3). Markierung ">20%" nutzt table.vergleich/td.abw
+     unveraendert (Fettschrift + Glyphe ▲, Abnahmekriterium 4). */
+  entwOverlayReferenz(rz, z, ov){
+    const sp = z.spalten.find(s => s.v === z.aktivV);
+    const resolved = sp ? View.entwVersionAufgeloest(rz, sp) : null;
+    const refs = Store.referenzIds.map(id => Store.rezepte.find(r => r.id === id)).filter(Boolean).filter(r => r.id !== rz.id);
 
     let vergleichHtml = "";
-    if(aktivResolved && refs.length){
-      const vg = Calc.referenzVergleich(aktivResolved, refs);
+    if(resolved && refs.length){
+      const vg = Calc.referenzVergleich(resolved, refs);
       const fmt = (art, v) => v == null ? "—" : (art === "chf" ? chf(v) : pct(v, 1));
-      const zeileHtml = z => `<tr><td>${esc(z.label)}</td>
-        <td class="num">${fmt(z.art, z.wert)}</td>
-        ${z.refs.map(r => `<td class="num${r.markiert ? " abw" : ""}"${
+      const zeileHtml = zeile => `<tr><td>${esc(zeile.label)}</td>
+        <td class="num">${fmt(zeile.art, zeile.wert)}</td>
+        ${zeile.refs.map(r => `<td class="num${r.markiert ? " abw" : ""}"${
           r.abw != null ? ` title="Abweichung ${(r.abw*100).toFixed(0)} % gegenüber der Entwicklungsversion"` : ""
-        }>${fmt(z.art, r.wert)}</td>`).join("")}</tr>`;
+        }>${fmt(zeile.art, r.wert)}</td>`).join("")}</tr>`;
       vergleichHtml = `
         <div class="tabellescroll">
           <table class="log vergleich">
-            <tr><th>Kennzahl</th><th class="num">v${aktiv.v} (Entwicklung)</th>
+            <tr><th>Kennzahl</th><th class="num">v${sp.v} (Entwicklung)</th>
               ${refs.map(r => `<th class="num">${esc(r.name)}</th>`).join("")}</tr>
             ${vg.kennzahlen.map(zeileHtml).join("")}
             <tr class="gruppe"><td colspan="${refs.length + 2}">Zutaten (% der Basis)</td></tr>
@@ -2544,171 +2969,219 @@ const View = {
           </table>
         </div>
         <div class="hint">▲ markiert: mehr als 20 % relative Abweichung der Referenz gegenüber
-          der Entwicklungsversion v${aktiv.v}.</div>`;
+          der Entwicklungsversion v${sp.v}.</div>`;
     }
-    const referenzHtml = `
-      <h3 style="margin:1.1rem 0 .4rem;font-size:.95rem">Referenz-Vergleich</h3>
-      ${refs.length ? `<div class="noprint">${refs.map(r => `<span class="refchip">${esc(r.name)}
+
+    const q = (ov.suchtext || "").trim().toLowerCase();
+    const kats = [...new Set(Store.rezepte.map(r => r.kategorie).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"de"));
+    const treffer = Store.rezepte.filter(r =>
+      r.id !== rz.id
+      && !Store.referenzIds.includes(r.id)
+      && (!ov.kategorie || r.kategorie === ov.kategorie)
+      && (!q || (r.name + " " + r.kategorie + " " + (r.unterkategorie||"")).toLowerCase().includes(q))
+    ).slice(0, 40);
+    const voll = refs.length >= 3;
+
+    return `<div class="scrim noprint" data-entw-b7-schliessen></div>
+    <div class="entw-overlay entw-overlay-b7 noprint">
+      <h3 style="margin:0 0 .4rem;font-size:.95rem">Referenz-Vergleich — v${sp ? sp.v : "—"} (aktiv)</h3>
+      ${refs.length ? `<div>${refs.map(r => `<span class="refchip">${esc(r.name)}
         <button class="ghost" data-ref-del="${esc(r.id)}" title="Referenz entfernen">✕</button></span>`).join("")}</div>` : ""}
       ${vergleichHtml}
-      ${!aktivResolved
-        ? '<div class="hint">Noch keine Version — der Vergleich braucht eine Entwicklungsversion.</div>'
+      ${!resolved
+        ? '<div class="hint">Keine aktive Variante — der Vergleich braucht eine Entwicklungsversion.</div>'
         : !refs.length
           ? '<div class="hint">Keine Referenz gewählt — bis zu 3 Bestandsrezepte zum Vergleich hinzufügen.</div>'
           : ""}
+      <div style="border-top:1px solid var(--line);padding-top:.7rem;margin-top:.7rem">
+        <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
+          <label>Suche<input id="refSuche" type="search" value="${esc(ov.suchtext || "")}"
+            placeholder="Rezept suchen…" autocomplete="off"></label>
+          <label>Kategorie<select id="refKategorie">
+            <option value="">Alle Kategorien</option>
+            ${kats.map(k => `<option value="${esc(k)}"${k===ov.kategorie?" selected":""}>${esc(k)}</option>`).join("")}
+          </select></label>
+        </div>
+        ${voll
+          ? '<div class="hint">Drei Referenzen gewählt — für eine weitere zuerst eine entfernen.</div>'
+          : treffer.length
+            ? `<div class="refliste">${treffer.map(r => `<button data-ref-add="${esc(r.id)}">
+                ${esc(r.name)} <span style="color:var(--muted);font-size:.82rem">· ${esc(r.kategorie)}</span>
+              </button>`).join("")}</div>`
+            : '<div class="hint">Kein Rezept gefunden.</div>'}
+      </div>
       <div class="actions noprint" style="margin-top:.7rem">
-        <button class="ghost" id="btnEntwReferenz">Referenzen wählen</button>
+        <button class="ghost" id="btnEntwOverlaySchliessen">Schliessen</button>
       </div>
-      ${referenzWahl}`;
+    </div>`;
+  },
 
-    const versuche = (e.versuche || []).slice().sort((a,b) => (a.datum||"").localeCompare(b.datum||""));
-    const versucheHtml = versuche.length ? `
-      <table class="log">
-        <tr><th>Datum</th><th>Version</th><th class="num">Soll</th><th class="num">Ist</th><th>Bewertung</th><th>Erkenntnis</th></tr>
-        ${versuche.map(v => `<tr>
-          <td>${esc(v.datum)}</td><td>v${v.version}</td>
-          <td class="num">${v.soll_g} g</td><td class="num">${v.ist_g} g</td>
-          <td>${"★".repeat(v.bewertung)}${"☆".repeat(5-v.bewertung)}</td>
-          <td>${esc(v.erkenntnis||"")}</td></tr>`).join("")}
-      </table>` : '<div class="hint">Noch kein Versuch erfasst.</div>';
-
-    let versuchForm = "";
-    if(df && df.art === "versuch"){
-      versuchForm = `
-        <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
-          <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
-            <label>Datum<input id="devDatum" type="date" value="${esc(df.datum)}"></label>
-            <label>Version<select id="devVersion">${sortiert.map(v=>`<option value="${v.v}"${v.v===df.version?" selected":""}>v${v.v}</option>`).join("")}</select></label>
-            <label>Soll (g)<input id="devSoll" type="number" min="1" step="1" value="${esc(df.soll)}"></label>
-            <label>Ist (g)<input id="devIst" type="number" min="1" step="1" value="${esc(df.ist)}"></label>
-            <label>Bewertung<select id="devBewertung">${[1,2,3,4,5].map(n=>`<option value="${n}"${n===df.bewertung?" selected":""}>${n} — ${"★".repeat(n)}${"☆".repeat(5-n)}</option>`).join("")}</select></label>
-          </div>
-          <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">Erkenntnis
-            <input id="devErkenntnis" type="text" style="width:100%;margin-top:.25rem" value="${esc(df.erkenntnis)}"
-              placeholder="z. B. Krume offener, Kruste zu blass"></label>
-          <div class="actions noprint" style="margin-top:.7rem">
-            <button id="btnEntwVersuchSpeichern">Versuch speichern</button>
-            <button class="ghost" id="btnEntwFormAbbrechen">Abbrechen</button>
-          </div>
-        </div>`;
+  /* ---------- Nebenansicht — Substitutions-Rechner (AP-0309/AP-0314) ----------------
+     Anstoss sitzt an der Zutatenzeile selbst (⇄-Knopf, entwZelle), Bedienung liegt in B7.
+     "Übernehmen" legt wie "Rahmen herleiten" eine NEUE Variante im lokalen Entwurf an statt
+     sofort zu schreiben (R4) — Original bleibt unangetastet, exakt wie vor AP-0308. */
+  entwOverlaySubstitution(rz, z, ov){
+    const kandidaten = Store.rohstoffe.filter(r => r.kategorie === ov.altKategorie && r.id !== ov.altRohstoffId);
+    const kandidat = kandidaten.find(r => r.id === ov.kandidatId);
+    let rechnungHtml = "";
+    if(kandidat){
+      const umrechnung = Calc.substitutionsMenge(ov.altMengeG, ov.altSuesskraft, kandidat.suesskraft || 0);
+      rechnungHtml = umrechnung.hinweis
+        ? `<div class="hint"><span class="warn-inline" style="margin-left:0">${esc(umrechnung.hinweis)}</span> — neue Menge: ${Calc.runden(umrechnung.menge, ov.altEinheit)}.</div>`
+        : `<div class="hint">Rechnung: ${Calc.runden(ov.altMengeG,"g")} × (${ov.altSuesskraft} ÷ ${kandidat.suesskraft}) = ${Calc.runden(umrechnung.menge,"g")}</div>`;
     }
-
-    return `<section class="card">
-      <h2>Entwicklung</h2>
-      <div class="body">
-        <div class="hint">Status: <b>${e.status === "produktiv" ? "produktiv, Verlauf erhalten" : "in Entwicklung"}</b></div>
-        ${versionenHtml}
-        <div class="actions noprint" style="margin-top:.7rem">
-          <button class="ghost" id="btnEntwVersionNeu">+ Neue Version</button>
-          ${sortiert.length >= 2 ? `<button class="ghost" id="btnEntwDiff">Vergleichen</button>` : ""}
-          ${aktiv ? `<button class="ghost" id="btnEntwBefoerdern">Version befördern</button>` : ""}
-        </div>
-        ${versionForm}${diffForm}${befoerdernForm}
-        ${zielwerteHtml}
-        ${aktivZutatenHtml}
-        ${referenzHtml}
-        <h3 style="margin:1.1rem 0 .4rem;font-size:.95rem">Versuche</h3>
-        ${versucheHtml}
-        <div class="actions noprint" style="margin-top:.7rem">
-          <button class="ghost" id="btnEntwVersuchNeu">+ Neuer Versuch</button>
-        </div>
-        ${versuchForm}
+    return `<div class="scrim noprint" data-entw-b7-schliessen></div>
+    <div class="entw-overlay entw-overlay-b7 noprint">
+      <h3 style="margin:0 0 .4rem;font-size:.95rem">Zutat ersetzen — v${ov.v}</h3>
+      <div class="hint">Ersatz für <b>${esc(ov.altName)}</b> (${Calc.runden(ov.altMengeG, ov.altEinheit)})</div>
+      <label style="display:block;margin-top:.5rem;font-size:.85rem;color:var(--muted)">Ersatzprodukt
+        <select id="substKandidat" style="width:100%;margin-top:.25rem">
+          <option value="">— wählen —</option>
+          ${kandidaten.map(r => `<option value="${esc(r.id)}"${r.id===ov.kandidatId?" selected":""}>
+            ${esc(r.name)} — Süsskraft ${r.suesskraft ?? "—"} · FODMAP ${r.fodmap ?? "—"} · CHF ${r.kostenProKg ?? "—"}/kg</option>`).join("")}
+        </select></label>
+      ${rechnungHtml}
+      <div class="actions noprint" style="margin-top:.7rem">
+        <button id="btnEntwSubstUebernehmen"${kandidat?"":" disabled"}>Übernehmen — neue Variante</button>
+        <button class="ghost" id="btnEntwOverlaySchliessen">Abbrechen</button>
       </div>
-    </section>`;
+    </div>`;
   },
 
   entwEreignisse(rz){
-    el("#btnEntwStarten") && el("#btnEntwStarten").addEventListener("click", () => App.entwStarten());
-    if(!rz.entwicklung) return;
-    document.querySelectorAll("[data-entw-aktiv]").forEach(b =>
-      b.addEventListener("click", () => App.entwAktivSetzen(Number(b.dataset.entwAktiv))));
-    document.querySelectorAll("[data-entw-bearbeiten]").forEach(b =>
-      b.addEventListener("click", () => App.entwVersionBearbeitenOeffnen(Number(b.dataset.entwBearbeiten))));
-    el("#btnEntwVersionNeu") && el("#btnEntwVersionNeu").addEventListener("click", () => App.entwVersionNeuOeffnen());
-    el("#btnEntwDiff") && el("#btnEntwDiff").addEventListener("click", () => App.entwDiffOeffnen());
-    el("#btnEntwBefoerdern") && el("#btnEntwBefoerdern").addEventListener("click", () => App.entwBefoerdernOeffnen());
-    el("#btnEntwVersuchNeu") && el("#btnEntwVersuchNeu").addEventListener("click", () => App.entwVersuchOeffnen());
-    el("#btnEntwFormAbbrechen") && el("#btnEntwFormAbbrechen").addEventListener("click", () => App.entwFormAbbrechen());
+    el("#btnEntwVarianteHinzufuegen") && el("#btnEntwVarianteHinzufuegen").addEventListener("click", () => App.entwVarianteHinzufuegen());
+    const z = Store.entw && Store.entw.rezeptId === rz.id ? Store.entw : null;
+    if(!z) return;
+
+    el("#entwBasisWahl") && el("#entwBasisWahl").addEventListener("change", e =>
+      App.entwBasisWechseln(e.target.value === "produktiv" ? "produktiv" : Number(e.target.value)));
+    el("#btnEntwEinheit") && el("#btnEntwEinheit").addEventListener("click", () => App.entwEinheitWechseln());
     el("#btnEntwZielwerte") && el("#btnEntwZielwerte").addEventListener("click", () => App.entwZielwerteOeffnen());
     el("#btnEntwReferenz") && el("#btnEntwReferenz").addEventListener("click", () => App.entwReferenzOeffnen());
-    document.querySelectorAll("[data-ref-add]").forEach(b =>
-      b.addEventListener("click", () => App.entwReferenzHinzufuegen(b.dataset.refAdd)));
-    document.querySelectorAll("[data-ref-del]").forEach(b =>
-      b.addEventListener("click", () => App.entwReferenzEntfernen(b.dataset.refDel)));
-    document.querySelectorAll("[data-subst-phase]").forEach(b =>
-      b.addEventListener("click", () => App.entwSubstitutionOeffnen(Number(b.dataset.substPhase), Number(b.dataset.substZutat))));
+    el("#btnEntwVariantenSichern") && el("#btnEntwVariantenSichern").addEventListener("click", (e) => {
+      const btn = e.currentTarget; btn.disabled = true;
+      App.entwVariantenSichern().finally(() => { if(btn) btn.disabled = false; });
+    });
 
-    const df = Store.devForm;
-    if(df && df.art === "version"){
-      el("#devNotiz").addEventListener("input", e => { df.notiz = e.target.value; });
-      el("#devPhasenText").addEventListener("input", e => { df.phasenText = e.target.value; });
-      el("#btnEntwVersionSpeichern").addEventListener("click", (e) => {
+    document.querySelectorAll("[data-entw-aktiv]").forEach(b =>
+      b.addEventListener("click", () => App.entwAktivSetzen(Number(b.dataset.entwAktiv))));
+    document.querySelectorAll("[data-entw-abzweigen]").forEach(b =>
+      b.addEventListener("click", () => App.entwVarianteHinzufuegen(Number(b.dataset.entwAbzweigen))));
+    document.querySelectorAll("[data-entw-einklappen]").forEach(b =>
+      b.addEventListener("click", () => App.entwSpalteEinklappen(Number(b.dataset.entwEinklappen))));
+    // "input" ohne View.rezept() (wie App.protokollEintragOeffnen()s Kernfelder): die Notiz
+    // wird bei jedem Tastendruck im Zustand nachgefuehrt und entprellt persistiert (R3), ohne
+    // einen Neuaufbau auszuloesen, der den Cursor mitten im Tippen verlieren wuerde.
+    document.querySelectorAll("[data-entw-notiz]").forEach(inp =>
+      inp.addEventListener("input", e => App.entwNotizFeld(Number(inp.dataset.entwNotiz), e.target.value)));
+    // "change" statt "input" (wie App.zutatenEditorZutatFeld()): erst beim Verlassen des Felds
+    // neu zeichnen, sonst würde derselbe Neuaufbau den Cursor bei jedem Tastendruck verlieren.
+    document.querySelectorAll("[data-entw-zutat]").forEach(inp =>
+      inp.addEventListener("change", e => {
+        const [v, pi, zi] = inp.dataset.entwZutat.split("|").map(Number);
+        App.entwZutatFeld(v, pi, zi, e.target.value);
+      }));
+    document.querySelectorAll("[data-entw-schritt-oeffnen]").forEach(zellenEl =>
+      zellenEl.addEventListener("click", () => {
+        const [v, pi, si] = zellenEl.dataset.entwSchrittOeffnen.split("|").map(Number);
+        App.entwSchrittOeffnen(v, pi, si);
+      }));
+    document.querySelectorAll("[data-entw-schritt-feld]").forEach(inp => {
+      const [v, pi, si] = inp.dataset.entwSchrittFeld.split("|").map(Number);
+      inp.addEventListener("change", e => App.entwSchrittFeld(v, pi, si, e.target.value));
+      inp.addEventListener("blur", e => App.entwSchrittFeld(v, pi, si, e.target.value));
+      inp.focus();
+    });
+    document.querySelectorAll("[data-entw-bewerten]").forEach(b =>
+      b.addEventListener("click", () => App.entwBewertungOeffnen(Number(b.dataset.entwBewerten))));
+    document.querySelectorAll("[data-entw-uebernehmen]").forEach(b =>
+      b.addEventListener("click", () => App.entwUebernehmenOeffnen(Number(b.dataset.entwUebernehmen))));
+    // AP-0309: Substitutions-Anstoss sitzt an der Zutatenzeile, oeffnet aber B7.
+    document.querySelectorAll("[data-entw-subst]").forEach(b =>
+      b.addEventListener("click", () => {
+        const [v, pi, zi] = b.dataset.entwSubst.split("|").map(Number);
+        App.entwSubstitutionOeffnen(v, pi, zi);
+      }));
+    // B7 (Zielwerte/Referenz/Substitution) schliesst zusaetzlich per Klick aufs Scrim —
+    // derselbe App.entwOverlaySchliessen() wie der "Schliessen"/"Abbrechen"-Knopf.
+    document.querySelectorAll("[data-entw-b7-schliessen]").forEach(s =>
+      s.addEventListener("click", () => App.entwOverlaySchliessen()));
+    el("#btnEntwOverlaySchliessen") && el("#btnEntwOverlaySchliessen").addEventListener("click", () => App.entwOverlaySchliessen());
+
+    const ov = z.overlay;
+    if(ov && ov.typ === "bewertung"){
+      el("#entwBewDatum").addEventListener("input", e => { ov.datum = e.target.value; });
+      el("#entwBewSoll") && el("#entwBewSoll").addEventListener("input", e => { ov.sollG = e.target.value; });
+      el("#entwBewIst") && el("#entwBewIst").addEventListener("input", e => { ov.istG = e.target.value; });
+      el("#entwBewBewertung").addEventListener("change", e => { ov.bewertung = Number(e.target.value); });
+      el("#entwBewErkenntnis").addEventListener("input", e => { ov.erkenntnis = e.target.value; });
+      document.querySelectorAll("[data-entw-bew-feld]").forEach(inp =>
+        inp.addEventListener(inp.type === "checkbox" ? "change" : "input", e =>
+          { ov.felder[inp.dataset.entwBewFeld] = inp.type === "checkbox" ? e.target.checked : e.target.value; }));
+      // Kein View.rezept() je Tick: ein Schieberegler feuert "input" laufend waehrend des
+      // Ziehens, ein voller Neuaufbau würde dabei jedesmal ein neues DOM-Element ersetzen und
+      // die Mausgeste abbrechen. Zahl daneben wird darum direkt im DOM nachgezogen, ov.merkmale
+      // still mitgefuehrt — die naechste ohnehin faellige Neuzeichnung (jede andere Eingabe)
+      // zeigt den Wert dann auch im HTML-value-Attribut korrekt.
+      document.querySelectorAll("[data-entw-bew-skala]").forEach(inp =>
+        inp.addEventListener("input", e => {
+          ov.merkmale[inp.dataset.entwBewSkala] = Number(e.target.value);
+          const anzeige = inp.nextElementSibling;
+          if(anzeige) anzeige.textContent = e.target.value;
+        }));
+      document.querySelectorAll("[data-entw-bew-kasten]").forEach(inp =>
+        inp.addEventListener("change", e => { ov.merkmale[inp.dataset.entwBewKasten] = e.target.checked; }));
+      el("#btnEntwBewertungSpeichern").addEventListener("click", (e) => {
         const btn = e.currentTarget; btn.disabled = true;
-        App.entwVersionSpeichern().finally(() => { if(btn) btn.disabled = false; });
+        App.entwBewertungSpeichern().finally(() => { if(btn) btn.disabled = false; });
       });
     }
-    if(df && df.art === "diff"){
-      el("#diffA").addEventListener("change", e => App.entwDiffAendern("a", e.target.value));
-      el("#diffB").addEventListener("change", e => App.entwDiffAendern("b", e.target.value));
-    }
-    if(df && df.art === "befoerdern"){
-      el("#btnEntwBefoerdernBestaetigt").addEventListener("click", (e) => {
+    if(ov && ov.typ === "uebernehmen"){
+      el("#btnEntwUebernehmenBestaetigt").addEventListener("click", (e) => {
         const btn = e.currentTarget; btn.disabled = true;
-        App.entwBefoerdernBestaetigt().finally(() => { if(btn) btn.disabled = false; });
+        App.entwUebernehmenBestaetigt().finally(() => { if(btn) btn.disabled = false; });
       });
     }
-    if(df && df.art === "versuch"){
-      el("#devDatum").addEventListener("input", e => { df.datum = e.target.value; });
-      el("#devVersion").addEventListener("change", e => { df.version = Number(e.target.value); });
-      el("#devSoll").addEventListener("input", e => { df.soll = e.target.value; });
-      el("#devIst").addEventListener("input", e => { df.ist = e.target.value; });
-      el("#devBewertung").addEventListener("change", e => { df.bewertung = Number(e.target.value); });
-      el("#devErkenntnis").addEventListener("input", e => { df.erkenntnis = e.target.value; });
-      el("#btnEntwVersuchSpeichern").addEventListener("click", (e) => {
-        const btn = e.currentTarget; btn.disabled = true;
-        App.entwVersuchSpeichern().finally(() => { if(btn) btn.disabled = false; });
-      });
+    if(ov && ov.typ === "zielwerte"){
+      el("#zwHydration").addEventListener("input", e => { ov.hydration = e.target.value; });
+      el("#zwSuesse").addEventListener("input", e => { ov.suesse = e.target.value; });
+      el("#zwFett").addEventListener("input", e => { ov.fett = e.target.value; });
+      el("#zwSalz").addEventListener("input", e => { ov.salz = e.target.value; });
+      el("#zwKosten").addEventListener("input", e => { ov.kosten = e.target.value; });
+      el("#zwZuckerart").addEventListener("change", e => { ov.zuckerartId = e.target.value; });
+      el("#btnEntwZielwerteSpeichern").addEventListener("click", () => App.entwZielwerteSpeichern());
+      el("#btnEntwRahmenHerleiten") && el("#btnEntwRahmenHerleiten").addEventListener("click", () => App.entwRahmenHerleiten());
     }
-    if(df && df.art === "zielwerte"){
-      el("#zwHydration").addEventListener("input", e => { df.hydration = e.target.value; });
-      el("#zwSuesse").addEventListener("input", e => { df.suesse = e.target.value; });
-      el("#zwFett").addEventListener("input", e => { df.fett = e.target.value; });
-      el("#zwSalz").addEventListener("input", e => { df.salz = e.target.value; });
-      el("#zwKosten").addEventListener("input", e => { df.kosten = e.target.value; });
-      el("#zwZuckerart").addEventListener("change", e => { df.zuckerartId = e.target.value; });
-      el("#btnEntwZielwerteSpeichern").addEventListener("click", (e) => {
-        const btn = e.currentTarget; btn.disabled = true;
-        App.entwZielwerteSpeichern().finally(() => { if(btn) btn.disabled = false; });
-      });
-      el("#btnEntwRahmenHerleiten").addEventListener("click", (e) => {
-        const btn = e.currentTarget; btn.disabled = true;
-        App.entwRahmenHerleiten().finally(() => { if(btn) btn.disabled = false; });
-      });
-    }
-    if(df && df.art === "referenz"){
-      // Die Trefferliste muss beim Tippen mitlaufen, dafuer wird die Karte neu gezeichnet —
-      // das Suchfeld verliert dabei den Fokus. Darum hier gezielt zurueckholen und den Cursor
-      // ans Ende setzen, sonst tippt man nach dem ersten Zeichen ins Leere.
+    if(ov && ov.typ === "referenz"){
+      // Die Trefferliste muss beim Tippen mitlaufen, dafuer wird B7 neu gezeichnet — das
+      // Suchfeld verliert dabei den Fokus. Darum hier gezielt zurueckholen und den Cursor
+      // ans Ende setzen (identisches Muster wie vor AP-0308).
       const suche = el("#refSuche");
       if(suche){
         suche.addEventListener("input", e => App.entwReferenzSuche(e.target.value));
-        if(df.fokus){ suche.focus(); suche.setSelectionRange(suche.value.length, suche.value.length); }
+        if(ov.fokus){ suche.focus(); suche.setSelectionRange(suche.value.length, suche.value.length); }
       }
       el("#refKategorie") && el("#refKategorie").addEventListener("change", e => App.entwReferenzKategorie(e.target.value));
+      document.querySelectorAll("[data-ref-add]").forEach(b =>
+        b.addEventListener("click", () => App.entwReferenzHinzufuegen(b.dataset.refAdd)));
+      document.querySelectorAll("[data-ref-del]").forEach(b =>
+        b.addEventListener("click", () => App.entwReferenzEntfernen(b.dataset.refDel)));
     }
-    if(df && df.art === "substitution"){
+    if(ov && ov.typ === "substitution"){
       el("#substKandidat").addEventListener("change", e => App.entwSubstitutionKandidatWaehlen(e.target.value));
-      el("#btnEntwSubstUebernehmen") && el("#btnEntwSubstUebernehmen").addEventListener("click", (e) => {
-        const btn = e.currentTarget; btn.disabled = true;
-        App.entwSubstitutionUebernehmen().finally(() => { if(btn) btn.disabled = false; });
-      });
+      el("#btnEntwSubstUebernehmen") && el("#btnEntwSubstUebernehmen").addEventListener("click", () => App.entwSubstitutionUebernehmen());
     }
   },
 
   /* ---------- AP-0304: Metadaten-Ausklapper (B5) -------------------------------
      Alles, was vor dem Drucken aufgeklappt werden muss. Als Konstante, damit ein
      neuer Ausklapper an genau EINER Stelle eingetragen wird und der Selbsttest die
-     Vollstaendigkeit pruefen kann (Abnahmekriterium 2). */
+     Vollstaendigkeit pruefen kann (Abnahmekriterium 2).
+     AP-0310, Umsetzungsschritt 3: geprueft, ob AP-0305/0307/0308/0309 neue <details>-Elemente
+     eingefuehrt haben — nein. Der dritte <details>-Typ im Code, details.navgruppe (B1,
+     Rezeptliste), braucht kein Aufklappen: B1 liegt in .rail--links und druckt ohnehin nie.
+     Der Zutaten-Editor (AP-0305) und alle Entwicklungsmodus-Formulare (AP-0307/0308/0309)
+     verwenden kein <details> — nichts zu ergaenzen. */
   DRUCK_AUFKLAPPEN: "details.phase, details.metablock",
 
   /* true, solange der Druckpfad die Ausklapper zwangsweise oeffnet. Das Setzen von
@@ -2860,6 +3333,8 @@ const View = {
     if(!rz){
       el("#rezeptbereich").innerHTML = "";
       el("#panelEntwicklung").innerHTML = '<div class="empty">Kein Rezept gewählt.</div>';
+      el("#tabEntwicklung").textContent = "Entwicklung";
+      el("#tabEntwicklung").title = "";
       View.einkaufsliste();
       View.notizsection();
       return;
@@ -2868,8 +3343,11 @@ const View = {
     // AP-0303: Korrekturablage dieses Rezepts — Zutatenzeile, Einkaufsliste und die
     // Notizsection selbst lesen alle von hier, damit nirgends eine zweite Wahrheit entsteht.
     const kx = Korrekturen.get(rz.id);
-    const schwund = Calc.schwundAktuell(rz.backprotokoll);
+    const schwund = Calc.schwundAktuell(rz.protokoll);
     const k = Calc.kosten(rz, f, schwund);
+    // AP-0307: Feldsatz des zugeordneten Verfahrens — steuert sowohl die Protokollliste
+    // (Spaltenbeschriftung der verfahrensspezifischen Werte) als auch das Eingabeformular.
+    const pFeldsatz = Verfahren.feldsatz(rz.verfahren);
     const n = Calc.naehrwerte(rz, f);
     const fd = Calc.fodmapGesamt(Calc.zutatenFlach(rz));
 
@@ -2895,13 +3373,34 @@ const View = {
     const entwurfTile = entwurfGespeichert ? View.entwurfTile(entwurfGespeichert) : "";
     const zubereitungInhalt = ed ? View.zutatenEditorMarkup(rz, ed) : phasen;
 
-    const log = rz.backprotokoll.length ? `
+    // AP-0307: gemeinsame, nach Datum sortierte Liste — entweder ausschliesslich Protokoll (JSON)
+    // oder, solange dafuer noch nichts geschrieben wurde, die migrierten Backprotokoll-Eintraege
+    // (Leseregel AP-0202, siehe Model.parseRezepte). Soll/Ist bleiben leer, wo das Verfahren sie
+    // nicht fuehrt; felder zeigt die verfahrensspezifischen Werte kompakt in einer eigenen Spalte.
+    const protokollSortiert = (rz.protokoll || []).slice().sort((a,b) => (a.datum||"").localeCompare(b.datum||""));
+    const feldWert = (f, v) => {
+      if(v == null || v === "") return "";
+      if(f.typ === "bool") return v ? "ja" : "nein";
+      if(f.typ === "liste") return Array.isArray(v) ? v.join(", ") : String(v);
+      return f.einheit ? `${v} ${f.einheit}` : String(v);
+    };
+    const feldzeile = e => {
+      if(!e.felder) return "";
+      return pFeldsatz.felder
+        .filter(f => e.felder[f.key] != null && e.felder[f.key] !== "")
+        .map(f => `${esc(f.label)}: ${esc(feldWert(f, e.felder[f.key]))}`)
+        .join(" · ");
+    };
+    const log = protokollSortiert.length ? `
       <table class="log">
-        <tr><th>Datum</th><th class="num">Soll</th><th class="num">Ist</th><th class="num">Abw.</th><th>Notiz</th></tr>
-        ${rz.backprotokoll.map(e => `<tr>
-          <td>${esc(e.datum)}</td><td class="num">${e.sollG} g</td><td class="num">${e.istG} g</td>
-          <td class="num">${nf(Calc.schwundEintrag(e.sollG,e.istG)*-100,1)} %</td>
-          <td>${esc(e.notizen||"")}</td></tr>`).join("")}
+        <tr><th>Datum</th><th class="num">Soll</th><th class="num">Ist</th><th class="num">Abw.</th><th>Notiz</th><th>Verfahrenswerte</th></tr>
+        ${protokollSortiert.map(e => `<tr>
+          <td>${esc(e.datum)}</td>
+          <td class="num">${e.sollG != null ? e.sollG + " g" : "—"}</td>
+          <td class="num">${e.istG != null ? e.istG + " g" : "—"}</td>
+          <td class="num">${e.sollG != null && e.istG != null ? nf(Calc.schwundEintrag(e.sollG,e.istG)*-100,1) + " %" : "—"}</td>
+          <td>${esc(e.notizen||"")}</td>
+          <td>${feldzeile(e)}</td></tr>`).join("")}
       </table>` : '<div class="hint">Noch kein Eintrag — Schwund unbekannt.</div>';
 
     const fehlendHinweis = (arr, was) => arr.length
@@ -2935,28 +3434,43 @@ const View = {
         <div class="metabody">${inhalt}</div>
       </details>`;
 
-    // AP-0305: Eingabeformular fuer einen neuen Backprotokoll-Eintrag. Store.backEintrag
-    // haelt den Formularzustand (App.backEintragOeffnen()); null = Formular geschlossen,
-    // dann nur der Anstoss-Button.
-    const be = Store.backEintrag;
-    const backForm = be ? `
+    // AP-0307: Eingabeformular fuer einen neuen Verfahrensprotokoll-Eintrag — Kernfelder plus,
+    // wenn ein Verfahren zugeordnet ist, dessen Feldsatz (pFeldsatz, oben). Store.protokollEintrag
+    // haelt den Formularzustand (App.protokollEintragOeffnen()); null = Formular geschlossen,
+    // dann nur der Anstoss-Button. Soll/Ist erscheinen nur, wo pFeldsatz.kernSollIst true ist.
+    const pe = Store.protokollEintrag;
+    const peFeldInput = f => {
+      const val = pe.felder[f.key];
+      if(f.typ === "bool") return `<label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem;color:var(--muted)">
+          <input type="checkbox" id="peFeld_${f.key}" data-feld="${f.key}"${val ? " checked" : ""}> ${esc(f.label)}</label>`;
+      if(f.typ === "liste") return `<label>${esc(f.label)} <span style="font-weight:400">(kommagetrennt)</span>
+          <input id="peFeld_${f.key}" data-feld="${f.key}" type="text" value="${esc(val)}"></label>`;
+      if(f.typ === "zahl") return `<label>${esc(f.label)}${f.einheit ? " (" + esc(f.einheit) + ")" : ""}
+          <input id="peFeld_${f.key}" data-feld="${f.key}" type="number" step="any" value="${esc(val)}"></label>`;
+      return `<label>${esc(f.label)}<input id="peFeld_${f.key}" data-feld="${f.key}" type="text" value="${esc(val)}"></label>`;
+    };
+    const protokollForm = pe ? `
       <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
         <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
-          <label>Datum<input id="beDatum" type="date" value="${esc(be.datum)}"></label>
-          <label>Soll (g)<input id="beSoll" type="number" min="1" step="1" value="${esc(be.soll)}"></label>
-          <label>Ist (g)<input id="beIst" type="number" min="1" step="1" value="${esc(be.ist)}"></label>
+          <label>Datum<input id="peDatum" type="date" value="${esc(pe.datum)}"></label>
+          ${pFeldsatz.kernSollIst ? `
+          <label>Soll (g)<input id="peSoll" type="number" min="1" step="1" value="${esc(pe.soll)}"></label>
+          <label>Ist (g)<input id="peIst" type="number" min="1" step="1" value="${esc(pe.ist)}"></label>` : ""}
         </div>
+        ${pFeldsatz.felder.length ? `<div class="scaler" style="padding-top:.4rem;border-top:0;margin-top:.4rem">
+          ${pFeldsatz.felder.map(peFeldInput).join("")}
+        </div>` : ""}
         <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">Notizen
-          <input id="beNotizen" type="text" style="width:100%;margin-top:.25rem"
-            value="${esc(be.notizen)}" placeholder="z. B. Kruste zu hell, Ofen 10 °C höher">
+          <input id="peNotizen" type="text" style="width:100%;margin-top:.25rem"
+            value="${esc(pe.notizen)}" placeholder="z. B. Kruste zu hell, Ofen 10 °C höher">
         </label>
         <div class="actions noprint" style="margin-top:.7rem">
-          <button id="btnEintragSpeichern">Eintrag speichern</button>
-          <button class="ghost" id="btnEintragAbbrechen">Abbrechen</button>
+          <button id="btnProtokollSpeichern">Eintrag speichern</button>
+          <button class="ghost" id="btnProtokollAbbrechen">Abbrechen</button>
         </div>
       </div>` : `
       <div class="actions noprint" style="margin-top:.9rem">
-        <button class="ghost" id="btnEintrag">Neuer Eintrag</button>
+        <button class="ghost" id="btnProtokollEintrag">Neuer Eintrag</button>
       </div>`;
 
     el("#rezeptbereich").innerHTML = `
@@ -3013,11 +3527,11 @@ const View = {
           ${rechercheButton}`)}
 
         ${metaBlock("protokoll", "Verfahren & Protokoll",
-          `${esc(rz.verfahren || "Verfahren offen")} · ${rz.backprotokoll.length} ${rz.backprotokoll.length === 1 ? "Eintrag" : "Einträge"}`, `
+          `${esc(rz.verfahren || "Verfahren offen")} · ${rz.protokoll.length} ${rz.protokoll.length === 1 ? "Eintrag" : "Einträge"}`, `
           <div class="hint" style="margin-top:0">Verfahren: <b>${esc(rz.verfahren || "—")}</b>${
             rz.verfahren ? "" : " — für dieses Rezept noch nicht zugeordnet (AP-0306)"}</div>
           ${log}
-          ${backForm}`)}
+          ${protokollForm}`)}
 
         ${metaBlock("herkunft", "Herkunft", esc(rz.quelle || "—"), `
           <dl class="herkunft">
@@ -3047,6 +3561,13 @@ const View = {
     // nicht mehr im Fluss der Mittelspalte — Inhalt/Verhalten von View.entwKarte()
     // bleibt unverändert, nur das Zielelement wechselt.
     el("#panelEntwicklung").innerHTML = `<div class="entw-inhalt">${View.entwKarte(rz)}</div>`;
+    // AP-0308/§6 O4: "dass man ueberhaupt im Entwicklungsmodus ist" muss auch sichtbar sein,
+    // wenn B6 gerade nicht der aktive Reiter ist — hier am Reiter selbst, nicht nur im Panel.
+    const zEntw = Store.entw && Store.entw.rezeptId === rz.id ? Store.entw : null;
+    el("#tabEntwicklung").textContent = zEntw ? "Entwicklung ●" : "Entwicklung";
+    el("#tabEntwicklung").title = zEntw
+      ? `Entwicklung · Basis ${zEntw.basis === "produktiv" ? "produktiv" : "v" + zEntw.basis} · ${zEntw.spalten.length} Variante${zEntw.spalten.length===1?"":"n"}`
+      : "";
     View.einkaufsliste();
     View.notizsection();
 
@@ -3072,19 +3593,28 @@ const View = {
     el("#btnZurueck").addEventListener("click", () => App.schliessen());
     el("#btnExport").addEventListener("click", () => App.exportEinzeln());
     el("#btnRecherche") && el("#btnRecherche").addEventListener("click", () => App.rechercheOeffnen());
-    // AP-0305: Backprotokoll-Formular — je nach Zustand entweder Anstoss-Button oder Felder+Speichern.
-    if(be){
-      el("#beDatum").addEventListener("input", e => { be.datum = e.target.value; });
-      el("#beSoll").addEventListener("input", e => { be.soll = e.target.value; });
-      el("#beIst").addEventListener("input", e => { be.ist = e.target.value; });
-      el("#beNotizen").addEventListener("input", e => { be.notizen = e.target.value; });
-      el("#btnEintragAbbrechen").addEventListener("click", () => { Store.backEintrag = null; View.rezept(); });
-      el("#btnEintragSpeichern").addEventListener("click", (e) => {
+    // AP-0307: Verfahrensprotokoll-Formular — je nach Zustand entweder Anstoss-Button oder
+    // Kernfelder + Feldsatz des Verfahrens + Speichern.
+    if(pe){
+      el("#peDatum").addEventListener("input", e => { pe.datum = e.target.value; });
+      if(pFeldsatz.kernSollIst){
+        el("#peSoll").addEventListener("input", e => { pe.soll = e.target.value; });
+        el("#peIst").addEventListener("input", e => { pe.ist = e.target.value; });
+      }
+      pFeldsatz.felder.forEach(f => {
+        const inp = el("#peFeld_" + f.key);
+        if(!inp) return;
+        inp.addEventListener(f.typ === "bool" ? "change" : "input",
+          e => { pe.felder[f.key] = f.typ === "bool" ? e.target.checked : e.target.value; });
+      });
+      el("#peNotizen").addEventListener("input", e => { pe.notizen = e.target.value; });
+      el("#btnProtokollAbbrechen").addEventListener("click", () => { Store.protokollEintrag = null; View.rezept(); });
+      el("#btnProtokollSpeichern").addEventListener("click", (e) => {
         const btn = e.currentTarget; btn.disabled = true;
-        App.backEintragSpeichern().finally(() => { if(btn) btn.disabled = false; });
+        App.protokollEintragSpeichern().finally(() => { if(btn) btn.disabled = false; });
       });
     }else{
-      el("#btnEintrag").addEventListener("click", () => App.backEintragOeffnen());
+      el("#btnProtokollEintrag").addEventListener("click", () => App.protokollEintragOeffnen());
     }
     // AP-0305: Zutaten-Editor — Bearbeiten-Anstoss, Entwurf-Kachel (§4.4) und, wenn offen,
     // Zeilen/Formular/Vorschau/Konfliktdialog (§4.1). Alle Elemente existieren nur, wenn der
@@ -3512,6 +4042,14 @@ async function selfTest(){
   // das Nebenfeld (Geändert) darf danach gar nicht erst versucht werden.
   const gwFehler = mockGateway({ eTag:() => ({ eTag:"E1" }), updateCellWirft: addrPhasen });
   const ergFehler = await editorSchreiben(gwFehler, { ...editorSchreibenParams, aktuellerETag:"E1" });
+
+  // AP-0307: eigener Mock-Zweig fuer protokollSchreiben() — belegt Abnahmekriterium 3 (nie
+  // "Backprotokoll (JSON)" schreiben) direkt an den tatsaechlich ausgeloesten Aufrufen.
+  const addrProtokoll = Model.zelladresse(editorSchreibenHeader, "Protokoll (JSON)", 5);       // "O5"
+  const addrBackprotokoll = Model.zelladresse(editorSchreibenHeader, "Backprotokoll (JSON)", 5); // "L5"
+  const gwProtokoll = mockGateway({ eTag:() => ({ eTag:"E1" }) });
+  const ergProtokoll = await protokollSchreiben(gwProtokoll, { ...editorSchreibenParams,
+    aktuellerETag:"E1", protokoll:[{ datum:"2026-09-01", sollG:500, istG:470, notizen:null }] });
 
   const t = [
     ["T1 Skalierung",       nah(Calc.mengeG({prozent:0.65}, 1000, 1.5), 975)],
@@ -4108,7 +4646,125 @@ async function selfTest(){
                             ergFehler.ergebnis === "fehler" && ergFehler.stufe === "phasen"
                               && gwFehler.log.includes("backup")
                               && gwFehler.log.includes("updateCell:" + addrPhasen)
-                              && !gwFehler.log.includes("updateCell:" + addrGeaendert)]
+                              && !gwFehler.log.includes("updateCell:" + addrGeaendert)],
+    // ---- AP-0307 Verfahrensprotokoll-Formular — Testblock (5 Fälle) ----
+    // Eintrag mit Feldsatz: Protokoll (JSON) wird gelesen inkl. felder, und der Katalog liefert
+    // fuer «Räuchern» genau dessen Feldsatz (Abnahmekriterium 1).
+    (() => {
+      const header = ["Rezept-ID","Name","Kategorie","Unterkategorie","Basis-Rohstoff","Basis-Menge (g)",
+        "Sollgewicht (g)","Portionen","Einheit","Quelle","Phasen (JSON)","Backprotokoll (JSON)",
+        "Entwicklung (JSON)","Verfahren","Protokoll (JSON)"];
+      const eintrag = { datum:"2026-09-01", sollG:2000, istG:1850, notizen:"guter Rauchgeschmack",
+        felder:{ poekeldauerD:5, rauchgaenge:3, rauchzeitH:6, holzart:"Buche", rauchtemperaturC:22, kerntemperaturC:68 } };
+      const row = ["RZP-T","Speck","Räuchern",null,"Schweinebauch",2000,2000,1,"Stk",null,"[]","[]",null,
+        "Räuchern", JSON.stringify([eintrag])];
+      const rz = Model.parseRezepte([header, row]).rezepte[0];
+      const katalog = Verfahren.feldsatz("Räuchern");
+      return ["AP0307-1 Eintrag mit Feldsatz: Protokoll (JSON) inkl. felder gelesen, Katalog liefert den Räucher-Feldsatz",
+        rz.protokoll.length === 1 && rz.protokoll[0].felder.holzart === "Buche"
+          && katalog.felder.map(f => f.key).sort().join(",")
+             === ["poekeldauerD","rauchgaenge","rauchzeitH","holzart","rauchtemperaturC","kerntemperaturC"].sort().join(",")];
+    })(),
+    // Alteintrag ohne felder: leere Protokoll (JSON)-Spalte faellt auf Backprotokoll (JSON)
+    // zurueck (Leseregel AP-0202) — dieselbe Protokollliste, derselbe Schwundwert wie vor der
+    // Aenderung (Abnahmekriterium 2).
+    (() => {
+      const header = ["Rezept-ID","Name","Kategorie","Unterkategorie","Basis-Rohstoff","Basis-Menge (g)",
+        "Sollgewicht (g)","Portionen","Einheit","Quelle","Phasen (JSON)","Backprotokoll (JSON)",
+        "Entwicklung (JSON)","Verfahren","Protokoll (JSON)"];
+      const alt = [{datum:"2026-03-15",sollG:1600,istG:1470,notizen:"a"},{datum:"2026-04-02",sollG:1600,istG:1488,notizen:"b"}];
+      const row = ["RZP-T","Bürli","Backen",null,"Mehl",1000,1600,1,"Stk",null,"[]", JSON.stringify(alt), null, "Backen", null];
+      const rz = Model.parseRezepte([header, row]).rezepte[0];
+      const schwundVorher = Calc.schwundAktuell(alt);
+      return ["AP0307-2 Alteintrag ohne felder: leere Protokoll (JSON) faellt auf Backprotokoll (JSON) zurueck, gleicher Schwundwert wie vorher",
+        rz.protokoll.length === 2 && rz.protokoll.every(e => e.felder == null)
+          && nah(Calc.schwundAktuell(rz.protokoll), schwundVorher, 0.0001)];
+    })(),
+    // Rezept ohne Verfahren: nur Kernfelder plus Notiz, kein zusaetzlicher Feldsatz.
+    ["AP0307-3 Rezept ohne Verfahren zeigt nur Kernfelder plus Notiz (kein zusaetzlicher Feldsatz)",
+                            (() => {
+                              const fs = Verfahren.feldsatz(null);
+                              return fs.kernSollIst === true && fs.felder.length === 0;
+                            })()],
+    // Schwund aus gemischten Alt- und Neueintraegen: ein Eintrag mit felder darf die
+    // Schwundberechnung nicht stoeren — sie liest ausschliesslich datum/sollG/istG.
+    ["AP0307-4 Schwund aus gemischten Alt- und Neueinträgen (0.10 und 0.12 → Mittel 0.11)",
+                            nah(Calc.schwundAktuell([
+                              {datum:"2026-01-01", sollG:1000, istG:900, notizen:null},
+                              {datum:"2026-02-01", sollG:1000, istG:880, notizen:"mit Feldsatz", felder:{ofenC:220}}
+                            ]), 0.11, 0.0001)],
+    // Schreibpfad: protokollSchreiben() schreibt ausschliesslich «Protokoll (JSON)», nie
+    // «Backprotokoll (JSON)» (Abnahmekriterium 3, direkt an den ausgeloesten Aufrufen geprueft).
+    ["AP0307-5 Schreibpfad schreibt ausschliesslich «Protokoll (JSON)», nie «Backprotokoll (JSON)»",
+                            ergProtokoll.ergebnis === "ok"
+                              && gwProtokoll.log.includes("updateCell:" + addrProtokoll)
+                              && !gwProtokoll.log.some(x => x.startsWith("updateCell:" + addrBackprotokoll))],
+    // ---- AP-0308 Entwicklungsmodus Hauptansicht — Testblock (7 Fälle) ----
+    // Abnahmekriterium 2: Store.devForm existiert nicht mehr, Store.entw ist sein Ersatz.
+    ["AP0308-1 Store.devForm existiert nicht mehr, Store.entw ersetzt es",
+                            !("devForm" in Store) && "entw" in Store],
+    // §8.4 Migrationsweg, belegt an RZP-029 v1: eine Version ohne "herkunft" bekommt beim
+    // Hydrieren den Default "produktiv" — kein Schreibvorgang noetig, die Zelle bleibt lesbar
+    // (Abnahmekriterium 5).
+    (() => {
+      const entwicklung = { status:"entwicklung", zielwerte:{}, aktivV:1,
+        versionen:[{ v:1, datum:"2026-09-07", notiz:"Startpunkt, Kopie der produktiven Rezeptur",
+          phasen:[{name:"P",zutaten:[],schritte:[]}] }], versuche:[] };
+      const zustand = EntwModell.hydrieren(entwicklung);
+      return ["AP0308-2 Migration: Version ohne herkunft bekommt beim Hydrieren Default „produktiv“",
+        zustand.spalten.length === 1 && zustand.spalten[0].herkunft === "produktiv"
+          && zustand.spalten[0].eingeklappt === false && zustand.spalten[0].versuche.length === 0];
+    })(),
+    // Hydrieren/Dehydrieren ist verlustfrei fuer bereits vollstaendige Datensaetze (herkunft
+    // gesetzt, Versuche vorhanden) — Grundlage jedes Schreibvorgangs (entwVariantenSichern/
+    // entwUebernehmenBestaetigt) und der Excel-Lesbarkeit nach der Aenderung.
+    (() => {
+      const original = { status:"entwicklung", zielwerte:{ hydration_pct:0.68 }, aktivV:2,
+        versionen:[
+          { v:1, datum:"2026-09-01", notiz:"Start", herkunft:"produktiv", eingeklappt:false,
+            phasen:[{name:"P",zutaten:[{name:"Mehl",prozent:1,einheit:"g"}],schritte:[]}] },
+          { v:2, datum:"2026-09-02", notiz:"Hydration erhöht", herkunft:{ausV:1}, eingeklappt:false,
+            phasen:[{name:"P",zutaten:[{name:"Mehl",prozent:1,einheit:"g"}],schritte:[]}] }
+        ],
+        versuche:[
+          { datum:"2026-09-01", version:1, soll_g:1000, ist_g:950, bewertung:4, erkenntnis:"alt, unverändert" },
+          { datum:"2026-09-03", version:2, sollG:1000, istG:970, bewertung:5, erkenntnis:"neu", felder:{ofenC:230} }
+        ] };
+      const zustand = EntwModell.hydrieren(original);
+      const zurueck = EntwModell.dehydrieren(zustand);
+      return ["AP0308-3 Hydrieren → Dehydrieren ist verlustfrei (Versionen, Versuche je Spalte, Altfelder unangetastet)",
+        zustand.spalten.find(s => s.v === 2).versuche.length === 1
+          && zustand.spalten.find(s => s.v === 1).versuche[0].soll_g === 1000
+          && JSON.stringify(zurueck.versionen) === JSON.stringify(original.versionen)
+          && JSON.stringify(zurueck.versuche.find(v => v.version === 1)) === JSON.stringify(original.versuche[0])
+          && JSON.stringify(zurueck.versuche.find(v => v.version === 2)) === JSON.stringify(original.versuche[1])];
+    })(),
+    // §8.3 Leseregel: soll_g/ist_g (Bestand) und sollG/istG (ab AP-0308 neu geschrieben) werden
+    // beide gelesen — Calc.versuchSollG/IstG ist die einzige Stelle, die das aufloest.
+    ["AP0308-4 Dual-Read soll_g/ist_g UND sollG/istG liefern denselben Wert",
+                            Calc.versuchSollG({soll_g:1000}) === 1000 && Calc.versuchSollG({sollG:1000}) === 1000
+                              && Calc.versuchIstG({ist_g:950}) === 950 && Calc.versuchIstG({istG:950}) === 950],
+    // §4.1 Zeilenplan: Achse folgt der Basis: eine Zutat, die nur eine Variante zusaetzlich
+    // traegt, erzeugt trotzdem eine gemeinsame Zeile (union), als "neu" markiert (kein Treffer
+    // in der Basis) statt die Spaltenausrichtung zu verlieren.
+    (() => {
+      const basisPhasen = [{ name:"Teig", zutaten:[{name:"Mehl",prozent:1,einheit:"g"}], schritte:[{nr:1,text:"Mischen"}] }];
+      const spalten = [
+        { v:1, phasen:[{ name:"Teig", zutaten:[{name:"Mehl",prozent:1,einheit:"g"}], schritte:[{nr:1,text:"Mischen"}] }] },
+        { v:2, phasen:[{ name:"Teig", zutaten:[{name:"Mehl",prozent:1,einheit:"g"},{name:"Salz",prozent:0.02,einheit:"g"}], schritte:[{nr:1,text:"Mischen"}] }] }
+      ];
+      const zeilen = View.entwZeilenplan(basisPhasen, spalten);
+      const zutatZeilen = zeilen.filter(r => r.typ === "zutat");
+      return ["AP0308-5 Zeilenplan: neue Zutat einer Variante erzeugt eine gemeinsame Achsenzeile ohne Basis-Treffer",
+        zeilen[0].typ === "phase" && zutatZeilen.length === 2
+          && zutatZeilen[0].basis && zutatZeilen[0].basis.name === "Mehl"
+          && zutatZeilen[1].basis === null];
+    })(),
+    // AP-0204 §7 letzter Absatz, Offener Punkt §10: alle 14 Verfahren aus VERFAHREN_KATALOG
+    // haben einen Merkmalssatz — sonst waere "Bewerten" fuer die uebrigen 13 nicht ausfuellbar.
+    ["AP0308-6 Merkmalskatalog deckt alle 14 Verfahren aus VERFAHREN_KATALOG ab",
+                            Object.keys(VERFAHREN_KATALOG).every(v =>
+                              MERKMALE_KATALOG[v] && MERKMALE_KATALOG[v].skalen.length > 0 && MERKMALE_KATALOG[v].kaesten.length > 0)]
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
   return { anzahl:t.length, fehler };
@@ -4148,6 +4804,44 @@ async function editorSchreiben(gateway, { rezeptePfad, sheetName, header, zeileE
   }
 
   // Schritt 7: eTag neu lesen; scheitert das, faellt die naechste Pruefung auf §4.3 zurueck.
+  let neuerETag = null;
+  try{ neuerETag = (await gateway.getItemMeta(rezeptePfad)).eTag; }catch(e){ neuerETag = null; }
+
+  return { ergebnis:"ok", neuerETag, nebenfehler };
+}
+
+// AP-0307: reiner Schreibkern des Verfahrensprotokoll-Formulars — gleiches Prinzip wie
+// editorSchreiben oben (gemockte Graph-Schicht im Selbsttest, "gateway.log" belegt jeden
+// tatsaechlich ausgeloesten Aufruf). Schreibt AUSSCHLIESSLICH die Spalte "Protokoll (JSON)"
+// als Kernzelle, nie "Backprotokoll (JSON)" (Abnahmekriterium 3 des AP) — die migrierten
+// Alteintraege stecken bereits in "protokoll" (siehe App.protokollSpeichern). "Schwund (%)"
+// und "Geändert" sind Komfortspalten, ein Fehlschlag dort ist nicht fatal, nur meldepflichtig.
+async function protokollSchreiben(gateway, { rezeptePfad, sheetName, header, zeileExcel, aktuellerETag, protokoll }){
+  let meta;
+  try{ meta = await gateway.getItemMeta(rezeptePfad); }
+  catch(e){ return { ergebnis:"fehler", stufe:"eTag", meldung: e.message }; }
+
+  if(aktuellerETag && meta.eTag !== aktuellerETag) return { ergebnis:"konflikt" };
+
+  try{ await gateway.backup(rezeptePfad); }
+  catch(e){ return { ergebnis:"fehler", stufe:"backup", meldung: e.message }; }
+
+  const addrProtokoll = Model.zelladresse(header, "Protokoll (JSON)", zeileExcel);
+  if(!addrProtokoll) return { ergebnis:"fehler", stufe:"protokoll", meldung:'Spalte "Protokoll (JSON)" fehlt in Rezepte.xlsx' };
+  try{ await gateway.updateCell(rezeptePfad, sheetName, addrProtokoll, JSON.stringify(protokoll)); }
+  catch(e){ return { ergebnis:"fehler", stufe:"protokoll", meldung: e.message }; }
+
+  const heute = new Date().toISOString().slice(0, 10);
+  const schwund = Calc.schwundAktuell(protokoll);
+  const nebenfelder = [["Schwund (%)", schwund == null ? 0 : Math.round(schwund * 100)], ["Geändert", heute]];
+  const nebenfehler = [];
+  for(const [spalte, wert] of nebenfelder){
+    const addr = Model.zelladresse(header, spalte, zeileExcel);
+    if(!addr) continue;
+    try{ await gateway.updateCell(rezeptePfad, sheetName, addr, wert); }
+    catch(e){ nebenfehler.push(spalte); }
+  }
+
   let neuerETag = null;
   try{ neuerETag = (await gateway.getItemMeta(rezeptePfad)).eTag; }catch(e){ neuerETag = null; }
 
@@ -4283,7 +4977,11 @@ const App = {
     // AP-0313: Referenzen gehören zum verglichenen Rezept — beim Wechsel zurücksetzen, sonst
     // stünden im nächsten Rezept die Vergleichsspalten des vorigen.
     Store.referenzIds = [];
-    Store.devForm = null;
+    // AP-0308/§5.2 R7: Store.entw wird HIER NICHT zurueckgesetzt — es bleibt unter seiner
+    // eigenen rezeptId liegen (localStorage, EntwEntwurf) und wird beim naechsten Rendern
+    // automatisch fuer das neu geoeffnete Rezept nachgeladen (View.entwSicherstellen erkennt
+    // die abweichende rezeptId von selbst). Ein Reset hier wuerde nur den In-Memory-Zwischenstand
+    // wegwerfen, nicht den Entwurf selbst — unnoetig und im Widerspruch zu R7.
     // AP-0303: die Korrekturablage selbst bleibt unter ihrer rezeptId liegen (AP-0201 §3.4,
     // Abnahmekriterium 3) — nur der Uebernahme-Bestaetigungsdialog ist ein Formular ueber dem
     // vorherigen Rezept und muss beim Wechsel zu.
@@ -4434,98 +5132,118 @@ const App = {
     }
   },
 
-  /* ---------- Backprotokoll (AP-0305) --------------------------------------
-     Ablauf: Formular oeffnen -> pruefen -> (Beispieldaten: nur im Speicher | OneDrive:
-     Konflikt pruefen -> Backup -> gezielte Zell-Updates via Data.updateCell). Nie blind
-     ueberschreiben (Entscheid O-9): eTag-Abgleich vor jedem Schreiben, siehe Data.getItemMeta. */
-  backEintragOeffnen(){
+  /* ---------- Verfahrensprotokoll (AP-0307, Vorlaeufer AP-0305) ------------
+     Ablauf: Formular oeffnen (Kernfelder + Feldsatz des Verfahrens, Verfahren.feldsatz) ->
+     pruefen -> (Beispieldaten: nur im Speicher | OneDrive: Konflikt pruefen -> Backup ->
+     gezielte Zell-Updates via protokollSchreiben()/Data.updateCell). Nie blind ueberschreiben
+     (Entscheid O-9): eTag-Abgleich vor jedem Schreiben. Geschrieben wird ausschliesslich in
+     "Protokoll (JSON)" — "Backprotokoll (JSON)" bleibt fuer immer unveraendert stehen
+     (Migrationsregel AP-0202): rz.protokoll traegt bereits, dank der Leseregel in
+     Model.parseRezepte/Model.aufloesen, die migrierten Alteintraege, wenn fuer dieses Rezept
+     noch nichts in Protokoll (JSON) stand — ein einfaches Anhaengen genuegt darum hier. */
+  protokollEintragOeffnen(){
     const rz = Store.aktuellesRezept;
     if(!rz) return;
-    Store.backEintrag = {
+    const feldsatz = Verfahren.feldsatz(rz.verfahren);
+    const felder = {};
+    feldsatz.felder.forEach(f => { felder[f.key] = f.typ === "bool" ? false : ""; });
+    Store.protokollEintrag = {
       datum: new Date().toISOString().slice(0, 10),
-      soll: Math.round(rz.sollgewichtG * Store.faktor),
+      soll: feldsatz.kernSollIst ? Math.round(rz.sollgewichtG * Store.faktor) : "",
       ist: "",
-      notizen: ""
+      notizen: "",
+      felder
     };
     View.rezept();
-    el("#beIst") && el("#beIst").focus();
+    el("#peIst") && el("#peIst").focus();
   },
 
-  async backEintragSpeichern(){
-    const rz = Store.aktuellesRezept, eingabe = Store.backEintrag;
+  async protokollEintragSpeichern(){
+    const rz = Store.aktuellesRezept, eingabe = Store.protokollEintrag;
     if(!rz || !eingabe) return;
     const datum = (eingabe.datum || "").trim();
-    const soll = Number(eingabe.soll), ist = Number(eingabe.ist);
     if(!/^\d{4}-\d{2}-\d{2}$/.test(datum)){ View.meldung("Datum fehlt oder ungültig.", "err", "Eintrag unvollständig"); return; }
-    if(!(soll > 0)){ View.meldung("Soll (g) muss grösser als 0 sein.", "err", "Eintrag unvollständig"); return; }
-    if(!(ist > 0)){ View.meldung("Ist (g) muss grösser als 0 sein.", "err", "Eintrag unvollständig"); return; }
-    const neuerEintrag = { datum, sollG: soll, istG: ist, notizen: (eingabe.notizen || "").trim() || null };
-    await App.backprotokollSpeichern(rz, neuerEintrag);
+    // AP-0202 Frage 4: Soll/Ist sind optional — nur pruefen, wenn ausgefuellt.
+    const soll = eingabe.soll === "" || eingabe.soll == null ? null : Number(eingabe.soll);
+    const ist = eingabe.ist === "" || eingabe.ist == null ? null : Number(eingabe.ist);
+    if(soll != null && !(soll > 0)){ View.meldung("Soll (g) muss grösser als 0 sein.", "err", "Eintrag unvollständig"); return; }
+    if(ist != null && !(ist > 0)){ View.meldung("Ist (g) muss grösser als 0 sein.", "err", "Eintrag unvollständig"); return; }
+    const feldsatz = Verfahren.feldsatz(rz.verfahren);
+    const felder = {};
+    feldsatz.felder.forEach(f => {
+      const roh = eingabe.felder[f.key];
+      if(f.typ === "bool"){ felder[f.key] = !!roh; return; }
+      if(f.typ === "liste"){
+        const arr = String(roh || "").split(",").map(s => s.trim()).filter(Boolean);
+        if(arr.length) felder[f.key] = arr;
+        return;
+      }
+      if(f.typ === "zahl"){
+        if(roh !== "" && roh != null && isFinite(Number(roh))) felder[f.key] = Number(roh);
+        return;
+      }
+      if(String(roh || "").trim()) felder[f.key] = String(roh).trim();
+    });
+    const neuerEintrag = {
+      datum,
+      ...(soll != null ? { sollG: soll } : {}),
+      ...(ist != null ? { istG: ist } : {}),
+      notizen: (eingabe.notizen || "").trim() || null,
+      ...(Object.keys(felder).length ? { felder } : {})
+    };
+    await App.protokollSpeichern(rz, neuerEintrag);
   },
 
-  // Schreibt den Eintrag in Store (sofort sichtbar) und, falls eine OneDrive-Verbindung
-  // besteht, zurueck nach Rezepte.xlsx. Bei jedem Fehlschlag (Konflikt, Netzfehler) wird
-  // der Store-Eintrag zurueckgenommen — nie ein Erfolg vortaeuschen, den OneDrive nicht hat.
-  async backprotokollSpeichern(rz, eintrag){
-    rz.backprotokoll = [...rz.backprotokoll, eintrag];
+  // Schreibt den Eintrag in Store (sofort sichtbar, an rz.protokoll angehaengt — das ist
+  // bereits die nach Leseregel aktive Liste, ein Anhaengen genuegt also auch fuer die
+  // Migrationsregel) und, falls eine OneDrive-Verbindung besteht, zurueck nach Rezepte.xlsx.
+  // Bei jedem Fehlschlag (Konflikt, Netzfehler) wird der Store-Eintrag zurueckgenommen — nie
+  // ein Erfolg vortaeuschen, den OneDrive nicht hat.
+  async protokollSpeichern(rz, eintrag){
+    const vorher = rz.protokoll;
+    rz.protokoll = [...vorher, eintrag];
     const verbunden = Store.rezepteWorkbook && Data.verfuegbar() && msalApp.getActiveAccount();
     if(!verbunden){
-      Store.backEintrag = null;
+      Store.protokollEintrag = null;
       View.meldung("Eintrag erfasst — nur in dieser Sitzung, keine OneDrive-Verbindung.", "warn", "Nicht dauerhaft gespeichert");
       View.rezept();
       return;
     }
     if(!rz._raw){
-      rz.backprotokoll = rz.backprotokoll.slice(0, -1);
+      rz.protokoll = vorher;
       View.meldung("Zeilenposition dieses Rezepts ist unbekannt (frisch importiert, noch nicht neu geladen). "
         + "Seite neu laden und erneut versuchen.", "err", "Speichern nicht möglich");
       return;
     }
-    try{
-      if(Store.rezepteETag){
-        const meta = await Data.getItemMeta(CONFIG.rezeptePfad);
-        if(meta.eTag !== Store.rezepteETag){
-          rz.backprotokoll = rz.backprotokoll.slice(0, -1);
-          Store.backEintrag = null;
-          View.meldung("Rezepte.xlsx wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. "
-            + "Eintrag bitte erneut erfassen.", "warn", "Konflikt erkannt");
-          const konto = msalApp.getActiveAccount();
-          await App.datenLaden(konto);
-          App.rezeptOeffnen(rz.id);
-          return;
-        }
-      }
-      await Data.backup(CONFIG.rezeptePfad);
-      const header = rz._raw.spalten, zeileExcel = rz._raw.zeile + 1;
-      const iBack = header.indexOf("Backprotokoll (JSON)");
-      if(iBack === -1) throw new Error('Spalte "Backprotokoll (JSON)" fehlt in Rezepte.xlsx');
-      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
-        Model.zelladresse(header, "Backprotokoll (JSON)", zeileExcel), JSON.stringify(rz.backprotokoll));
-      // Schwund (%) und Geändert sind reine Komfortspalten fuer die direkte Excel-Ansicht —
-      // die App selbst berechnet Schwund immer live aus dem Backprotokoll (Calc.schwundAktuell).
-      // Ein Fehlschlag hier ist darum nicht fatal, nur meldepflichtig (Abnahmekriterium 1).
-      const heute = new Date().toISOString().slice(0, 10);
-      const schwund = Calc.schwundAktuell(rz.backprotokoll);
-      const nebenfelder = [["Schwund (%)", schwund == null ? 0 : Math.round(schwund * 100)], ["Geändert", heute]];
-      const nebenfehler = [];
-      for(const [spalte, wert] of nebenfelder){
-        const addr = Model.zelladresse(header, spalte, zeileExcel);
-        if(!addr) continue;
-        try{ await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName, addr, wert); }
-        catch(e){ nebenfehler.push(spalte); }
-      }
-      try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
-      catch(e){ Store.rezepteETag = null; }
-      Store.backEintrag = null;
-      View.meldung("Backprotokoll-Eintrag gespeichert, Backup in " + (CONFIG.backupOrdner || "/Backups") + " angelegt."
-        + (nebenfehler.length ? " Hinweis: Spalte(n) " + nebenfehler.join(", ") + " konnten nicht mitaktualisiert werden — Backprotokoll selbst ist gespeichert." : ""),
-        nebenfehler.length ? "warn" : "ok", "Gespeichert");
-      View.rezept();
-    }catch(e){
-      rz.backprotokoll = rz.backprotokoll.slice(0, -1);
-      View.meldung("Speichern fehlgeschlagen: " + e.message + " — Backprotokoll in OneDrive nicht verändert.", "err", "Fehler beim Speichern");
-      View.rezept();
+    const header = rz._raw.spalten, zeileExcel = rz._raw.zeile + 1;
+    const ergebnis = await protokollSchreiben(Data, {
+      rezeptePfad: CONFIG.rezeptePfad, sheetName: Store.rezepteSheetName,
+      header, zeileExcel, aktuellerETag: Store.rezepteETag, protokoll: rz.protokoll
+    });
+
+    if(ergebnis.ergebnis === "konflikt"){
+      rz.protokoll = vorher;
+      Store.protokollEintrag = null;
+      View.meldung("Rezepte.xlsx wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. "
+        + "Eintrag bitte erneut erfassen.", "warn", "Konflikt erkannt");
+      const konto = msalApp.getActiveAccount();
+      await App.datenLaden(konto);
+      App.rezeptOeffnen(rz.id);
+      return;
     }
+    if(ergebnis.ergebnis === "fehler"){
+      rz.protokoll = vorher;
+      View.meldung("Speichern fehlgeschlagen: " + ergebnis.meldung + " — Protokoll in OneDrive nicht verändert.", "err", "Fehler beim Speichern");
+      View.rezept();
+      return;
+    }
+
+    Store.rezepteETag = ergebnis.neuerETag;
+    Store.protokollEintrag = null;
+    View.meldung("Verfahrensprotokoll-Eintrag gespeichert, Backup in " + (CONFIG.backupOrdner || "/Backups") + " angelegt."
+      + (ergebnis.nebenfehler.length ? " Hinweis: Spalte(n) " + ergebnis.nebenfehler.join(", ") + " konnten nicht mitaktualisiert werden — Protokoll selbst ist gespeichert." : ""),
+      ergebnis.nebenfehler.length ? "warn" : "ok", "Gespeichert");
+    View.rezept();
   },
 
   /* ---------- Zutaten-Editor (AP-0305) -------------------------------------
@@ -4784,234 +5502,231 @@ const App = {
     View.rezept();
   },
 
-  /* ---------- Entwicklungsmodus (AP-0311) ----------------------------------
-     §1.1+§3 der Spezifikation AP-0203: eigene Excel-Spalte "Entwicklung (JSON)", Versionen
-     (Kopie -> frei editierbar), Versuchsprotokoll je Version, Befördern (kopiert die Phasen
-     der gewählten Version nach "Phasen (JSON)", Versionsliste bleibt vollständig erhalten —
-     nichts wird gelöscht). Schreibpfad identisch zu backprotokollSpeichern oben: Konflikt
-     prüfen (eTag), Backup, gezielte Zell-Updates statt Ganzdatei-PUT (Entscheid O-9). */
-  entwStarten(){
+  /* ---------- Entwicklungsmodus — Hauptansicht (AP-0308) --------------------------
+     Ablauf jetzt nach AP-0204 §2/§4/§5: "+ Variante" ersetzt Start UND Versions-Neuanlage
+     (§4.3), Bearbeitung laeuft direkt in der Wertespalte (kein Formular, keine gesamte
+     Bedienung mehr in einer Funktion), R4 begrenzt Schreibvorgaenge nach Rezepte.xlsx auf
+     genau zwei ausdrueckliche Aktionen: entwVariantenSichern() und entwUebernehmenBestaetigt().
+     Alles dazwischen bleibt lokaler Entwurf (EntwEntwurf, R3). */
+  entwPersistieren(){
+    const z = Store.entw;
+    if(!z) return;
+    EntwEntwurf.speichern(z.rezeptId, { basis: z.basis, aktivV: z.aktivV, status: z.status, zielwerte: z.zielwerte, spalten: z.spalten });
+  },
+
+  // §4.3: "+ Variante" ohne bestehende Entwicklung legt v1 (Kopie der produktiven Rezeptur,
+  // Basis) UND die neue Variante in einem Schritt an (Baustein 1+2, kein eigener Startknopf
+  // mehr). "+ Variante" auf einer Spalte ("abzweigen", ausV gesetzt) kopiert diese Spalte statt
+  // der Basis. Keine dieser Aktionen schreibt nach Rezepte.xlsx (R4) — nur der lokale Entwurf.
+  entwVarianteHinzufuegen(ausV){
     const rz = Store.aktuellesRezept;
-    if(!rz || rz.entwicklung) return;
+    if(!rz) return;
     const heute = new Date().toISOString().slice(0, 10);
-    const neu = {
-      status: "entwicklung", zielwerte: {}, aktivV: 1,
-      versionen: [{ v:1, datum: heute, notiz: "Startpunkt, Kopie der produktiven Rezeptur",
-                    phasen: Import.phasenExport(rz.phasen) }],
-      versuche: []
-    };
-    App.entwSpeichern(rz, neu, "Entwicklungsmodus gestartet — v1 ist eine Kopie der aktuellen Rezeptur.");
-  },
-
-  entwVersionNeuOeffnen(){
-    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
-    if(!e) return;
-    const aktiv = Calc.entwAktiveVersion(e);
-    const naechsteV = e.versionen.reduce((m,v) => Math.max(m, v.v || 0), 0) + 1;
-    Store.devForm = { art:"version", modus:"neu", v: naechsteV, notiz:"",
-      phasenText: JSON.stringify(aktiv ? aktiv.phasen : [], null, 2) };
-    View.rezept();
-  },
-
-  entwVersionBearbeitenOeffnen(v){
-    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
-    if(!e) return;
-    const version = e.versionen.find(x => x.v === v);
-    if(!version) return;
-    Store.devForm = { art:"version", modus:"bearbeiten", v,
-      notiz: version.notiz || "", phasenText: JSON.stringify(version.phasen, null, 2) };
-    View.rezept();
-  },
-
-  entwFormAbbrechen(){ Store.devForm = null; View.rezept(); },
-
-  async entwVersionSpeichern(){
-    const rz = Store.aktuellesRezept, df = Store.devForm;
-    if(!rz || !rz.entwicklung || !df || df.art !== "version") return;
-    let phasen;
-    try{ phasen = JSON.parse(df.phasenText); }
-    catch(err){ View.meldung("Phasen (JSON) ist kein gültiges JSON — " + err.message, "err", "Version nicht gespeichert"); return; }
-    const fehler = Import.phasenFehler(phasen, "phasen");
-    if(fehler.length){
-      View.meldung(fehler.map(f => f.pfad + ": " + f.meldung).join(" · "), "err", "Version nicht gespeichert");
-      return;
+    let z = View.entwSicherstellen(rz);
+    if(!z){
+      const v1 = { v:1, datum: heute, notiz:"Startpunkt, Kopie der produktiven Rezeptur",
+        herkunft:"produktiv", eingeklappt:false, phasen: Import.phasenExport(rz.phasen), versuche:[] };
+      z = Store.entw = { rezeptId: rz.id, status:"entwicklung", zielwerte:{}, aktivV:1,
+        basis:"produktiv", spalten:[v1], overlay:null, schrittBearbeiten:null };
     }
-    const notiz = (df.notiz || "").trim();
-    const heute = new Date().toISOString().slice(0, 10);
-    const neueEntwicklung = JSON.parse(JSON.stringify(rz.entwicklung));
-    const phasenExportiert = Import.phasenExport(phasen);
-    if(df.modus === "neu"){
-      neueEntwicklung.versionen = [...neueEntwicklung.versionen, { v: df.v, datum: heute, notiz, phasen: phasenExportiert }];
-    }else{
-      const idx = neueEntwicklung.versionen.findIndex(x => x.v === df.v);
-      if(idx === -1) return;
-      neueEntwicklung.versionen[idx] = { ...neueEntwicklung.versionen[idx], notiz, phasen: phasenExportiert };
-    }
-    neueEntwicklung.aktivV = df.v;
-    await App.entwSpeichern(rz, neueEntwicklung,
-      df.modus === "neu" ? "Neue Version v" + df.v + " angelegt." : "Version v" + df.v + " gespeichert.");
+    const quelle = ausV != null ? z.spalten.find(s => s.v === ausV) : null;
+    const quellPhasen = quelle ? quelle.phasen
+      : (z.basis === "produktiv" ? rz.phasen : ((z.spalten.find(s => s.v === z.basis) || {}).phasen || rz.phasen));
+    const naechsteV = z.spalten.reduce((m, s) => Math.max(m, s.v || 0), 0) + 1;
+    z.spalten.push({ v: naechsteV, datum: heute, notiz:"",
+      herkunft: quelle ? { ausV: quelle.v } : z.basis,
+      eingeklappt:false, phasen: JSON.parse(JSON.stringify(quellPhasen)), versuche:[] });
+    z.aktivV = naechsteV;
+    App.entwPersistieren();
+    View.rezept();
+    const notiz = el('[data-entw-notiz="' + naechsteV + '"]');
+    if(notiz) notiz.focus();
   },
 
+  // O1: Klick auf den Spaltenkopf setzt die aktive Version um — reine Markierung, kein
+  // Formularwechsel (AP-0204 §2.5), darum ohne View-Aufwand ausser dem Neuzeichnen.
   entwAktivSetzen(v){
-    const rz = Store.aktuellesRezept;
-    if(!rz || !rz.entwicklung) return;
-    App.entwSpeichern(rz, { ...rz.entwicklung, aktivV: v }, "Version v" + v + " ist jetzt aktiv.");
-  },
-
-  entwDiffOeffnen(){
-    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
-    if(!e || !e.versionen.length) return;
-    const sortiert = e.versionen.slice().sort((a,b) => a.v - b.v);
-    const aktiv = Calc.entwAktiveVersion(e);
-    const vorherige = sortiert.filter(v => !aktiv || v.v !== aktiv.v).pop();
-    Store.devForm = { art:"diff", a: (vorherige || sortiert[0]).v, b: (aktiv || sortiert[sortiert.length-1]).v };
+    const z = Store.entw;
+    if(!z) return;
+    z.aktivV = v;
+    App.entwPersistieren();
     View.rezept();
   },
 
-  entwDiffAendern(feld, wert){
-    if(!Store.devForm || Store.devForm.art !== "diff") return;
-    Store.devForm[feld] = Number(wert);
+  // O5: Δ-Bezug (Achse + Vorlage neuer Spalten). "produktiv" oder eine bestehende Version.
+  entwBasisWechseln(wert){
+    const z = Store.entw;
+    if(!z) return;
+    z.basis = wert;
+    App.entwPersistieren();
     View.rezept();
   },
 
-  entwBefoerdernOeffnen(){
-    const rz = Store.aktuellesRezept;
-    const aktiv = rz && rz.entwicklung && Calc.entwAktiveVersion(rz.entwicklung);
-    if(!aktiv) return;
-    Store.devForm = { art:"befoerdern", v: aktiv.v };
+  entwEinheitWechseln(){
+    Store.entwEinheit = Store.entwEinheit === "%" ? "g" : "%";
     View.rezept();
   },
 
-  // Kopiert die Phasen der gewählten Version nach "Phasen (JSON)" und setzt status="produktiv"
-  // (§1.1) — die Versionsliste selbst bleibt unverändert, nichts wird gelöscht. Anders als
-  // entwSpeichern() unten schreibt das zwei Zellen (Phasen + Entwicklung); bei jedem Fehler
-  // rollt die gesamte Operation zurück, damit rz.phasen und rz.entwicklung nie auseinanderlaufen.
-  async entwBefoerdernBestaetigt(){
-    const rz = Store.aktuellesRezept, df = Store.devForm;
-    if(!rz || !rz.entwicklung || !df || df.art !== "befoerdern") return;
-    const version = rz.entwicklung.versionen.find(x => x.v === df.v);
-    if(!version) return;
-    const altePhasen = rz.phasen, alteEntwicklung = rz.entwicklung;
-    rz.phasen = Import.phasenExport(version.phasen);
-    Model.aufloesen([rz], Store.rohstoffe);
-    rz.entwicklung = { ...rz.entwicklung, status:"produktiv", aktivV: version.v };
-
-    const verbunden = Store.rezepteWorkbook && Data.verfuegbar() && msalApp.getActiveAccount();
-    if(!verbunden){
-      Store.devForm = null;
-      View.meldung("Version v" + version.v + " ist jetzt die produktive Rezeptur — nur in dieser Sitzung, keine "
-        + "OneDrive-Verbindung. Bisherige Rezeptur bleibt als Version erhalten.", "warn", "Nicht dauerhaft gespeichert");
-      View.rezept();
-      return;
-    }
-    if(!rz._raw){
-      rz.phasen = altePhasen; rz.entwicklung = alteEntwicklung; Model.aufloesen([rz], Store.rohstoffe);
-      View.meldung("Zeilenposition dieses Rezepts ist unbekannt (frisch importiert, noch nicht neu geladen). "
-        + "Seite neu laden und erneut versuchen.", "err", "Befördern nicht möglich");
-      return;
-    }
-    try{
-      if(Store.rezepteETag){
-        const meta = await Data.getItemMeta(CONFIG.rezeptePfad);
-        if(meta.eTag !== Store.rezepteETag){
-          rz.phasen = altePhasen; rz.entwicklung = alteEntwicklung; Model.aufloesen([rz], Store.rohstoffe);
-          Store.devForm = null;
-          View.meldung("Rezepte.xlsx wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. "
-            + "Bitte erneut befördern.", "warn", "Konflikt erkannt");
-          const konto = msalApp.getActiveAccount();
-          await App.datenLaden(konto);
-          App.rezeptOeffnen(rz.id);
-          return;
-        }
-      }
-      await Data.backup(CONFIG.rezeptePfad);
-      const header = rz._raw.spalten, zeileExcel = rz._raw.zeile + 1;
-      const iPhasen = header.indexOf("Phasen (JSON)"), iEntw = header.indexOf("Entwicklung (JSON)");
-      if(iPhasen === -1) throw new Error('Spalte "Phasen (JSON)" fehlt in Rezepte.xlsx');
-      if(iEntw === -1) throw new Error('Spalte "Entwicklung (JSON)" fehlt in Rezepte.xlsx');
-      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
-        Model.zelladresse(header, "Phasen (JSON)", zeileExcel), JSON.stringify(rz.phasen));
-      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
-        Model.zelladresse(header, "Entwicklung (JSON)", zeileExcel), JSON.stringify(rz.entwicklung));
-      try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
-      catch(e){ Store.rezepteETag = null; }
-      Store.devForm = null;
-      View.meldung("Version v" + version.v + " ist jetzt die produktive Rezeptur, Backup angelegt. "
-        + "Bisherige Rezeptur bleibt als Version erhalten.", "ok", "Befördert");
-      View.rezept();
-    }catch(e){
-      rz.phasen = altePhasen; rz.entwicklung = alteEntwicklung; Model.aufloesen([rz], Store.rohstoffe);
-      View.meldung("Befördern fehlgeschlagen: " + e.message + " — Rezept in OneDrive nicht verändert.", "err", "Fehler beim Speichern");
-      View.rezept();
-    }
-  },
-
-  entwVersuchOeffnen(){
-    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
-    if(!e || !e.versionen.length) return;
-    const aktiv = Calc.entwAktiveVersion(e);
-    Store.devForm = { art:"versuch", datum: new Date().toISOString().slice(0, 10),
-      version: aktiv.v, soll:"", ist:"", bewertung:3, erkenntnis:"" };
+  entwSpalteEinklappen(v){
+    const z = Store.entw, sp = z && z.spalten.find(s => s.v === v);
+    if(!sp) return;
+    sp.eingeklappt = !sp.eingeklappt;
+    App.entwPersistieren();
     View.rezept();
   },
 
-  async entwVersuchSpeichern(){
-    const rz = Store.aktuellesRezept, df = Store.devForm;
-    if(!rz || !rz.entwicklung || !df || df.art !== "versuch") return;
-    const datum = (df.datum || "").trim();
-    const soll = Number(df.soll), ist = Number(df.ist), bewertung = Number(df.bewertung), version = Number(df.version);
+  entwNotizFeld(v, text){
+    const z = Store.entw, sp = z && z.spalten.find(s => s.v === v);
+    if(!sp) return;
+    sp.notiz = text;
+    App.entwPersistieren();
+  },
+
+  // AP-0204 §4.2: Eingabe in Gramm ODER Prozent (Store.entwEinheit, Umschalter "wie im
+  // Zutaten-Editor") — gespeichert wird immer der Faktor prozent = menge ÷ basisMengeG
+  // (AP-0203 §1.4), kein JSON an keiner Stelle (Ursache 1).
+  entwZutatFeld(v, pi, zi, wert){
+    const rz = Store.aktuellesRezept, z = Store.entw;
+    const sp = z && z.spalten.find(s => s.v === v);
+    const zu = sp && sp.phasen[pi] && sp.phasen[pi].zutaten[zi];
+    if(!zu) return;
+    const n = Number(wert);
+    if(wert === "" || !isFinite(n)) zu.prozent = "";
+    else if(Store.entwEinheit === "%") zu.prozent = n / 100;
+    else zu.prozent = rz.basisMengeG > 0 ? n / rz.basisMengeG : "";
+    App.entwPersistieren();
+    View.rezept();
+  },
+
+  // §4.2: Schritt-Zelle — Klick oeffnet ein einzeiliges Textfeld IN DER SPALTE (kein Overlay,
+  // kein JSON); Verlassen des Felds (entwSchrittFeld) schliesst es wieder.
+  entwSchrittOeffnen(v, pi, si){
+    const z = Store.entw;
+    if(!z) return;
+    z.schrittBearbeiten = { v, pi, si };
+    View.rezept();
+  },
+
+  entwSchrittFeld(v, pi, si, wert){
+    const z = Store.entw;
+    const sp = z && z.spalten.find(s => s.v === v);
+    const sc = sp && sp.phasen[pi] && sp.phasen[pi].schritte[si];
+    if(sc) sc.text = wert;
+    if(z) z.schrittBearbeiten = null;
+    App.entwPersistieren();
+    View.rezept();
+  },
+
+  entwOverlaySchliessen(){
+    const z = Store.entw;
+    if(z) z.overlay = null;
+    View.rezept();
+  },
+
+  /* ---------- Versuchsprotokoll je Variante (AP-0204 §7) ---------------------------
+     Nutzt den Feldsatz aus VERFAHREN_KATALOG (Messungen, wie das Verfahrensprotokoll AP-0202/
+     AP-0307) und ergaenzt ihn um "merkmale" (Urteile, MERKMALE_KATALOG) — kein zweiter
+     Messfeldkatalog. Bleibt Teil des lokalen Entwurfs, bis "Varianten sichern" oder
+     "übernehmen" nach Rezepte.xlsx schreibt (R4). */
+  entwBewertungOeffnen(v){
+    const rz = Store.aktuellesRezept, z = Store.entw;
+    const sp = z && z.spalten.find(s => s.v === v);
+    if(!rz || !sp) return;
+    const feldsatz = Verfahren.feldsatz(rz.verfahren);
+    const felder = {};
+    feldsatz.felder.forEach(f => { felder[f.key] = f.typ === "bool" ? false : ""; });
+    z.overlay = { typ:"bewertung", v, datum: new Date().toISOString().slice(0, 10),
+      sollG: feldsatz.kernSollIst ? Math.round(rz.sollgewichtG * Store.faktor) : "",
+      istG:"", bewertung:3, erkenntnis:"", felder, merkmale:{} };
+    View.rezept();
+    const soll = el("#entwBewSoll"); if(soll) soll.focus(); else { const ist = el("#entwBewIst"); ist && ist.focus(); }
+  },
+
+  async entwBewertungSpeichern(){
+    const rz = Store.aktuellesRezept, z = Store.entw, ov = z && z.overlay;
+    if(!rz || !z || !ov || ov.typ !== "bewertung") return;
+    const sp = z.spalten.find(s => s.v === ov.v);
+    if(!sp) return;
+    const datum = (ov.datum || "").trim();
     if(!/^\d{4}-\d{2}-\d{2}$/.test(datum)){ View.meldung("Datum fehlt oder ungültig.", "err", "Versuch unvollständig"); return; }
-    if(!(soll > 0)){ View.meldung("Soll (g) muss grösser als 0 sein.", "err", "Versuch unvollständig"); return; }
-    if(!(ist > 0)){ View.meldung("Ist (g) muss grösser als 0 sein.", "err", "Versuch unvollständig"); return; }
+    const feldsatz = Verfahren.feldsatz(rz.verfahren);
+    let sollG = null, istG = null;
+    if(feldsatz.kernSollIst){
+      sollG = ov.sollG === "" || ov.sollG == null ? null : Number(ov.sollG);
+      istG = ov.istG === "" || ov.istG == null ? null : Number(ov.istG);
+      if(sollG != null && !(sollG > 0)){ View.meldung("Soll (g) muss grösser als 0 sein.", "err", "Versuch unvollständig"); return; }
+      if(istG != null && !(istG > 0)){ View.meldung("Ist (g) muss grösser als 0 sein.", "err", "Versuch unvollständig"); return; }
+    }
+    const bewertung = Number(ov.bewertung);
     if(!(bewertung >= 1 && bewertung <= 5)){ View.meldung("Bewertung muss zwischen 1 und 5 liegen.", "err", "Versuch unvollständig"); return; }
-    if(!rz.entwicklung.versionen.some(v => v.v === version)){ View.meldung("Version existiert nicht.", "err", "Versuch unvollständig"); return; }
-    // Feldnamen soll_g/ist_g bewusst wie Spezifikation AP-0203/§1.1 (abweichend von der
-    // camelCase-Konvention des produktiven Backprotokolls — Versuchsdaten speisen dessen
-    // Schwund-Logik ausdrücklich NICHT, siehe §3, sind also kein Alias desselben Felds).
-    const eintrag = { datum, version, soll_g: soll, ist_g: ist, bewertung, erkenntnis: (df.erkenntnis || "").trim() || null };
-    const neueEntwicklung = JSON.parse(JSON.stringify(rz.entwicklung));
-    neueEntwicklung.versuche = [...(neueEntwicklung.versuche || []), eintrag];
-    await App.entwSpeichern(rz, neueEntwicklung, "Versuch erfasst.");
+    const felder = {};
+    feldsatz.felder.forEach(f => {
+      const roh = ov.felder[f.key];
+      if(f.typ === "bool"){ felder[f.key] = !!roh; return; }
+      if(f.typ === "liste"){
+        const arr = String(roh || "").split(",").map(s => s.trim()).filter(Boolean);
+        if(arr.length) felder[f.key] = arr;
+        return;
+      }
+      if(f.typ === "zahl"){ if(roh !== "" && roh != null && isFinite(Number(roh))) felder[f.key] = Number(roh); return; }
+      if(String(roh || "").trim()) felder[f.key] = String(roh).trim();
+    });
+    const eintrag = { datum, bewertung,
+      ...(sollG != null ? { sollG } : {}), ...(istG != null ? { istG } : {}),
+      erkenntnis: (ov.erkenntnis || "").trim() || null,
+      ...(Object.keys(felder).length ? { felder } : {}),
+      merkmale: ov.merkmale };
+    sp.versuche = [...(sp.versuche || []), eintrag];
+    z.overlay = null;
+    App.entwPersistieren();
+    View.meldung("Versuch für v" + sp.v + " erfasst.", "ok", "Erfasst");
+    View.rezept();
   },
 
-  /* ---------- Zielwerte-Rechner (AP-0312/§4) --------------------------------
+  /* ---------- Nebenansicht — Zielwerte-Rechner (AP-0309/AP-0312) --------------------
      Formulare tragen Prozentwerte als Text im Editor-freundlichen "68" statt "0.68" —
-     App.zielwerteAusForm() ist die einzige Stelle, die dieses ×100 wieder aufloest. */
+     App.zielwerteAusForm() ist die einzige Stelle, die dieses ×100 wieder aufloest.
+     Anders als vor AP-0308 schreibt nichts hier direkt nach Rezepte.xlsx (R4): Zielwerte
+     landen im lokalen Entwurf (z.zielwerte), "Rahmen herleiten" legt eine neue Variante im
+     Entwurf an — beides erst mit "Varianten sichern"/"übernehmen" tatsaechlich geschrieben. */
   entwZielwerteOeffnen(){
-    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
-    if(!e) return;
-    const zw = e.zielwerte || {};
+    const rz = Store.aktuellesRezept, z = Store.entw;
+    if(!rz || !z) return;
+    const zw = z.zielwerte || {};
     const pctStr = v => v == null ? "" : String(Math.round(v * 10000) / 100);
-    Store.devForm = { art:"zielwerte",
+    z.overlay = { typ:"zielwerte",
       hydration: pctStr(zw.hydration_pct), suesse: pctStr(zw.suesse_pct), fett: pctStr(zw.fett_pct),
       salz: pctStr(zw.salz_pct), kosten: zw.kosten_portion_chf != null ? String(zw.kosten_portion_chf) : "",
       zuckerartId: "" };
     View.rezept();
   },
 
-  zielwerteAusForm(df){
+  zielwerteAusForm(ov){
     const pct = s => (s === "" || s == null) ? null : Number(s) / 100;
     const num = s => (s === "" || s == null) ? null : Number(s);
     return {
-      hydration_pct: pct(df.hydration), suesse_pct: pct(df.suesse), fett_pct: pct(df.fett),
-      salz_pct: pct(df.salz), kosten_portion_chf: num(df.kosten)
+      hydration_pct: pct(ov.hydration), suesse_pct: pct(ov.suesse), fett_pct: pct(ov.fett),
+      salz_pct: pct(ov.salz), kosten_portion_chf: num(ov.kosten)
     };
   },
 
-  async entwZielwerteSpeichern(){
-    const rz = Store.aktuellesRezept, df = Store.devForm;
-    if(!rz || !rz.entwicklung || !df || df.art !== "zielwerte") return;
-    const neueEntwicklung = { ...rz.entwicklung, zielwerte: App.zielwerteAusForm(df) };
-    await App.entwSpeichern(rz, neueEntwicklung, "Zielwerte gespeichert.");
+  entwZielwerteSpeichern(){
+    const z = Store.entw, ov = z && z.overlay;
+    if(!z || !ov || ov.typ !== "zielwerte") return;
+    z.zielwerte = App.zielwerteAusForm(ov);
+    z.overlay = null;
+    App.entwPersistieren();
+    View.meldung("Zielwerte gespeichert — Teil des Entwurfs, wird mit „Varianten sichern“ geschrieben.", "ok", "Gespeichert");
+    View.rezept();
   },
 
   // §4 "Rahmen herleiten": Basis-Wasser/-Salz/-Zucker aus den (gerade eingegebenen, ggf. noch
-  // nicht gespeicherten) Zielwerten — legt IMMER eine neue Version an, speichert dabei auch
-  // gleich die Zielwerte selbst (ein Schreibvorgang statt zwei).
-  async entwRahmenHerleiten(){
-    const rz = Store.aktuellesRezept, df = Store.devForm;
-    if(!rz || !rz.entwicklung || !df || df.art !== "zielwerte") return;
-    const zielwerte = App.zielwerteAusForm(df);
+  // nicht gespeicherten) Zielwerten — legt eine neue Variante im lokalen Entwurf an und
+  // speichert dabei auch gleich die Zielwerte selbst (ein Vorgang statt zwei).
+  entwRahmenHerleiten(){
+    const rz = Store.aktuellesRezept, z = Store.entw, ov = z && z.overlay;
+    if(!rz || !z || !ov || ov.typ !== "zielwerte") return;
+    const zielwerte = App.zielwerteAusForm(ov);
     if(zielwerte.hydration_pct == null && zielwerte.salz_pct == null && zielwerte.suesse_pct == null){
       View.meldung("Mindestens ein Zielwert (Hydration, Salz oder Süsse) nötig, um einen Rahmen herzuleiten.",
         "err", "Rahmen nicht erzeugt");
@@ -5019,42 +5734,49 @@ const App = {
     }
     let zuckerart = null;
     if(zielwerte.suesse_pct != null){
-      zuckerart = Store.rohstoffe.find(r => r.id === df.zuckerartId) || null;
+      zuckerart = Store.rohstoffe.find(r => r.id === ov.zuckerartId) || null;
       if(!zuckerart || !zuckerart.suesskraft)
         View.meldung("Süsse-Ziel gesetzt, aber keine Zuckerart mit Süsskraft gewählt — Zucker-Posten bleibt leer.",
           "warn", "Rahmen unvollständig");
     }
     const phasen = Calc.rahmenHerleiten(zielwerte, zuckerart);
     const heute = new Date().toISOString().slice(0, 10);
-    const naechsteV = rz.entwicklung.versionen.reduce((m,v) => Math.max(m, v.v || 0), 0) + 1;
-    const neueEntwicklung = { ...rz.entwicklung, zielwerte,
-      versionen: [...rz.entwicklung.versionen, { v: naechsteV, datum: heute,
-        notiz: "Rahmen aus Zielwerten hergeleitet", phasen }],
-      aktivV: naechsteV };
-    await App.entwSpeichern(rz, neueEntwicklung, "Rahmen v" + naechsteV + " aus Zielwerten hergeleitet.");
+    const naechsteV = z.spalten.reduce((m, s) => Math.max(m, s.v || 0), 0) + 1;
+    z.spalten.push({ v: naechsteV, datum: heute, notiz: "Rahmen aus Zielwerten hergeleitet",
+      herkunft: z.basis, eingeklappt: false, phasen, versuche: [] });
+    z.zielwerte = zielwerte;
+    z.aktivV = naechsteV;
+    z.overlay = null;
+    App.entwPersistieren();
+    View.meldung("Rahmen v" + naechsteV + " aus Zielwerten hergeleitet — noch nicht gesichert.", "ok", "Neue Variante");
+    View.rezept();
   },
 
-  /* ---------- Referenz-Vergleich (AP-0313/§5) -------------------------------
-     Reine Ansichtsfunktion: die Auswahl liegt in Store.referenzIds (sitzungslokal), es wird
-     nichts gespeichert und nichts am Rezept veraendert. Maximal 3 Referenzen (Spez. §5). */
+  /* ---------- Nebenansicht — Referenz-Vergleich (AP-0309/AP-0313) -------------------
+     Reine Ansichtsfunktion: die Auswahl liegt in Store.referenzIds (sitzungslokal, wie vor
+     AP-0308), es wird nichts gespeichert und nichts am Rezept veraendert. Maximal 3
+     Referenzen. Suche/Kategorie liegen im Overlay, NICHT in Store.suchtext — die
+     Referenzsuche darf die Rezeptliste links nicht mitfiltern (Abnahmekriterium 3). */
   entwReferenzOeffnen(){
-    const rz = Store.aktuellesRezept;
-    if(!rz || !rz.entwicklung) return;
-    Store.devForm = { art:"referenz", suchtext:"", kategorie:"", fokus:false };
+    const rz = Store.aktuellesRezept, z = Store.entw;
+    if(!rz || !z) return;
+    z.overlay = { typ:"referenz", suchtext:"", kategorie:"", fokus:false };
     View.rezept();
   },
 
   entwReferenzSuche(text){
-    if(!Store.devForm || Store.devForm.art !== "referenz") return;
-    Store.devForm.suchtext = text;
-    Store.devForm.fokus = true;
+    const ov = Store.entw && Store.entw.overlay;
+    if(!ov || ov.typ !== "referenz") return;
+    ov.suchtext = text;
+    ov.fokus = true;
     View.rezept();
   },
 
   entwReferenzKategorie(kat){
-    if(!Store.devForm || Store.devForm.art !== "referenz") return;
-    Store.devForm.kategorie = kat;
-    Store.devForm.fokus = false;
+    const ov = Store.entw && Store.entw.overlay;
+    if(!ov || ov.typ !== "referenz") return;
+    ov.kategorie = kat;
+    ov.fokus = false;
     View.rezept();
   },
 
@@ -5067,25 +5789,26 @@ const App = {
       return;
     }
     Store.referenzIds = [...Store.referenzIds, id];
-    if(Store.devForm && Store.devForm.art === "referenz") Store.devForm.fokus = false;
+    const ov = Store.entw && Store.entw.overlay;
+    if(ov && ov.typ === "referenz") ov.fokus = false;
     View.rezept();
   },
 
   entwReferenzEntfernen(id){
     Store.referenzIds = Store.referenzIds.filter(x => x !== id);
-    if(Store.devForm && Store.devForm.art === "referenz") Store.devForm.fokus = false;
+    const ov = Store.entw && Store.entw.overlay;
+    if(ov && ov.typ === "referenz") ov.fokus = false;
     View.rezept();
   },
 
-  /* ---------- Substitutions-Rechner (AP-0314/§6) ----------------------------
-     Austausch bezieht sich immer auf die AKTIVE Version (nicht rz.phasen) und erzeugt beim
-     Uebernehmen immer eine neue Version — das Original (auch die bisher aktive Version) bleibt
-     unveraendert, exakt wie jede andere Versions-Aenderung in diesem Modus. */
-  entwSubstitutionOeffnen(phaseIdx, zutatIdx){
-    const rz = Store.aktuellesRezept, e = rz && rz.entwicklung;
-    const aktiv = e && Calc.entwAktiveVersion(e);
-    if(!aktiv) return;
-    const zutat = aktiv.phasen[phaseIdx] && aktiv.phasen[phaseIdx].zutaten[zutatIdx];
+  /* ---------- Nebenansicht — Substitutions-Rechner (AP-0309/AP-0314) ----------------
+     Austausch bezieht sich immer auf die Spalte, aus der er angestossen wurde (nicht
+     zwingend die aktive) und legt beim Uebernehmen eine NEUE Variante im lokalen Entwurf an
+     (R4) — das Original bleibt unangetastet, exakt wie vor AP-0308. */
+  entwSubstitutionOeffnen(v, pi, zi){
+    const rz = Store.aktuellesRezept, z = Store.entw;
+    const sp = z && z.spalten.find(s => s.v === v);
+    const zutat = sp && sp.phasen[pi] && sp.phasen[pi].zutaten[zi];
     if(!zutat) return;
     const idx = Model.rohstoffIndex(Store.rohstoffe);
     const rohstoff = idx.get(Model.nameKey(zutat.name)) || null;
@@ -5094,7 +5817,7 @@ const App = {
         "err", "Substitution nicht möglich");
       return;
     }
-    Store.devForm = { art:"substitution", phaseIdx, zutatIdx,
+    z.overlay = { typ:"substitution", v, phaseIdx: pi, zutatIdx: zi,
       altName: zutat.name, altEinheit: zutat.einheit,
       altMengeG: Calc.mengeG(zutat, rz.basisMengeG, 1),
       altSuesskraft: rohstoff.suesskraft || 0, altKategorie: rohstoff.kategorie, altRohstoffId: rohstoff.id,
@@ -5103,44 +5826,145 @@ const App = {
   },
 
   entwSubstitutionKandidatWaehlen(id){
-    if(!Store.devForm || Store.devForm.art !== "substitution") return;
-    Store.devForm.kandidatId = id;
+    const ov = Store.entw && Store.entw.overlay;
+    if(!ov || ov.typ !== "substitution") return;
+    ov.kandidatId = id;
     View.rezept();
   },
 
-  async entwSubstitutionUebernehmen(){
-    const rz = Store.aktuellesRezept, df = Store.devForm;
-    if(!rz || !rz.entwicklung || !df || df.art !== "substitution") return;
-    const kandidat = Store.rohstoffe.find(r => r.id === df.kandidatId);
+  entwSubstitutionUebernehmen(){
+    const rz = Store.aktuellesRezept, z = Store.entw, ov = z && z.overlay;
+    if(!rz || !z || !ov || ov.typ !== "substitution") return;
+    const kandidat = Store.rohstoffe.find(r => r.id === ov.kandidatId);
     if(!kandidat){ View.meldung("Bitte ein Ersatzprodukt wählen.", "err", "Substitution nicht möglich"); return; }
-    const aktiv = Calc.entwAktiveVersion(rz.entwicklung);
-    const alt = aktiv && aktiv.phasen[df.phaseIdx] && aktiv.phasen[df.phaseIdx].zutaten[df.zutatIdx];
+    const sp = z.spalten.find(s => s.v === ov.v);
+    const alt = sp && sp.phasen[ov.phaseIdx] && sp.phasen[ov.phaseIdx].zutaten[ov.zutatIdx];
     if(!alt) return;
-    const umrechnung = Calc.substitutionsMenge(df.altMengeG, df.altSuesskraft, kandidat.suesskraft || 0);
+    const umrechnung = Calc.substitutionsMenge(ov.altMengeG, ov.altSuesskraft, kandidat.suesskraft || 0);
     const neuesProzent = umrechnung.menge / rz.basisMengeG;
-    const phasenKopie = JSON.parse(JSON.stringify(aktiv.phasen));
-    phasenKopie[df.phaseIdx].zutaten[df.zutatIdx] = { name: kandidat.name, prozent: neuesProzent, einheit: alt.einheit };
+    const phasenKopie = JSON.parse(JSON.stringify(sp.phasen));
+    phasenKopie[ov.phaseIdx].zutaten[ov.zutatIdx] = { name: kandidat.name, prozent: neuesProzent, einheit: alt.einheit };
     const heute = new Date().toISOString().slice(0, 10);
-    const naechsteV = rz.entwicklung.versionen.reduce((m,v) => Math.max(m, v.v || 0), 0) + 1;
+    const naechsteV = z.spalten.reduce((m, s) => Math.max(m, s.v || 0), 0) + 1;
     const notiz = "Substitution: " + alt.name + " → " + kandidat.name
       + (umrechnung.hinweis ? " (" + umrechnung.hinweis + ")" : "");
-    const neueEntwicklung = { ...rz.entwicklung,
-      versionen: [...rz.entwicklung.versionen, { v: naechsteV, datum: heute, notiz, phasen: phasenKopie }],
-      aktivV: naechsteV };
-    await App.entwSpeichern(rz, neueEntwicklung, "Substitution übernommen — Version v" + naechsteV + " angelegt.");
+    z.spalten.push({ v: naechsteV, datum: heute, notiz, herkunft: { ausV: sp.v }, eingeklappt: false, phasen: phasenKopie, versuche: [] });
+    z.aktivV = naechsteV;
+    z.overlay = null;
+    App.entwPersistieren();
+    View.meldung("Substitution übernommen — Variante v" + naechsteV + " angelegt, noch nicht gesichert.", "ok", "Neue Variante");
+    View.rezept();
   },
 
-  // Gemeinsamer Schreibpfad fuer jede reine Entwicklung-Aenderung (Start, neue/bearbeitete
-  // Version, aktive Version wechseln, neuer Versuch) — nur die Spalte "Entwicklung (JSON)"
-  // aendert sich. Befoerdern hat einen eigenen Pfad oben, weil dort zusaetzlich "Phasen (JSON)"
-  // mitgeschrieben wird. Muster identisch zu backprotokollSpeichern: optimistisch anwenden,
-  // bei jedem Fehlschlag zurueckrollen statt einen Erfolg vorzutaeuschen, den OneDrive nicht hat.
+  /* ---------- Übernehmen (AP-0204 §3 Nr.4, §7 letzter Absatz) -----------------------
+     Kopiert die Phasen der gewaehlten Variante nach "Phasen (JSON)" und setzt status =
+     "produktiv" — die Versionsliste bleibt vollstaendig erhalten, nichts wird geloescht
+     (R5). Ihre Versuche werden zusaetzlich nach "Protokoll (JSON)" KOPIERT (nicht
+     verschoben) — sie bleiben unveraendert auch in "Entwicklung (JSON)" stehen. Schreibt
+     als einzige Aktion neben entwVariantenSichern() nach Rezepte.xlsx (R4); jeder Fehler
+     rollt Phasen, Entwicklung UND Protokoll gemeinsam zurueck. */
+  entwUebernehmenOeffnen(v){
+    const z = Store.entw;
+    if(!z || !z.spalten.some(s => s.v === v)) return;
+    z.overlay = { typ:"uebernehmen", v };
+    View.rezept();
+  },
+
+  async entwUebernehmenBestaetigt(){
+    const rz = Store.aktuellesRezept, z = Store.entw, ov = z && z.overlay;
+    if(!rz || !z || !ov || ov.typ !== "uebernehmen") return;
+    const sp = z.spalten.find(s => s.v === ov.v);
+    if(!sp) return;
+    const altePhasen = rz.phasen, alteEntwicklung = rz.entwicklung, alteProtokoll = rz.protokoll;
+    rz.phasen = Import.phasenExport(sp.phasen);
+    Model.aufloesen([rz], Store.rohstoffe);
+    rz.entwicklung = EntwModell.dehydrieren({ ...z, aktivV: sp.v, status:"produktiv" });
+    const kopierteVersuche = (sp.versuche || []).map(v => ({
+      datum: v.datum,
+      ...(Calc.versuchSollG(v) != null ? { sollG: Calc.versuchSollG(v) } : {}),
+      ...(Calc.versuchIstG(v) != null ? { istG: Calc.versuchIstG(v) } : {}),
+      notizen: v.erkenntnis || null,
+      ...(v.felder ? { felder: v.felder } : {})
+    }));
+    rz.protokoll = [...rz.protokoll, ...kopierteVersuche];
+
+    const zurueckrollen = () => { rz.phasen = altePhasen; rz.entwicklung = alteEntwicklung; rz.protokoll = alteProtokoll; Model.aufloesen([rz], Store.rohstoffe); };
+    const verbunden = Store.rezepteWorkbook && Data.verfuegbar() && msalApp.getActiveAccount();
+    if(!verbunden){
+      z.overlay = null; z.status = "produktiv"; z.aktivV = sp.v;
+      App.entwPersistieren();
+      View.meldung("v" + sp.v + " ist jetzt die produktive Rezeptur — nur in dieser Sitzung, keine OneDrive-Verbindung. "
+        + "Bisherige Rezeptur bleibt als Version erhalten.", "warn", "Nicht dauerhaft gespeichert");
+      View.rezept();
+      return;
+    }
+    if(!rz._raw){
+      zurueckrollen();
+      View.meldung("Zeilenposition dieses Rezepts ist unbekannt (frisch importiert, noch nicht neu geladen). "
+        + "Seite neu laden und erneut versuchen.", "err", "Übernehmen nicht möglich");
+      return;
+    }
+    try{
+      if(Store.rezepteETag){
+        const meta = await Data.getItemMeta(CONFIG.rezeptePfad);
+        if(meta.eTag !== Store.rezepteETag){
+          zurueckrollen();
+          z.overlay = null;
+          View.meldung("Rezepte.xlsx wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. "
+            + "Bitte erneut übernehmen.", "warn", "Konflikt erkannt");
+          const konto = msalApp.getActiveAccount();
+          await App.datenLaden(konto);
+          App.rezeptOeffnen(rz.id);
+          return;
+        }
+      }
+      await Data.backup(CONFIG.rezeptePfad);
+      const header = rz._raw.spalten, zeileExcel = rz._raw.zeile + 1;
+      const iPhasen = header.indexOf("Phasen (JSON)"), iEntw = header.indexOf("Entwicklung (JSON)"), iProtokoll = header.indexOf("Protokoll (JSON)");
+      if(iPhasen === -1) throw new Error('Spalte "Phasen (JSON)" fehlt in Rezepte.xlsx');
+      if(iEntw === -1) throw new Error('Spalte "Entwicklung (JSON)" fehlt in Rezepte.xlsx');
+      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
+        Model.zelladresse(header, "Phasen (JSON)", zeileExcel), JSON.stringify(rz.phasen));
+      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
+        Model.zelladresse(header, "Entwicklung (JSON)", zeileExcel), JSON.stringify(rz.entwicklung));
+      if(iProtokoll !== -1 && kopierteVersuche.length)
+        await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
+          Model.zelladresse(header, "Protokoll (JSON)", zeileExcel), JSON.stringify(rz.protokoll));
+      try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
+      catch(e){ Store.rezepteETag = null; }
+      z.overlay = null; z.status = "produktiv"; z.aktivV = sp.v;
+      App.entwPersistieren();
+      View.meldung("v" + sp.v + " ist jetzt die produktive Rezeptur, Backup angelegt."
+        + (kopierteVersuche.length ? " " + kopierteVersuche.length + " Versuch(e) ins Verfahrensprotokoll kopiert." : ""),
+        "ok", "Übernommen");
+      View.rezept();
+    }catch(e){
+      zurueckrollen();
+      View.meldung("Übernehmen fehlgeschlagen: " + e.message + " — Rezept in OneDrive nicht verändert.", "err", "Fehler beim Speichern");
+      View.rezept();
+    }
+  },
+
+  // §5.2 R4: "Varianten sichern" — die einzige Aktion neben Uebernehmen, die nach
+  // Rezepte.xlsx schreibt, und die einzige, die NUR "Entwicklung (JSON)" aendert. Store.entw
+  // (der lokale Entwurf) bleibt danach unveraendert bestehen — nicht dasselbe Objekt wie
+  // rz.entwicklung, sondern dessen fortlaufend gepflegte Quelle.
+  async entwVariantenSichern(){
+    const rz = Store.aktuellesRezept, z = Store.entw;
+    if(!rz || !z) return;
+    await App.entwSpeichern(rz, EntwModell.dehydrieren(z), "Varianten gesichert.");
+  },
+
+  // Gemeinsamer Schreibpfad fuer "Entwicklung (JSON)" (Varianten sichern) — Muster identisch
+  // zu protokollSpeichern: optimistisch anwenden, bei jedem Fehlschlag zurueckrollen statt
+  // einen Erfolg vorzutaeuschen, den OneDrive nicht hat. Uebernehmen hat einen eigenen Pfad
+  // oben (entwUebernehmenBestaetigt), weil dort zusaetzlich "Phasen (JSON)" und "Protokoll
+  // (JSON)" mitgeschrieben werden.
   async entwSpeichern(rz, neueEntwicklung, erfolgstext){
     const vorher = rz.entwicklung;
     rz.entwicklung = neueEntwicklung;
     const verbunden = Store.rezepteWorkbook && Data.verfuegbar() && msalApp.getActiveAccount();
     if(!verbunden){
-      Store.devForm = null;
       View.meldung(erfolgstext + " — nur in dieser Sitzung, keine OneDrive-Verbindung.", "warn", "Nicht dauerhaft gespeichert");
       View.rezept();
       return;
@@ -5156,7 +5980,6 @@ const App = {
         const meta = await Data.getItemMeta(CONFIG.rezeptePfad);
         if(meta.eTag !== Store.rezepteETag){
           rz.entwicklung = vorher;
-          Store.devForm = null;
           View.meldung("Rezepte.xlsx wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. "
             + "Bitte erneut versuchen.", "warn", "Konflikt erkannt");
           const konto = msalApp.getActiveAccount();
@@ -5177,7 +6000,6 @@ const App = {
         Model.zelladresse(header, "Entwicklung (JSON)", zeileExcel), wert);
       try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
       catch(e){ Store.rezepteETag = null; }
-      Store.devForm = null;
       View.meldung(erfolgstext + " Backup in " + (CONFIG.backupOrdner || "/Backups") + " angelegt.", "ok", "Gespeichert");
       View.rezept();
     }catch(e){
