@@ -24,7 +24,78 @@ header.app h1{font-size:1.05rem;margin:0;font-weight:650;letter-spacing:-.01em}
 header.app .badge{font-size:.72rem;color:var(--muted);border:1px solid var(--line);
   border-radius:99px;padding:.15rem .55rem}
 .spacer{flex:1}
-main{max-width:960px;margin:0 auto;padding:1rem}
+.railtoggle{display:none;background:transparent;color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;min-width:44px;min-height:44px;align-items:center;justify-content:center;
+  font-size:1.05rem}
+#btnVollbildEnde{display:none;position:fixed;top:.6rem;right:.6rem;z-index:11;min-height:44px}
+body.vollbild #btnVollbildEnde{display:inline-flex;align-items:center}
+
+/* ---------- AP-0301: Grundgerüst dreispaltig (nach AP-0201 §2, §4) --------
+   #hauptraster ist main selbst (grid, drei Spalten: Schiene links, Inhalt,
+   Schiene rechts). Bereiche mit "zu"-Zustand verschwinden bei M/K per
+   display:none aus dem Grid (Spalte fällt automatisch auf 0 zusammen);
+   bei W bleibt eine schmale, klickbare Spindel stehen (§2.3 Wireframe). */
+main#hauptraster{display:grid;grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:start;gap:1.1rem;max-width:1600px;margin:0 auto;padding:1rem}
+.inhalt{grid-column:2;min-width:0;max-width:760px;margin:0 auto;width:100%}
+.rail{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden;position:sticky;top:4.6rem;
+  max-height:calc(100vh - 5.2rem);display:flex;flex-direction:column}
+.rail--links{grid-column:1;width:280px}
+.rail--rechts{grid-column:3;width:340px}
+.railkopf{display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+  padding:.5rem .6rem;border-bottom:1px solid var(--line);flex:none}
+.railkopf .lbl{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+  font-weight:650;padding:0 .3rem}
+.railtabs{display:flex;gap:.35rem}
+.railtab{background:transparent;color:var(--muted);border:1px solid var(--line);
+  padding:.4rem .7rem;min-height:44px;min-width:44px;border-radius:8px;font-size:.85rem;
+  font-weight:600;cursor:pointer}
+.railtab.aktiv{background:var(--accent);color:#fff;border-color:var(--accent)}
+.railspindel{background:transparent;color:var(--ink);border:0;min-width:44px;min-height:44px;
+  cursor:pointer;font-size:1rem}
+.railclose{background:transparent;color:var(--muted);border:0;min-width:44px;min-height:44px;
+  font-size:1.1rem;cursor:pointer}
+.railinhalt{overflow-y:auto;flex:1}
+.rail .empty{padding:1.2rem .9rem;color:var(--muted);font-size:.88rem}
+.scrim{position:fixed;inset:0;background:rgba(20,16,12,.4);z-index:9}
+.scrim[hidden]{display:none}
+
+@media (max-width:1279px){
+  .railtoggle{display:inline-flex}
+  body[data-links="zu"] .rail--links,
+  body[data-rechts="zu"] .rail--rechts{display:none}
+}
+@media (min-width:860px) and (max-width:1279px){
+  .rail--links,.rail--rechts{width:300px}
+}
+@media (max-width:859px){
+  .rail{position:fixed;top:0;bottom:0;width:88vw;max-width:420px;max-height:none;
+    border-radius:0;z-index:10}
+  .rail--links{left:0} .rail--rechts{right:0}
+}
+@media (min-width:1280px){
+  body[data-links="zu"] .rail--links{width:2.6rem}
+  body[data-links="zu"] .rail--links .railinhalt,
+  body[data-links="zu"] .rail--links .railclose{display:none}
+  body[data-links="zu"] .rail--links .lbl{writing-mode:vertical-rl;text-orientation:mixed;padding:.4rem 0}
+  body[data-rechts="zu"] .rail--rechts{width:2.6rem}
+  body[data-rechts="zu"] .rail--rechts .railinhalt,
+  body[data-rechts="zu"] .rail--rechts .railtabs,
+  body[data-rechts="zu"] .rail--rechts .railclose{display:none}
+}
+/* Regel Entwicklungsmodus/K (AP-0201 §2.2, Vorentscheid für AP-0204): auf schmalen
+   Bildschirmen ist B6 nicht erreichbar — der Reiter bleibt sichtbar, zeigt aber den
+   Drehhinweis statt Inhalt. Nichts wird verworfen (kein Löschen, nur CSS-Ausblendung). */
+@media (max-width:859px){
+  #panelEntwicklung .entw-inhalt{display:none}
+  #panelEntwicklung::after{content:"Entwicklungsmodus im Querformat verfügbar — Gerät drehen.";
+    display:block;padding:1.2rem .9rem;color:var(--muted);font-size:.88rem}
+}
+body.vollbild header.app,body.vollbild .rail,body.vollbild .scrim{display:none}
+body.vollbild{font-size:22px;line-height:1.7}
+body.vollbild table.zutaten td.menge{font-size:26px}
+body.vollbild main#hauptraster{grid-template-columns:minmax(0,1fr);padding:1.2rem}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
   box-shadow:var(--shadow);margin-bottom:1rem;overflow:hidden}
 .card > h2{margin:0;padding:.7rem 1rem;font-size:.82rem;text-transform:uppercase;
@@ -48,6 +119,45 @@ ul.recipes button{width:100%;background:transparent;color:inherit;text-align:lef
 ul.recipes button:hover{background:var(--accent-soft)}
 ul.recipes .nm{font-weight:600}
 ul.recipes .meta{color:var(--muted);font-size:.85rem;margin-left:auto;white-space:nowrap}
+/* ---------- AP-0302: Navigation gruppiert nach Kategorie, Einkaufsliste --------
+   .navgruppe folgt demselben Aufklapp-Muster wie details.phase (§4.1 bleibt bestehen) —
+   eigene Klasse statt Wiederverwendung, weil Grösse/Farbe fuer eine Rubrik in der
+   Schiene anders wirken als fuer eine Rezeptphase in der Mitte. */
+.navgruppe{border-bottom:1px solid var(--line)}
+.navgruppe:last-child{border-bottom:0}
+.navgruppe > summary{cursor:pointer;padding:.6rem .9rem;font-weight:650;list-style:none;
+  display:flex;align-items:center;gap:.4rem;min-height:44px;font-size:.78rem;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.navgruppe > summary::-webkit-details-marker{display:none}
+.navgruppe > summary::before{content:"▸";color:var(--accent);transition:transform .15s;font-size:1rem}
+.navgruppe[open] > summary::before{transform:rotate(90deg)}
+.navgruppe .anzahl{margin-left:auto;font-weight:600}
+.navgruppe-fehler{border-top:1px solid var(--line)}
+ul.einkaufsliste{list-style:none;margin:0;padding:0}
+ul.einkaufsliste li{border-bottom:1px solid var(--line)}
+ul.einkaufsliste li:last-child{border-bottom:0}
+ul.einkaufsliste label{display:flex;align-items:baseline;gap:.6rem;padding:.6rem .9rem;
+  cursor:pointer;min-height:44px}
+ul.einkaufsliste input[type=checkbox]{min-height:auto;min-width:auto;width:1.15rem;height:1.15rem;
+  accent-color:var(--accent);flex:none}
+ul.einkaufsliste .nm{flex:1}
+ul.einkaufsliste .menge{color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;font-size:.9rem}
+ul.einkaufsliste li.abgehakt .nm,ul.einkaufsliste li.abgehakt .menge{color:var(--muted);text-decoration:line-through}
+/* ---------- AP-0303: Notizsection (B4) — Mengenkorrekturen, durchgestrichene Sollmenge --- */
+.korrekturphase h4{margin:.9rem 0 .3rem;font-size:.75rem;text-transform:uppercase;
+  letter-spacing:.05em;color:var(--muted);font-weight:650}
+.korrekturphase:first-child h4{margin-top:0}
+.korrekturzeile{display:flex;align-items:center;gap:.5rem;padding:.4rem 0;
+  border-bottom:1px dashed var(--line);flex-wrap:wrap}
+.korrekturzeile:last-child{border-bottom:0}
+.korrekturzeile .nm{flex:1;min-width:8rem}
+.korrekturzeile input[type=number]{width:6rem;flex:none}
+.korrekturzeile .einheit{color:var(--muted);font-size:.85rem;width:1.6rem}
+/* korrigierte Menge steht an der Stelle der Sollmenge (fett wie bisher, unveraendert durch
+   table.zutaten td.menge), die alte Sollmenge daneben durchgestrichen und kleiner (AP-0201 §3.2). */
+.korrektur-soll{color:var(--muted);font-size:.8rem;font-weight:400;margin-left:.3rem;white-space:nowrap}
+.korrektur-soll s{text-decoration:line-through}
+.navgruppe .punkt{color:var(--accent);margin-left:.3rem}
 .empty{padding:1.5rem 1rem;color:var(--muted);text-align:center}
 .rezeptkopf h2{margin:0 0 .2rem;font-size:1.5rem;letter-spacing:-.02em}
 .rezeptkopf .sub{color:var(--muted);font-size:.9rem}
@@ -78,6 +188,33 @@ ol.schritte li{margin:.3rem 0}
 .kpi .k{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
 .kpi .v{font-size:1.15rem;font-weight:650;font-variant-numeric:tabular-nums}
 .hint{color:var(--muted);font-size:.82rem;margin-top:.6rem}
+/* ---------- AP-0304: Metadaten-Ausklapper (B5, AP-0201 §1) ---------------------
+   Naehrwerte, Kosten, Verfahren & Protokoll, Herkunft und Hinweise stehen nicht mehr
+   als eigene Karten im Fluss, sondern als <details>-Stapel UNTER der Rezeptur — damit
+   die Rezeptur selbst moeglichst vollstaendig sichtbar bleibt (O-13). Alle Bloecke
+   sind standardmaessig zu, der Zustand je Block wird geraetelokal gemerkt.
+   Optik: EINE Karte, deren Zeilen die Zusammenfassungen sind — nicht fuenf Kartenraender
+   untereinander, das waere optisch schwerer als die Rezeptur darueber. */
+.metastapel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);margin-bottom:1rem;overflow:hidden}
+details.metablock{border-bottom:1px solid var(--line)}
+details.metablock:last-child{border-bottom:0}
+details.metablock > summary{cursor:pointer;padding:.7rem 1rem;list-style:none;
+  display:flex;align-items:center;gap:.5rem;min-height:44px;font-size:.82rem;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:650}
+details.metablock > summary::-webkit-details-marker{display:none}
+details.metablock > summary::before{content:"\25b8";color:var(--accent);transition:transform .15s;font-size:1rem}
+details.metablock[open] > summary::before{transform:rotate(90deg)}
+details.metablock > summary:hover{background:var(--accent-soft)}
+/* Kurzwert rechts in der Zusammenfassung: der wichtigste Wert des Blocks bleibt auch im
+   zugeklappten Zustand lesbar — sonst muesste man fuer "was kostet das" wieder aufklappen. */
+.metablock .metakurz{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:550;
+  color:var(--ink);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.metabody{padding:0 1rem 1rem}
+.metabody > .hint:first-child{margin-top:0}
+dl.herkunft{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:.35rem .9rem;font-size:.9rem}
+dl.herkunft dt{color:var(--muted)}
+dl.herkunft dd{margin:0;overflow-wrap:anywhere}
 table.log{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
 table.log th{text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;
   color:var(--muted);font-weight:600;padding:.3rem 0;border-bottom:1px solid var(--line)}
@@ -121,14 +258,42 @@ textarea.importtext{width:100%;min-height:10rem;font:13px/1.4 ui-monospace,Menlo
 .zuordnungzeile select{flex:1;min-width:180px}
 .importvorschau{border:1px solid var(--line);border-radius:8px;padding:.8rem .9rem;margin-top:.6rem}
 .importvorschau h3{margin:0 0 .3rem;font-size:1rem}
+/* ---------- AP-0305: Zutaten-Editor (zeilenweise, je Phase) ------------------------
+   Reihen wie .korrekturzeile/.zuordnungzeile (gleiches Muster, eigene Klasse weil hier
+   vier statt zwei Felder je Zeile stehen). Editierbare Phase ersetzt table.zutaten/
+   ol.schritte 1:1 an derselben Stelle im Markup (View.rezept()). */
+.editorphase{border-bottom:1px solid var(--line);padding:.8rem 0}
+.editorphase:last-child{border-bottom:0}
+.editorphase h4{margin:0 0 .5rem;font-size:.82rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.editorzeile{display:flex;gap:.5rem;align-items:center;padding:.35rem 0;border-bottom:1px dashed var(--line);flex-wrap:wrap}
+.editorzeile:last-child{border-bottom:0}
+.editorzeile input[type=text]{flex:1;min-width:9rem}
+.editorzeile input[type=number]{width:6rem;flex:none}
+.editorzeile select{flex:none;width:5.5rem}
+.editorzeile button.entfernen{background:transparent;color:var(--rot);border:1px solid var(--line);
+  min-width:2.4rem;min-height:2.4rem;padding:0;flex:none}
+.editorschritt{display:flex;gap:.5rem;align-items:flex-start;padding:.3rem 0}
+.editorschritt input[type=text]{flex:1}
+.editorschritt button.entfernen{background:transparent;color:var(--rot);border:1px solid var(--line);
+  min-width:2.4rem;min-height:2.4rem;padding:0;flex:none}
+.editorhinzu{margin-top:.4rem}
+.editorfehler{list-style:none;margin:.6rem 0 0;padding:0;font-size:.85rem}
+.editorfehler li{padding:.2rem 0;color:var(--rot)}
+.editorwarnung{list-style:none;margin:.6rem 0 0;padding:0;font-size:.85rem}
+.editorwarnung li{padding:.2rem 0;color:var(--gelb)}
+.editorwarnung .ghost{margin-left:.5rem;padding:.15rem .5rem;min-height:auto;font-size:.78rem}
+.editorvorschau{border:1px solid var(--line);border-radius:8px;padding:.8rem .9rem;margin-top:.7rem;background:var(--bg)}
+.editorvorschau ul{margin:.4rem 0 0;padding-left:1.2rem}
 footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);font-size:.78rem}
 @media print{
   /* AP-0306: #importbereich/#rechercheBereich sind eigene Top-Level-Container (nicht Teil von
      #rezeptbereich) — ohne diese beiden bliebe ein offener Import- oder Recherche-Dialog mit
      allen Eingabefeldern/Buttons im PDF sichtbar (Abnahmekriterium 1). */
-  header.app,.filters,.scaler,.actions,#meldungen,#importbereich,#rechercheBereich,footer.app,.noprint{display:none !important}
+  header.app,.filters,.scaler,.actions,#meldungen,#importbereich,#rechercheBereich,footer.app,.noprint,
+  .rail,.railtoggle,.railtab,.scrim,#btnVollbildEnde{display:none !important}
   body{background:#fff;color:#000;font-size:11pt}
-  main{max-width:none;padding:0}
+  main#hauptraster{max-width:none;padding:0;grid-template-columns:1fr;display:block}
+  .inhalt{max-width:none;margin:0}
   .card{border:0;box-shadow:none;margin:0 0 .6rem}
   .card > h2{border:0;padding:.2rem 0;color:#000}
   .card .body{padding:0}
@@ -140,6 +305,15 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
   details.phase{break-inside:avoid;border-bottom:1px solid #ccc}
   details.phase .phasebody{display:block !important;padding:0 0 .5rem}
   details.phase > summary::before{content:""}
+  /* AP-0304: die Metadatenbloecke ersetzen im Druck die frueheren Karten "Naehrwerte",
+     "Kosten" und "Backprotokoll". Sie werden vor dem Druck aufgeklappt (View.DRUCK_AUFKLAPPEN);
+     die display-Regel deckt zusaetzlich den Fall ab, dass ein Browser den Inhalt eines
+     geschlossenen <details> ueber content-visibility weglaesst. */
+  .metastapel{border:0;box-shadow:none;margin:0 0 .6rem;overflow:visible}
+  details.metablock{break-inside:avoid;border-bottom:1px solid #ccc}
+  details.metablock .metabody{display:block !important;padding:0 0 .5rem}
+  details.metablock > summary{padding:.2rem 0;color:#000}
+  details.metablock > summary::before{content:""}
   /* AP-0313: der Scroll-Container darf im Druck nichts abschneiden, und die Markierung
      «> 20 %» muss ohne Farbe erkennbar bleiben — die Glyphe aus ::after trägt sie. */
   .tabellescroll{overflow:visible}
@@ -150,6 +324,7 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
 <body>
 
 <header class="app">
+  <button class="railtoggle noprint" id="btnRailLinks" aria-label="Navigation ein-/ausblenden">☰</button>
   <h1>libarius</h1>
   <span class="badge" id="modus">Beispieldaten</span>
   <span class="spacer"></span>
@@ -157,26 +332,63 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
   <button class="ghost" id="btnExportAlle">Alle exportieren</button>
   <button class="ghost" id="btnAltDB">Andere Datenbank öffnen</button>
   <button class="ghost" id="btnLogin">Anmelden</button>
+  <button class="railtoggle noprint" id="btnRailRechts" aria-label="Notizen/Entwicklung ein-/ausblenden">✎</button>
+  <button class="railtoggle noprint" id="btnVollbild" aria-label="Vollbild umschalten">⤢</button>
 </header>
 
-<main>
-  <div id="meldungen"></div>
+<div class="scrim noprint" id="scrim" hidden></div>
+<button class="ghost noprint" id="btnVollbildEnde">Vollbild verlassen</button>
 
-  <div id="importbereich"></div>
-
-  <section class="card noprint" id="listeCard">
-    <h2>Rezepte</h2>
-    <div class="body">
-      <div class="filters">
-        <input id="suche" type="search" placeholder="Rezept suchen…" autocomplete="off">
-        <select id="kategorie"><option value="">Alle Kategorien</option></select>
-      </div>
+<!-- AP-0301: dreispaltiges Grundgerüst nach AP-0201 §2 — Bereiche B1/B2 (links),
+     B3/B5 (Mitte, unverändert aus bisherigem #rezeptbereich), B4/B6 (rechts, Reiter).
+     B4 (Notizsection) wird erst in AP-0303 befüllt — Bereich hier bereits vorhanden,
+     leer mit Kurztext (Zustand "leer" aus AP-0201 §1). -->
+<main id="hauptraster">
+  <aside class="rail rail--links noprint" id="railLinks">
+    <div class="railkopf">
+      <button class="railspindel" id="btnRailLinksSpindel" aria-label="Navigation ein-/ausklappen">‹›</button>
+      <span class="lbl">Navigation</span>
+      <button class="railclose" id="btnRailLinksSchliessen" aria-label="Schliessen">×</button>
     </div>
-    <ul class="recipes" id="liste"></ul>
-  </section>
+    <div class="railinhalt">
+      <section class="card noprint" id="listeCard">
+        <h2>Rezepte</h2>
+        <div class="body">
+          <div class="filters">
+            <input id="suche" type="search" placeholder="Rezept suchen…" autocomplete="off">
+            <select id="kategorie"><option value="">Alle Kategorien</option></select>
+          </div>
+        </div>
+        <div class="navliste" id="liste"></div>
+      </section>
+      <section class="card noprint" id="einkaufslisteCard">
+        <h2>Einkaufsliste</h2>
+        <div id="einkaufslisteInhalt"><div class="empty">Kein Rezept gewählt.</div></div>
+      </section>
+    </div>
+  </aside>
 
-  <div id="rezeptbereich"></div>
-  <div id="rechercheBereich"></div>
+  <div class="inhalt">
+    <div id="meldungen"></div>
+    <div id="importbereich"></div>
+    <div id="rezeptbereich"></div>
+    <div id="rechercheBereich"></div>
+  </div>
+
+  <aside class="rail rail--rechts noprint" id="railRechts">
+    <div class="railkopf">
+      <div class="railtabs">
+        <button class="railtab" id="tabKochen" data-tab="kochen">Kochen</button>
+        <button class="railtab" id="tabEntwicklung" data-tab="entwicklung">Entwicklung</button>
+      </div>
+      <button class="railspindel" id="btnRailRechtsSpindel" aria-label="Notizen/Entwicklung ein-/ausklappen">‹›</button>
+      <button class="railclose" id="btnRailRechtsSchliessen" aria-label="Schliessen">×</button>
+    </div>
+    <div class="railinhalt">
+      <div id="panelKochen"><div class="empty">Kein Rezept gewählt.</div></div>
+      <div id="panelEntwicklung" hidden><div class="empty">Kein Rezept gewählt.</div></div>
+    </div>
+  </aside>
 </main>
 
 <footer class="app">
@@ -385,7 +597,13 @@ const Model = {
           // AP-0311/§1.1: eigene Spalte, separat von Phasen (JSON) (Audit-Empfehlung AP-0101,
           // Zellenlimit). Fehlt die Spalte (aeltere Rezepte.xlsx-Stände) bleibt entwicklung
           // schlicht null — Abwärtskompatibilität ist Abnahmekriterium 3 dieses AP.
-          iEntwicklung = i("Entwicklung (JSON)");
+          iEntwicklung = i("Entwicklung (JSON)"),
+          // AP-0304: Spalte "Verfahren" (in AP-0306 dieses Sprints angelegt, Q2:Q81) wird
+          // fuer den Metadatenblock "Verfahren & Protokoll" gelesen. Fehlt die Spalte oder
+          // ist die Zelle leer (RZP-048/079/080), bleibt verfahren null — kein Ladefehler.
+          // Die Spalte "Protokoll (JSON)" bleibt hier bewusst unberuehrt: sie befuellt und
+          // liest AP-0307, dieses AP baut nur den Platz dafuer.
+          iVerfahren = i("Verfahren");
     const rezepte = [], fehlerhaft = [];
     for(let r = 1; r < aoa.length; r++){
       const row = aoa[r];
@@ -418,6 +636,7 @@ const Model = {
           basisMengeG: zahlOderNull(row[iBasisMenge]), sollgewichtG: zahlOderNull(row[iSoll]),
           portionen: zahlOderNull(row[iPortionen]), einheit: row[iEinheit] || null,
           quelle: row[iQuelle] || null,
+          verfahren: (iVerfahren > -1 && row[iVerfahren]) ? String(row[iVerfahren]).trim() || null : null,
           phasen, backprotokoll, entwicklung,
           _raw: { zeile: r, spalten: header, werte: row }
         });
@@ -457,6 +676,11 @@ const Model = {
 const Calc = {
   mengeG(zutat, basisMengeG, faktor){ return basisMengeG * faktor * zutat.prozent; },
 
+  // AP-0303/§3.3: eine Kochkorrektur wird proportional zur aktuellen Skalierung
+  // nachgefuehrt — faktorBeiEingabe bleibt dabei als fester Bezugspunkt stehen, "ist"
+  // wird nie mutiert (der Ursprung bleibt rekonstruierbar, AP-0201 §3.3).
+  korrekturAktuell(korrektur, faktor){ return korrektur.ist * faktor / korrektur.faktorBeiEingabe; },
+
   faktorAusBasis(zielBasisG, rezept){ return zielBasisG / rezept.basisMengeG; },
   faktorAusPortionen(zielPortionen, rezept){ return zielPortionen / rezept.portionen; },
 
@@ -484,6 +708,34 @@ const Calc = {
 
   zutatenFlach(rezept){
     return rezept.phasen.flatMap(p => p.zutaten);
+  },
+
+  // AP-0302/B2: Einkaufsliste = Zutaten ueber alle Phasen ZUSAMMENGEFASST (AP-0201 §1) —
+  // wer einkauft, fragt nicht nach der Phase, nur nach der Gesamtmenge je Zutat.
+  // Gruppiert nach nameKey (dieselbe Alias-Aufloesung wie ueberall sonst), Einheit
+  // stammt von der ersten Fundstelle — in den 80 produktiven Rezepten kommt keine
+  // Zutat mit wechselnder Einheit ueber Phasen hinweg vor.
+  // AP-0303 Abnahmekriterium 1: korrekturen (optional, { "<phasenIdx>/<zutatIdx>": {...} })
+  // fliesst in die Summe ein — die effektive Menge "g" nutzt die Korrektur, die
+  // urspruengliche Summe bleibt daneben als "gSoll" erhalten (Grundlage der
+  // durchgestrichenen Anzeige in View.einkaufsliste).
+  einkaufsliste(rezept, faktor, korrekturen){
+    const posten = new Map();
+    rezept.phasen.forEach((p, i) => {
+      p.zutaten.forEach((z, j) => {
+        const gSoll = Calc.mengeG(z, rezept.basisMengeG, faktor);
+        const k = korrekturen && korrekturen[i + "/" + j];
+        const g = k ? Calc.korrekturAktuell(k, faktor) : gSoll;
+        if(!posten.has(z.nameKey)){
+          posten.set(z.nameKey, { key: z.nameKey, name: z.name, einheit: z.einheit, rohstoff: z.rohstoff, g: 0, gSoll: 0, korrigiert: false });
+        }
+        const eintrag = posten.get(z.nameKey);
+        eintrag.g += g;
+        eintrag.gSoll += gSoll;
+        if(k) eintrag.korrigiert = true;
+      });
+    });
+    return [...posten.values()].sort((a,b) => a.name.localeCompare(b.name, "de"));
   },
 
   kosten(rezept, faktor, schwund){
@@ -1411,6 +1663,152 @@ const Import = {
   }
 };
 
+/* ---------- Editor: reine Regeln des Zutaten-Editors (AP-0305) --------------------
+   Kein DOM, kein Netz, kein Store-Schreibzugriff — nur Store.rohstoffe wird lesend
+   herangezogen (V-3, dieselbe Quelle wie Model.aufloesen). Feldumfang nach
+   Umsetzungsschritt 1 des AP: Zutat, Menge, Einheit, Bäckerprozent, Zubereitungsschritte.
+   Kopfdaten und Phasen selbst (anlegen/umbenennen/entfernen) bleiben ausserhalb dieses
+   AP — sie tragen keine der vier Feldarten und sind in AP-0203 §1.2/§1.3 als eigene,
+   spätere Erweiterung vermerkt (§9 dort nennt nur "Rezept als Kopie", nicht Phasenverwaltung;
+   die App liest die Konzept-Feldtabelle wörtlich: nur Zutaten- und Schrittfelder gelten
+   hier als "in der App bearbeitbar"). */
+const Editor = {
+  // Vergibt Schritt-Nummern fortlaufend neu (§1.5) und liefert eine laufzeitfeldfreie
+  // Kopie der Phasen — Grundlage sowohl fuer die Pruefung als auch fuer den Schreibvorgang.
+  // Trimmt, filtert aber NICHTS heraus (auch keine leeren Namen/Texte): eine leere Zeile
+  // soll die Pruefung sehen und abweisen (V-1/V-7), nicht stillschweigend verschwinden.
+  normalisiert(phasen){
+    return (phasen || []).map(ph => ({
+      name: ph.name,
+      zutaten: (ph.zutaten || []).map(z => ({
+        name: typeof z.name === "string" ? z.name.trim() : z.name,
+        prozent: z.prozent === "" || z.prozent == null ? null : Number(z.prozent),
+        einheit: z.einheit
+      })),
+      schritte: (ph.schritte || []).map((s, i) => ({
+        nr: i + 1,
+        text: typeof s.text === "string" ? s.text.trim() : s.text
+      }))
+    }));
+  },
+
+  // AP-0203 §2, beschränkt auf die in diesem AP editierbaren Felder (siehe Kopfkommentar).
+  // V-5/V-6/V-9 betreffen Kopf-/Phasenfelder ausserhalb dieses Umfangs — hier nichts zu
+  // pruefen. V-4b (versch. Phasen) ist "durchlassen", braucht keine aktive Pruefung.
+  pruefen(phasen, rz){
+    const abweisen = [], warnen = [];
+    const add = (arr, feld, grund, extra) => arr.push(Object.assign({ feld, grund }, extra || {}));
+
+    // V-1 (Menge), V-7 (Schritt-Text), V-8 (Einheit): Feldform je Zeile, dieselbe Pruefung
+    // wie beim Import (Import.phasenFehler), hier auf Klartext uebersetzt (Feld + Grund).
+    Import.phasenFehler(phasen, "phasen").forEach(f => {
+      if(/\.prozent$/.test(f.pfad)) add(abweisen, "Menge", "Menge muss grösser als 0 sein.");
+      else if(/zutaten\[\d+\]\.name$/.test(f.pfad)) add(abweisen, "Zutat", "Name darf nicht leer sein.");
+      else if(/\.einheit$/.test(f.pfad)) add(abweisen, "Einheit", `Einheit muss eine von ${Import.EINHEITEN.join(", ")} sein.`);
+      else if(/schritte\[\d+\]\.text$/.test(f.pfad)) add(abweisen, "Zubereitungsschritt", "Text darf nicht leer sein — leere Zeile stattdessen entfernen.");
+      else add(abweisen, f.pfad, f.meldung);
+    });
+
+    // V-2: ohne den aktuellen Basis-Rohstoff unter den Zutaten ist kein Bäckerprozent rechenbar.
+    // basisName selbst ist in diesem AP nicht editierbar — die Regel schuetzt ihn davor, durch
+    // Entfernen/Umbenennen der Zutat zu verwaisen.
+    const alleNamen = new Set();
+    phasen.forEach(ph => (ph.zutaten || []).forEach(z => { if(z.name) alleNamen.add(Model.nameKey(z.name)); }));
+    if(!rz.basisName || !alleNamen.has(Model.nameKey(rz.basisName))){
+      add(abweisen, "Basis-Rohstoff",
+        `Ohne Basis-Rohstoff „${rz.basisName || "—"}“ unter den Zutaten lässt sich kein Bäckerprozent rechnen. `
+        + `Zutat nicht entfernen oder umbenennen.`);
+    }
+
+    // V-3: unaufgeloeste Rohstoffe — warnen, nicht abweisen (O-11: viele Rohstoff-Konzepte fehlen noch).
+    const idx = Model.rohstoffIndex(Store.rohstoffe);
+    const unbekannt = new Set();
+    phasen.forEach(ph => (ph.zutaten || []).forEach(z => {
+      if(z.name && !idx.get(Model.nameKey(z.name))) unbekannt.add(z.name);
+    }));
+    if(unbekannt.size) add(warnen, "Zutat",
+      `${unbekannt.size} Zutat(en) sind keinem Rohstoff zugeordnet — Kosten und Nährwerte bleiben für diese Zeilen leer: ${[...unbekannt].join(", ")}`);
+
+    // V-4: dieselbe Zutat mehrfach in derselben Phase — warnen, mit Aktion "zusammenfassen"
+    // (App.zutatenEditorZusammenfassen). V-4b (verschiedene Phasen) bleibt unerwaehnt (durchlassen).
+    phasen.forEach((ph, pi) => {
+      const gesehen = new Map();
+      (ph.zutaten || []).forEach(z => {
+        const k = z.name && Model.nameKey(z.name);
+        if(!k) return;
+        gesehen.set(k, (gesehen.get(k) || 0) + 1);
+      });
+      gesehen.forEach((n, k) => { if(n > 1) add(warnen, "Zutat",
+        `„${k}“ kommt in Phase „${ph.name}“ ${n}× vor — zusammenfassen?`, { phaseIndex: pi, nameKey: k }); });
+    });
+
+    // V-10: Summe der Zutatenmengen weicht > 20% vom Sollgewicht ab — Schwund/Flüssigkeitsverlust
+    // sind haeufig richtig, deshalb nur Hinweis.
+    if(rz.basisMengeG > 0 && rz.sollgewichtG > 0){
+      const summeG = phasen.reduce((s, ph) => s + (ph.zutaten || [])
+        .reduce((s2, z) => s2 + (Number(z.prozent) || 0) * rz.basisMengeG, 0), 0);
+      const abwPct = Math.abs(summeG - rz.sollgewichtG) / rz.sollgewichtG;
+      if(abwPct > 0.20) add(warnen, "Zutaten",
+        `Zutaten ergeben ${Math.round(summeG)} g, Sollgewicht ist ${Math.round(rz.sollgewichtG)} g.`);
+    }
+
+    // V-11: Zellengroesse "Phasen (JSON)" — ab 25'000 Zeichen warnen, ab 32'000 abweisen
+    // (Excel-Limit 32'767, FORMAT.md).
+    const laenge = JSON.stringify(Editor.normalisiert(phasen)).length;
+    if(laenge > 32000) add(abweisen, "Phasen (JSON)",
+      `Zelle würde ${laenge} Zeichen umfassen — über dem Excel-Limit (32'767).`);
+    else if(laenge > (CONFIG.zellenWarnung || 25000)) add(warnen, "Phasen (JSON)",
+      `Zelle umfasst ${laenge} Zeichen — nähert sich dem Excel-Limit.`);
+
+    return { ok: abweisen.length === 0, abweisen, warnen };
+  },
+
+  // Zaehlt Aenderungen fuer die Vorschau (§3 Schritt 2) — Phasenstruktur/-reihenfolge ist in
+  // diesem AP nicht editierbar, darum reicht ein positionaler Vergleich je Phase.
+  diff(originalPhasen, entwurfPhasen){
+    let anzahl = 0;
+    const details = [];
+    const len = Math.max(originalPhasen.length, entwurfPhasen.length);
+    for(let pi = 0; pi < len; pi++){
+      const po = originalPhasen[pi], pn = entwurfPhasen[pi];
+      if(!po || !pn) continue;
+      const zo = po.zutaten || [], zn = pn.zutaten || [];
+      for(let zi = 0; zi < Math.max(zo.length, zn.length); zi++){
+        const a = zo[zi], b = zn[zi];
+        if(!a && b){ anzahl++; details.push(`+ ${b.name || "(neu)"} (${po.name})`); }
+        else if(a && !b){ anzahl++; details.push(`− ${a.name} (${po.name})`); }
+        else if(a && b && (a.name !== b.name || a.prozent !== b.prozent || a.einheit !== b.einheit)){
+          anzahl++; details.push(`${a.name} → ${b.name || "?"} (${po.name})`);
+        }
+      }
+      const so = po.schritte || [], sn = pn.schritte || [];
+      for(let si = 0; si < Math.max(so.length, sn.length); si++){
+        const a = so[si], b = sn[si];
+        if(!a && b){ anzahl++; details.push(`+ Schritt in „${po.name}“`); }
+        else if(a && !b){ anzahl++; details.push(`− Schritt in „${po.name}“`); }
+        else if(a && b && a.text !== b.text){ anzahl++; details.push(`Schritt geändert in „${po.name}“`); }
+      }
+    }
+    return { anzahl, details };
+  },
+
+  // Fasst mehrfach vorkommende Zutaten derselben Phase zusammen (Aktion zu V-4): Mengen
+  // werden addiert, die erste Zeile bleibt (Name/Einheit), die weiteren entfallen.
+  zusammenfassen(phasen, phaseIndex, nameKey){
+    const neu = phasen.map(ph => ({ ...ph, zutaten: ph.zutaten.map(z => ({ ...z })) }));
+    const ph = neu[phaseIndex];
+    if(!ph) return neu;
+    let erste = null;
+    ph.zutaten = ph.zutaten.filter(z => {
+      if(Model.nameKey(z.name) !== nameKey) return true;
+      if(!erste){ erste = z; return true; }
+      erste.prozent = (Number(erste.prozent) || 0) + (Number(z.prozent) || 0);
+      return false;
+    });
+    return neu;
+  }
+};
+
 /* ---------- Beispieldaten (werden in AP-0302 durch OneDrive ersetzt) ---- */
 const BEISPIEL_ROHSTOFFE = [
   {id:"RS-001",name:"Weissmehl 00",kategorie:"Mehl",standardeinheit:"g",einheitsgroesse:null,
@@ -1513,7 +1911,85 @@ const Store = {
   // AP-0313: IDs der bis zu 3 gewaehlten Referenzrezepte. Bewusst nur sitzungslokal — der
   // Vergleich ist eine Ansicht, kein Rezeptinhalt; nichts davon wird nach Rezepte.xlsx
   // geschrieben (Spez. AP-0203 §5 verlangt keine Persistenz).
-  referenzIds:[]
+  referenzIds:[],
+  // AP-0302/B2: Haken der Einkaufsliste, { [rezeptId]: Set<nameKey> } — rein sitzungslokal
+  // (AP-0201 §3.5: "kein neuer Datenbestand, nichts wird nach Rezepte.xlsx geschrieben"),
+  // kein localStorage. Je rezeptId gehalten statt global, damit ein Zwischenwechsel auf ein
+  // anderes Rezept (z. B. beim Kochen eines Menüs) die Haken nicht verwirft — gleiches Prinzip
+  // wie korrekturen[rezeptId] in §3.4, nur ohne dessen Persistenz.
+  einkaufslisteAbgehakt:{},
+  // AP-0303: Zustand des Bestaetigungsdialogs "Ins Rezept übernehmen" (B4) — analog zu
+  // Store.backEintrag/Store.devForm, aber ohne eigene Formularfelder (reine Vorschau +
+  // Bestaetigen/Abbrechen); false = geschlossen.
+  korrekturUebernehmenOffen:false,
+  // AP-0305: Zustand des Zutaten-Editors, null = geschlossen (App.zutatenEditorOeffnen()).
+  // { rezeptId, phasen (Entwurf, tiefe Kopie von rz.phasen), vorschauBestaetigt, pruefung,
+  //   konflikt } — konflikt != null waehrend des Dialogs aus AP-0203 §4.
+  zutatenEditor:null
+};
+
+/* ---------- Korrekturen: Kochkorrekturen je Rezept (B4, AP-0201 §3) --------------
+   Eine Korrektur ist NIE ein Schreibpfad nach Rezepte.xlsx — nur die ausdrueckliche
+   Aktion "Ins Rezept übernehmen" (App.korrekturenUebernehmenBestaetigt) schreibt
+   (AP-0203 §6.3). Ablage in localStorage unter "libarius.korrekturen.v1"
+   (Settings-Schluessel "korrekturen"), unbegrenzt bis Gianluca sie ausdruecklich
+   verwirft (§3.5) — anders als Store.einkaufslisteAbgehakt oben, das bewusst
+   sitzungslokal bleibt. Schluessel je Zutat ist "<phasenIndex>/<zutatIndex>": das
+   Datenmodell kennt keine eigenen Phasen-/Zutaten-IDs (auch Store.offenePhasen und
+   details.phase[data-i] arbeiten schon mit dem Index), ein zusaetzliches ID-Feld
+   waere hier eine eigene Abweichung vom bestehenden Modell. */
+const Korrekturen = {
+  alle: Settings.get("korrekturen", {}),
+  // Liefert IMMER ein Objekt mit zutaten/notiz/uebernommen, legt es bei Bedarf an —
+  // Aufrufer muss nie auf undefined pruefen (gleiches Prinzip wie Store.einkaufslisteAbgehakt).
+  get(rezeptId){
+    if(!Korrekturen.alle[rezeptId]) Korrekturen.alle[rezeptId] = { zutaten:{}, notiz:"", uebernommen:[] };
+    return Korrekturen.alle[rezeptId];
+  },
+  speichern(){ Settings.set("korrekturen", Korrekturen.alle); },
+  // AP-0201 §3.4: die Rezeptliste in B1 markiert Rezepte mit offenen Korrekturen mit einem Punkt.
+  hatOffene(rezeptId){
+    const k = Korrekturen.alle[rezeptId];
+    return !!(k && (Object.keys(k.zutaten).length || (k.notiz && k.notiz.trim())));
+  }
+};
+
+/* ---------- Entwurf: nicht gespeicherter Editor-Entwurf je Rezept (AP-0305/AP-0203 §4) ---
+   Eigener localStorage-Schluessel ("libarius.entwurf.v1", ausserhalb von Settings, weil er
+   NICHT unter "libarius." + Feldname laufen soll — die Spezifikation nennt den Schluessel
+   woertlich). Greift bei einem eTag-Konflikt (§4.1 Schritt 2) und bleibt ueber Reload und
+   Sitzungsende hinweg stehen, bis er ausdruecklich gespeichert oder verworfen wird (§4.4). */
+const Entwurf = {
+  SCHLUESSEL: "libarius.entwurf.v1",
+  alle(){
+    try{ return JSON.parse(localStorage.getItem(Entwurf.SCHLUESSEL) || "{}"); }
+    catch(e){ return {}; }
+  },
+  speichern(rezeptId, phasen){
+    const alle = Entwurf.alle();
+    alle[rezeptId] = { ts: new Date().toISOString(), phasen };
+    try{ localStorage.setItem(Entwurf.SCHLUESSEL, JSON.stringify(alle)); }catch(e){}
+  },
+  lesen(rezeptId){ return Entwurf.alle()[rezeptId] || null; },
+  verwerfen(rezeptId){
+    const alle = Entwurf.alle();
+    delete alle[rezeptId];
+    try{ localStorage.setItem(Entwurf.SCHLUESSEL, JSON.stringify(alle)); }catch(e){}
+  }
+};
+
+/* ---------- NavGruppen: Aufklappzustand der Kategorien in B1 (AP-0302) -----------
+   AP-0201 §1 verlangt fuer B1 "Zustand gemerkt: ja, je Gerät (localStorage)" — analog zu
+   Layout weiter unten, aber je Kategorie statt je Bereich. Gespeichert wird nur die Menge
+   der GESCHLOSSENEN Kategorien: eine neue Kategorie (z. B. nach einem Import) ist so ohne
+   Migrationsschritt automatisch offen. */
+const NavGruppen = {
+  zu: new Set(Settings.get("navZu", [])),
+  offen(kat){ return !NavGruppen.zu.has(kat); },
+  toggle(kat, offen){
+    offen ? NavGruppen.zu.delete(kat) : NavGruppen.zu.add(kat);
+    Settings.set("navZu", [...NavGruppen.zu]);
+  }
 };
 
 /* ---------- View -------------------------------------------------------- */
@@ -1547,33 +2023,212 @@ const View = {
     );
   },
 
+  // AP-0302: Navigation nach Kategorie gruppiert und aufklappbar (AP-0201 §1, Behebung von
+  // O-13 "Rezeptsuche unübersichtlich" bei 80 Rezepten). Waehrend die Suche aktiv ist, stehen
+  // alle Treffergruppen offen — unabhaengig vom gemerkten Zustand — sonst braeuchte ein Treffer
+  // in einer zugeklappten Gruppe einen dritten Bedienschritt (Abnahmekriterium: max. zwei).
   liste(){
-    const ul = el("#liste"); const rs = View.gefilterte();
+    const box = el("#liste"); const rs = View.gefilterte();
     const fehlerhaft = Store.rezepteFehlerhaft || [];
-    if(!rs.length && !fehlerhaft.length){ ul.innerHTML = '<li class="empty">Kein Rezept gefunden</li>'; return; }
-    const zeilen = rs.map(r => `
-      <li><button data-id="${esc(r.id)}">
-        <span class="nm">${esc(r.name)}</span>
-        <span class="meta">${esc(r.kategorie)} · ${r.portionen} ${esc(r.einheit)}</span>
-      </button></li>`).join("");
+    if(!rs.length && !fehlerhaft.length){ box.innerHTML = '<div class="empty">Kein Rezept gefunden</div>'; return; }
+    const suchtAktiv = !!Store.suchtext.trim();
+
+    const gruppen = new Map();
+    rs.forEach(r => {
+      const kat = r.kategorie || "Ohne Kategorie";
+      if(!gruppen.has(kat)) gruppen.set(kat, []);
+      gruppen.get(kat).push(r);
+    });
+    const kats = [...gruppen.keys()].sort((a,b) => a.localeCompare(b, "de"));
+
+    const gruppenHtml = kats.map(kat => {
+      const items = gruppen.get(kat);
+      const offen = suchtAktiv || NavGruppen.offen(kat);
+      const zeilen = items.map(r => `
+        <li><button data-id="${esc(r.id)}">
+          <span class="nm">${esc(r.name)}${Korrekturen.hatOffene(r.id) ? '<span class="punkt" title="Offene Korrekturen">●</span>' : ""}</span>
+          <span class="meta">${r.unterkategorie ? esc(r.unterkategorie) + " · " : ""}${r.portionen} ${esc(r.einheit)}</span>
+        </button></li>`).join("");
+      return `<details class="navgruppe" data-kat="${esc(kat)}"${offen ? " open" : ""}>
+        <summary>${esc(kat)} <span class="anzahl">${items.length}</span></summary>
+        <ul class="recipes">${zeilen}</ul>
+      </details>`;
+    }).join("");
+
     // FR-abgeleitet (Feinkonzept §7): ungültiges JSON blockiert nicht die Liste,
     // die betroffene Zeile wird sichtbar als fehlerhaft markiert statt geöffnet.
-    const fehlerZeilen = fehlerhaft.map(f => `
-      <li class="fehlerzeile">
-        <span class="nm">${esc(f.name)}</span>
-        <span class="warn-inline">fehlerhaft (Zeile ${f.zeile}) — ${esc(f.fehler)}</span>
-      </li>`).join("");
-    ul.innerHTML = zeilen + fehlerZeilen;
-    ul.querySelectorAll("button").forEach(b =>
+    const fehlerHtml = fehlerhaft.length ? `<div class="navgruppe-fehler"><ul class="recipes">
+      ${fehlerhaft.map(f => `
+        <li class="fehlerzeile">
+          <span class="nm">${esc(f.name)}</span>
+          <span class="warn-inline">fehlerhaft (Zeile ${f.zeile}) — ${esc(f.fehler)}</span>
+        </li>`).join("")}
+      </ul></div>` : "";
+
+    box.innerHTML = gruppenHtml + fehlerHtml;
+    box.querySelectorAll("button[data-id]").forEach(b =>
       b.addEventListener("click", () => App.rezeptOeffnen(b.dataset.id)));
+    box.querySelectorAll("details.navgruppe").forEach(d =>
+      d.addEventListener("toggle", () => {
+        // Waehrend der Suche ist "offen" erzwungen (oben) — ein Toggle hier ist dann kein
+        // bewusster Nutzerentscheid und darf den gemerkten Zustand nicht ueberschreiben.
+        if(suchtAktiv) return;
+        NavGruppen.toggle(d.dataset.kat, d.open);
+      }));
   },
 
-  zutatenzeile(z, rz, faktor){
+  // AP-0302/B2: Zustände leer/gefüllt aus AP-0201 §1. Wird nach jedem View.rezept() erneut
+  // aufgerufen, damit Skalierung und Rezeptwechsel die Liste sofort nachziehen.
+  einkaufsliste(){
+    const box = el("#einkaufslisteInhalt");
+    const rz = Store.aktuellesRezept;
+    if(!rz){ box.innerHTML = '<div class="empty">Kein Rezept gewählt.</div>'; return; }
+    // AP-0303 Abnahmekriterium 1: die Korrektur wirkt hier genauso wie in der Zutatenzeile.
+    const kx = Korrekturen.get(rz.id);
+    const posten = Calc.einkaufsliste(rz, Store.faktor, kx.zutaten);
+    if(!posten.length){ box.innerHTML = '<div class="empty">Keine Zutaten.</div>'; return; }
+    const abgehakt = Store.einkaufslisteAbgehakt[rz.id] || (Store.einkaufslisteAbgehakt[rz.id] = new Set());
+    box.innerHTML = `<ul class="einkaufsliste">${posten.map(p => {
+      const hak = abgehakt.has(p.key);
+      const menge = p.korrigiert
+        ? `${View.mengeText(p.g, p.einheit, p.rohstoff)} <span class="korrektur-soll">↕ <s>${View.mengeText(p.gSoll, p.einheit, p.rohstoff)}</s></span>`
+        : View.mengeText(p.g, p.einheit, p.rohstoff);
+      return `<li${hak ? ' class="abgehakt"' : ""}>
+        <label>
+          <input type="checkbox" data-key="${esc(p.key)}"${hak ? " checked" : ""}>
+          <span class="nm">${esc(p.name)}</span>
+          <span class="menge">${menge}</span>
+        </label>
+      </li>`;
+    }).join("")}</ul>`;
+    box.querySelectorAll("input[type=checkbox]").forEach(cb =>
+      cb.addEventListener("change", e => {
+        const key = e.target.dataset.key;
+        if(e.target.checked) abgehakt.add(key); else abgehakt.delete(key);
+        View.einkaufsliste();
+      }));
+  },
+
+  // AP-0303/B4: Notizsection — freie Notiz plus Mengenkorrektur je Zutat (AP-0201 §1/§3).
+  // Zustände leer/gefüllt wie B1/B2. Jede Änderung wirkt sofort (AP-0203 §6.2: "Bestätigung
+  // nötig: nein") — es gibt kein "Speichern" ausser fuer den ausdruecklichen Uebernahmeweg.
+  notizsection(){
+    const box = el("#panelKochen");
+    const rz = Store.aktuellesRezept;
+    if(!rz){ box.innerHTML = '<div class="empty">Kein Rezept gewählt.</div>'; return; }
+    const kx = Korrekturen.get(rz.id);
+    const anzahl = Object.keys(kx.zutaten).length;
+
+    const phasenHtml = rz.phasen.map((p, i) => {
+      if(!p.zutaten.length) return "";
+      const zeilen = p.zutaten.map((z, j) => {
+        const key = i + "/" + j;
+        const k = kx.zutaten[key];
+        // Reine Zahl ohne Einheitensuffix — die Einheit steht bereits im eigenen <span>
+        // daneben, und ein type="number"-Feld braucht einen parsbaren Wert.
+        const platzhalter = Math.round(Calc.mengeG(z, rz.basisMengeG, Store.faktor) * 10) / 10;
+        const wert = k ? Math.round(Calc.korrekturAktuell(k, Store.faktor) * 10) / 10 : "";
+        return `<div class="korrekturzeile">
+          <span class="nm">${esc(z.name)}</span>
+          <input type="number" min="0" step="any" inputmode="decimal" data-korrektur="${esc(key)}"
+            placeholder="${platzhalter}" value="${wert}">
+          <span class="einheit">${esc(z.einheit)}</span>
+          ${k ? `<button class="ghost" data-korrektur-loeschen="${esc(key)}">Zurücksetzen</button>` : ""}
+        </div>`;
+      }).join("");
+      return `<div class="korrekturphase"><h4>${esc(p.name)}</h4>${zeilen}</div>`;
+    }).join("");
+
+    const uebernahme = anzahl ? `
+      <div class="actions noprint" style="margin-top:.8rem">
+        <button id="btnKorrekturUebernehmen">Ins Rezept übernehmen (${anzahl})</button>
+        <button class="ghost" id="btnKorrekturenVerwerfen">Korrekturen verwerfen</button>
+      </div>
+      ${Store.korrekturUebernehmenOffen ? View.korrekturUebernehmenVorschau(rz, kx) : ""}` : "";
+
+    box.innerHTML = `
+      <section class="card">
+        <h2>Notiz</h2>
+        <div class="body">
+          <textarea id="korrekturNotiz" style="width:100%;min-height:5rem"
+            placeholder="Freie Notiz — was beim Kochen dazukommt…">${esc(kx.notiz)}</textarea>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Mengenkorrekturen</h2>
+        <div class="body">
+          ${phasenHtml || '<div class="empty">Keine Zutaten.</div>'}
+          ${uebernahme}
+        </div>
+      </section>`;
+
+    el("#korrekturNotiz").addEventListener("input", e => {
+      kx.notiz = e.target.value;
+      Korrekturen.speichern();
+    });
+    box.querySelectorAll("[data-korrektur]").forEach(inp =>
+      inp.addEventListener("change", e => {
+        const wert = e.target.value.trim();
+        if(!wert){ App.korrekturLoeschen(rz.id, e.target.dataset.korrektur); return; }
+        App.korrekturSetzen(rz.id, e.target.dataset.korrektur, Number(wert));
+      }));
+    box.querySelectorAll("[data-korrektur-loeschen]").forEach(btn =>
+      btn.addEventListener("click", () => App.korrekturLoeschen(rz.id, btn.dataset.korrekturLoeschen)));
+    el("#btnKorrekturUebernehmen") && el("#btnKorrekturUebernehmen").addEventListener("click", () => {
+      Store.korrekturUebernehmenOffen = true; View.notizsection();
+    });
+    el("#btnKorrekturenVerwerfen") && el("#btnKorrekturenVerwerfen").addEventListener("click", () => App.korrekturenVerwerfen(rz.id));
+    el("#btnKorrekturUebernehmenBestaetigen") && el("#btnKorrekturUebernehmenBestaetigen").addEventListener("click", (e) => {
+      const btn = e.currentTarget; btn.disabled = true;
+      App.korrekturenUebernehmenBestaetigt().finally(() => { if(btn) btn.disabled = false; });
+    });
+    el("#btnKorrekturUebernehmenAbbrechen") && el("#btnKorrekturUebernehmenAbbrechen").addEventListener("click", () => {
+      Store.korrekturUebernehmenOffen = false; View.notizsection();
+    });
+  },
+
+  // AP-0203 §3 Schritt 2 (Vorschau), hier auf den schmalen Fall "nur Phasen (JSON), nur
+  // die korrigierten Zutaten" zugeschnitten — der volle Editor mit allen Kopffeldern ist
+  // AP-0305. Zwischen Klick auf "Ins Rezept übernehmen" und der geschriebenen Datei liegt
+  // immer diese Bestätigung (AP-0203 §6.3: "nie automatisch").
+  korrekturUebernehmenVorschau(rz, kx){
+    const zeilen = Object.keys(kx.zutaten).map(key => {
+      const [i, j] = key.split("/").map(Number);
+      const p = rz.phasen[i], z = p && p.zutaten[j];
+      if(!z) return "";
+      const k = kx.zutaten[key];
+      return `<tr><td>${esc(z.name)}</td><td>${esc(p.name)}</td>
+        <td class="num">${View.mengeText(k.sollBeiEingabe, k.einheit, z.rohstoff)}</td>
+        <td class="num">${View.mengeText(Calc.korrekturAktuell(k, Store.faktor), k.einheit, z.rohstoff)}</td></tr>`;
+    }).join("");
+    return `<div class="msg warn" style="margin-top:.7rem">
+      <b>${Object.keys(kx.zutaten).length} Korrektur(en) ins Rezept übernehmen?</b>
+      Die neue Menge wird die Sollmenge in Rezepte.xlsx — ein Backup wird vorher angelegt.
+      Ohne Bestätigung wird nichts geschrieben.
+      <table class="log" style="margin-top:.5rem"><tr><th>Zutat</th><th>Phase</th><th class="num">Bisher</th><th class="num">Neu</th></tr>${zeilen}</table>
+      <div class="actions" style="margin-top:.6rem">
+        <button id="btnKorrekturUebernehmenBestaetigen">Übernehmen</button>
+        <button class="ghost" id="btnKorrekturUebernehmenAbbrechen">Abbrechen</button>
+      </div>
+    </div>`;
+  },
+
+  // AP-0302 Abnahmekriterium 2: die Einkaufsliste muss fuer eine unaufgeteilte Zutat
+  // dieselbe Menge zeichengleich zeigen wie die Zutatenzeile — darum eine gemeinsame
+  // Formatierfunktion statt einer zweiten Kopie der Rundungslogik.
+  mengeText(g, einheit, rohstoff){
+    const stk = Calc.alsStueck(g, rohstoff);
+    return stk
+      ? `${Calc.rundenStueck(stk.stueck)} Stk <span style="color:var(--muted);font-weight:400">(${Calc.runden(g, einheit)})</span>`
+      : Calc.runden(g, einheit);
+  },
+
+  // AP-0303/§3.2: korrektur (optional) ist der Eintrag aus korrekturen[rezeptId].zutaten
+  // fuer GENAU diese Zutat (Aufrufer loest ihn ueber "<phasenIdx>/<zutatIdx>" auf) — die
+  // korrigierte Menge ersetzt die Sollmenge an ihrer Stelle, die alte Sollmenge steht
+  // durchgestrichen daneben, und das Bäckerprozent rechnet mit der korrigierten Menge.
+  zutatenzeile(z, rz, faktor, korrektur){
     const g = Calc.mengeG(z, rz.basisMengeG, faktor);
-    const stk = Calc.alsStueck(g, z.rohstoff);
-    const menge = stk
-      ? `${Calc.rundenStueck(stk.stueck)} Stk <span style="color:var(--muted);font-weight:400">(${Calc.runden(g, z.einheit)})</span>`
-      : Calc.runden(g, z.einheit);
     const unbekannt = z.rohstoff ? "" : '<span class="warn-inline">unbekannter Rohstoff</span>';
     // AP-0314/§6: FODMAP-Ampel je Zutat, in Normal- UND Entwicklungsmodus sichtbar (beide
     // nutzen diese Funktion). Sichere Portion (g) nur als Tooltip — fliesst nirgends in eine
@@ -1583,8 +2238,19 @@ const View = {
     const fodmapHtml = fodmap
       ? `<span class="fodmap-ampel" style="color:var(--${fodmap})" title="FODMAP: ${esc(fodmap)}${portion ? " · sichere Portion " + portion + " g" : ""}">●</span>`
       : "";
+    let menge, pct;
+    if(korrektur){
+      const istAktuell = Calc.korrekturAktuell(korrektur, faktor);
+      menge = `${View.mengeText(istAktuell, korrektur.einheit, z.rohstoff)} `
+        + `<span class="korrektur-soll" title="bei Faktor ${nf(korrektur.faktorBeiEingabe,2)} als `
+        + `${Calc.runden(korrektur.ist, korrektur.einheit)} eingegeben">↕ <s>${View.mengeText(g, z.einheit, z.rohstoff)}</s></span>`;
+      pct = istAktuell / (rz.basisMengeG * faktor) * 100;
+    }else{
+      menge = View.mengeText(g, z.einheit, z.rohstoff);
+      pct = z.prozent * 100;
+    }
     return `<tr><td>${esc(z.name)}${unbekannt}${fodmapHtml}</td>
-      <td class="pct">${(z.prozent*100).toFixed(1)} %</td>
+      <td class="pct">${pct.toFixed(1)} %</td>
       <td class="menge">${menge}</td></tr>`;
   },
 
@@ -2039,10 +2705,169 @@ const View = {
     }
   },
 
+  /* ---------- AP-0304: Metadaten-Ausklapper (B5) -------------------------------
+     Alles, was vor dem Drucken aufgeklappt werden muss. Als Konstante, damit ein
+     neuer Ausklapper an genau EINER Stelle eingetragen wird und der Selbsttest die
+     Vollstaendigkeit pruefen kann (Abnahmekriterium 2). */
+  DRUCK_AUFKLAPPEN: "details.phase, details.metablock",
+
+  /* true, solange der Druckpfad die Ausklapper zwangsweise oeffnet. Das Setzen von
+     details.open loest ein toggle-Ereignis aus — ohne diese Sperre wuerden die
+     Zuhoerer unten den erzwungenen Zustand als Nutzerwahl merken, und nach dem Druck
+     staende alles offen (der afterprint-Rueckbau aus AP-0306 baut ja genau aus diesem
+     gemerkten Zustand neu auf). Betrifft Phasen und Metadatenbloecke gleichermassen. */
+  druckLaeuft: false,
+
+  phaseToggle(d){
+    if(View.druckLaeuft) return;
+    const i = Number(d.dataset.i);
+    d.open ? Store.offenePhasen.add(i) : Store.offenePhasen.delete(i);
+  },
+  metablockToggle(d){
+    if(View.druckLaeuft) return;
+    Layout.metaSetzen(d.dataset.block, d.open);
+  },
+  drucken(){
+    View.druckLaeuft = true;
+    document.querySelectorAll(View.DRUCK_AUFKLAPPEN).forEach(d => { d.open = true; });
+    window.print();
+    View.druckLaeuft = false;
+  },
+
+  // AP-0305/§4.4: Kachel fuer einen liegengebliebenen Entwurf, erscheint nur, solange der
+  // Editor selbst zu ist (View.rezept() reicht entwurfGespeichert nur dann durch).
+  entwurfTile(gespeichert){
+    const dt = new Date(gespeichert.ts);
+    const wann = isNaN(dt) ? gespeichert.ts : dt.toLocaleString("de-CH");
+    return `<div class="msg warn noprint">
+      Für dieses Rezept liegt ein nicht gespeicherter Entwurf vom ${esc(wann)} bereit.
+      <div class="actions" style="margin-top:.5rem">
+        <button id="btnEntwurfOeffnen">Entwurf öffnen</button>
+        <button class="ghost" id="btnEntwurfVerwerfen">Entwurf verwerfen</button>
+      </div>
+    </div>`;
+  },
+
+  // AP-0305/AP-0203 §4.1-§4.2: Konfliktdialog, wortwoertlich aus dem Konzept. fremdeAnsicht
+  // zeigt stattdessen den frisch geladenen Bestand (rz.phasen, zu diesem Zeitpunkt bereits
+  // der NEUE Stand aus OneDrive, siehe App.zutatenEditorSpeichern) neben dem Entwurf.
+  zutatenEditorKonflikt(rz, ed){
+    if(ed.konflikt.fremdeAnsicht){
+      const fremd = rz.phasen.map(ph => `<div class="editorphase"><h4>${esc(ph.name)}</h4>
+        <table class="zutaten">${(ph.zutaten||[]).map(z => `<tr><td>${esc(z.name)}</td>
+          <td class="pct">${(z.prozent*100).toFixed(1)} %</td>
+          <td class="menge">${Calc.runden(z.prozent*rz.basisMengeG, z.einheit)}</td></tr>`).join("")}</table></div>`).join("");
+      return `<div class="msg warn noprint">
+        <b>Fremde Fassung — aktueller Stand in Rezepte.xlsx</b>
+        ${fremd}
+        <div class="actions" style="margin-top:.6rem"><button class="ghost" id="btnZutatenKonfliktZurueck">Zurück zum Dialog</button></div>
+      </div>`;
+    }
+    return `<div class="msg warn noprint">
+      <b>Rezepte.xlsx wurde zwischenzeitlich geändert</b>
+      Seit dem Öffnen dieses Rezepts hat jemand anders (oder ein anderes Gerät) die Datei gespeichert.
+      Deine Änderungen sind nicht verloren — sie liegen als Entwurf bereit.<br>
+      Der Bestand wurde neu geladen. Du kannst deine Fassung speichern und die fremde Änderung in diesen
+      Feldern überschreiben, sie zuerst ansehen, oder deinen Entwurf vorerst behalten.
+      <div class="actions" style="margin-top:.6rem">
+        <button id="btnZutatenKonfliktMeine">Meine Fassung speichern</button>
+        <button class="ghost" id="btnZutatenKonfliktFremde">Fremde Fassung ansehen</button>
+        <button class="ghost" id="btnZutatenKonfliktBehalten">Entwurf behalten</button>
+      </div>
+    </div>`;
+  },
+
+  // AP-0305: der eigentliche Zutaten-Editor — ersetzt table.zutaten/ol.schritte 1:1 an
+  // derselben Stelle (Zubereitung-Karte). Prueft bei jedem Rendern neu (Editor.pruefen ist
+  // rein und billig) und haengt das Ergebnis an ed.pruefung — App.zutatenEditorSpeichern()
+  // nutzt dieselbe Pruefung, ohne sie ein zweites Mal auszuformulieren.
+  zutatenEditorMarkup(rz, ed){
+    if(ed.konflikt) return View.zutatenEditorKonflikt(rz, ed);
+
+    const normPhasen = Editor.normalisiert(ed.phasen);
+    const pruefung = Editor.pruefen(normPhasen, rz);
+    ed.pruefung = pruefung;
+
+    const rohstoffOptionen = [...new Set(Store.rohstoffe.map(r => r.name))].sort()
+      .map(n => `<option value="${esc(n)}">`).join("");
+
+    const phasenHtml = ed.phasen.map((ph, pi) => {
+      const zeilen = (ph.zutaten || []).map((z, zi) => {
+        const leer = z.prozent === "" || z.prozent == null || isNaN(Number(z.prozent));
+        const g = leer ? "" : Math.round(Number(z.prozent) * rz.basisMengeG * 10) / 10;
+        const pc = leer ? "" : Math.round(Number(z.prozent) * 100 * 1000) / 1000;
+        return `<div class="editorzeile" data-pi="${pi}" data-zi="${zi}">
+          <input type="text" data-feld="name" value="${esc(z.name || "")}" placeholder="Zutat" list="zutatenvorschlaege">
+          <input type="number" data-feld="menge" min="0" step="any" value="${g}" title="Menge in Gramm (Basis ${rz.basisMengeG} g)">
+          <input type="number" data-feld="prozent" min="0" step="any" value="${pc}" title="Bäckerprozent">
+          <select data-feld="einheit">${Import.EINHEITEN.map(e => `<option value="${e}"${z.einheit === e ? " selected" : ""}>${e}</option>`).join("")}</select>
+          <button type="button" class="entfernen" data-entfernen title="Zutat entfernen">×</button>
+        </div>`;
+      }).join("");
+      const schritteHtml = (ph.schritte || []).map((s, si) => `
+        <div class="editorschritt" data-pi="${pi}" data-si="${si}">
+          <input type="text" data-schritt value="${esc(s.text || "")}" placeholder="Zubereitungsschritt">
+          <button type="button" class="entfernen" data-schritt-entfernen title="Schritt entfernen">×</button>
+        </div>`).join("");
+      return `<div class="editorphase" data-pi="${pi}">
+        <h4>${esc(ph.name)}</h4>
+        ${zeilen}
+        <div class="actions noprint editorhinzu"><button class="ghost" type="button" data-zutat-hinzu="${pi}">+ Zutat</button></div>
+        ${schritteHtml}
+        <div class="actions noprint editorhinzu"><button class="ghost" type="button" data-schritt-hinzu="${pi}">+ Schritt</button></div>
+      </div>`;
+    }).join("");
+
+    const fehlerHtml = pruefung.abweisen.length
+      ? `<ul class="editorfehler">${pruefung.abweisen.map(f => `<li>${esc(f.feld)}: ${esc(f.grund)}</li>`).join("")}</ul>` : "";
+    const warnHtml = pruefung.warnen.length
+      ? `<ul class="editorwarnung">${pruefung.warnen.map(f => `<li>${esc(f.grund)}${
+          f.phaseIndex != null ? ` <button class="ghost" type="button" data-zusammenfassen="${f.phaseIndex}|${esc(f.nameKey)}">Zusammenfassen</button>` : ""
+        }</li>`).join("")}</ul>` : "";
+
+    // §3 Schritt 2 (Vorschau): erst der zweite Klick auf "Speichern" (hier: "Jetzt speichern")
+    // schreibt tatsaechlich — jede Feldaenderung davor setzt ed.vorschauBestaetigt zurueck.
+    const vorschau = ed.vorschauBestaetigt ? (() => {
+      const diff = Editor.diff(rz.phasen, normPhasen);
+      return `<div class="editorvorschau">
+        <b>${diff.anzahl} Änderung${diff.anzahl === 1 ? "" : "en"}</b> an „${esc(rz.name)}“ — vor dem Speichern wird ein Backup angelegt.
+        ${diff.details.length ? `<ul>${diff.details.map(d => `<li>${esc(d)}</li>`).join("")}</ul>` : '<div class="hint" style="margin-top:.4rem">Keine inhaltliche Änderung erkannt.</div>'}
+        <div class="actions noprint" style="margin-top:.6rem">
+          <button id="btnZutatenJetztSpeichern"${pruefung.ok ? "" : " disabled"}>Jetzt speichern</button>
+          <button class="ghost" id="btnZutatenVorschauZurueck">Zurück</button>
+        </div>
+      </div>`;
+    })() : "";
+
+    const speichernTitel = pruefung.abweisen[0] ? esc(pruefung.abweisen[0].feld + ": " + pruefung.abweisen[0].grund) : "";
+    return `
+      <datalist id="zutatenvorschlaege">${rohstoffOptionen}</datalist>
+      <div class="noprint" style="padding:0 1rem 1rem">
+        ${phasenHtml}
+        ${fehlerHtml}
+        ${warnHtml}
+        ${!ed.vorschauBestaetigt ? `
+          <div class="actions" style="margin-top:.8rem">
+            <button id="btnZutatenSpeichern"${pruefung.ok ? "" : ' disabled title="' + speichernTitel + '"'}>Speichern</button>
+            <button class="ghost" id="btnZutatenAbbrechen">Abbrechen</button>
+          </div>` : ""}
+        ${vorschau}
+      </div>`;
+  },
+
   rezept(){
     const rz = Store.aktuellesRezept, f = Store.faktor;
-    if(!rz){ el("#rezeptbereich").innerHTML = ""; return; }
+    if(!rz){
+      el("#rezeptbereich").innerHTML = "";
+      el("#panelEntwicklung").innerHTML = '<div class="empty">Kein Rezept gewählt.</div>';
+      View.einkaufsliste();
+      View.notizsection();
+      return;
+    }
 
+    // AP-0303: Korrekturablage dieses Rezepts — Zutatenzeile, Einkaufsliste und die
+    // Notizsection selbst lesen alle von hier, damit nirgends eine zweite Wahrheit entsteht.
+    const kx = Korrekturen.get(rz.id);
     const schwund = Calc.schwundAktuell(rz.backprotokoll);
     const k = Calc.kosten(rz, f, schwund);
     const n = Calc.naehrwerte(rz, f);
@@ -2051,7 +2876,7 @@ const View = {
     const phasen = rz.phasen.map((p, i) => {
       const offen = Store.offenePhasen.has(i) ? " open" : "";
       const zt = p.zutaten.length
-        ? `<table class="zutaten">${p.zutaten.map(z => View.zutatenzeile(z, rz, f)).join("")}</table>` : "";
+        ? `<table class="zutaten">${p.zutaten.map((z, j) => View.zutatenzeile(z, rz, f, kx.zutaten[i + "/" + j])).join("")}</table>` : "";
       const sc = p.schritte.length
         ? `<ol class="schritte">${p.schritte.map(s => `<li>${esc(s.text)}</li>`).join("")}</ol>` : "";
       return `<details class="phase" data-i="${i}"${offen}>
@@ -2059,6 +2884,16 @@ const View = {
                 <div class="phasebody">${zt}${sc}</div>
               </details>`;
     }).join("");
+
+    // AP-0305: Zutaten-Editor — ed != null heisst "dieses Rezept wird gerade bearbeitet".
+    // entwurfGespeichert ist ein liegengebliebener Entwurf aus einem frueheren Konflikt/
+    // Abbruch (§4.4); die Kachel dazu erscheint nur, solange der Editor selbst zu ist.
+    const ed = (Store.zutatenEditor && Store.zutatenEditor.rezeptId === rz.id) ? Store.zutatenEditor : null;
+    const entwurfGespeichert = !ed ? Entwurf.lesen(rz.id) : null;
+    const bearbeitenButton = !ed
+      ? `<div class="actions noprint" style="padding:.6rem 1rem 0"><button class="ghost" id="btnZutatenBearbeiten">Bearbeiten</button></div>` : "";
+    const entwurfTile = entwurfGespeichert ? View.entwurfTile(entwurfGespeichert) : "";
+    const zubereitungInhalt = ed ? View.zutatenEditorMarkup(rz, ed) : phasen;
 
     const log = rz.backprotokoll.length ? `
       <table class="log">
@@ -2086,6 +2921,19 @@ const View = {
       : "";
     const rechercheButton = Service.verfuegbar()
       ? `<div class="actions noprint" style="margin-top:.6rem"><button class="ghost" id="btnRecherche">Preise aktualisieren</button></div>` : "";
+
+    // AP-0304: Zutaten ohne Rohstoff-Treffer. Das ist der Alias-Hinweis aus AP-0201 §1 (B5):
+    // trifft der Name keinen Rohstoff, fehlt die Zutat in Kosten UND Naehrwerten, und die
+    // Ursache ist fast immer eine Schreibvariante (O-10, 30 offene Alias-Faelle).
+    const ohneRohstoff = [...new Set(Calc.zutatenFlach(rz).filter(z => !z.rohstoff).map(z => z.name))];
+
+    // Ein Metadatenblock (AP-0201 §1, B5): standardmaessig zu, Zustand je Block gemerkt.
+    // "kurz" steht rechts in der Zusammenfassung und ist bereits fertiges HTML.
+    const metaBlock = (id, titel, kurz, inhalt) => `
+      <details class="metablock" data-block="${id}"${Layout.metaOffen(id) ? " open" : ""}>
+        <summary>${esc(titel)}<span class="metakurz">${kurz}</span></summary>
+        <div class="metabody">${inhalt}</div>
+      </details>`;
 
     // AP-0305: Eingabeformular fuer einen neuen Backprotokoll-Eintrag. Store.backEintrag
     // haelt den Formularzustand (App.backEintragOeffnen()); null = Formular geschlossen,
@@ -2115,11 +2963,12 @@ const View = {
       <section class="card">
         <div class="body rezeptkopf">
           <h2>${esc(rz.name)}</h2>
-          <div class="sub">${esc(rz.kategorie)}${rz.unterkategorie ? " · " + esc(rz.unterkategorie) : ""}
-            · Quelle: ${esc(rz.quelle||"—")}<br>
-            ${Math.round(rz.portionen*f)} ${esc(rz.einheit)} · Basis:
-            ${Calc.runden(rz.basisMengeG*f)} ${esc(rz.basisName)}
-            · Sollgewicht ${Calc.runden(rz.sollgewichtG*f)}</div>
+          <!-- AP-0304: Der Kopf traegt nur noch, was beim Kochen zaehlt (Wireframe W,
+               AP-0201 §2.3). Unterkategorie, Quelle, Basis-Rohstoff und Rezept-ID stehen
+               vollstaendig im Metadatenblock "Herkunft" darunter — nichts geht verloren. -->
+          <div class="sub">${esc(rz.kategorie)} · ${rz.phasen.length} Phase${rz.phasen.length === 1 ? "" : "n"}
+            · ${Math.round(rz.portionen*f)} ${esc(rz.einheit)}
+            · ${Calc.runden(rz.sollgewichtG*f)}</div>
           <div class="scaler noprint">
             <label>Basis (g)<input id="zielBasis" type="number" min="1" step="10" value="${Math.round(rz.basisMengeG*f)}"></label>
             <label>Portionen<input id="zielPortionen" type="number" min="1" step="1" value="${Math.round(rz.portionen*f)}"></label>
@@ -2130,12 +2979,17 @@ const View = {
 
       <section class="card">
         <h2>Zubereitung</h2>
-        ${phasen}
+        ${bearbeitenButton}
+        <div style="padding:0 1rem">${entwurfTile}</div>
+        ${zubereitungInhalt}
       </section>
 
-      <section class="card zusammenhalten">
-        <h2>Nährwerte</h2>
-        <div class="body">
+      <!-- AP-0304 (B5): Metadaten als Ausklapper-Stapel UNTER der Rezeptur, alle zu.
+           Die frueheren Karten "Naehrwerte", "Kosten" und "Backprotokoll" sind inhaltlich
+           unveraendert hierher gewandert; "Herkunft" und "Hinweise" kommen neu dazu. -->
+      <div class="metastapel">
+        ${metaBlock("naehrwerte", "Nährwerte",
+          `${nf(n.proPortion.kcal,0)} kcal / ${esc(rz.einheit)}`, `
           <div class="kpis">
             <div class="kpi"><div class="k">kcal / Portion</div><div class="v">${nf(n.proPortion.kcal,0)}</div></div>
             <div class="kpi"><div class="k">Eiweiss</div><div class="v">${nf(n.proPortion.eiweiss,1)} g</div></div>
@@ -2143,14 +2997,9 @@ const View = {
             <div class="kpi"><div class="k">Kohlenhydrate</div><div class="v">${nf(n.proPortion.kh,1)} g</div></div>
             <div class="kpi"><div class="k">kcal / 100 g</div><div class="v">${nf(n.pro100g.kcal,0)}</div></div>
           </div>
-          ${fehlendHinweis(n.fehlend, "Nährwerte")}
-          <div class="hint">FODMAP gesamt: <b>${fd.ampel ? esc(fd.ampel) : "—"}</b>${fd.unbewertet ? ` · ${fd.unbewertet} Zutat(en) unbewertet` : ""}</div>
-        </div>
-      </section>
+          ${fehlendHinweis(n.fehlend, "Nährwerte")}`)}
 
-      <section class="card zusammenhalten">
-        <h2>Kosten</h2>
-        <div class="body">
+        ${metaBlock("kosten", "Kosten", chf(k.effektiv), `
           <div class="kpis">
             <div class="kpi"><div class="k">Rohstoffe</div><div class="v">${chf(k.roh)}</div></div>
             <div class="kpi"><div class="k">Schwund</div><div class="v">${schwund==null ? "0 %" : pct(schwund,1)}</div></div>
@@ -2158,22 +3007,35 @@ const View = {
             <div class="kpi"><div class="k">pro ${esc(rz.einheit)}</div><div class="v">${chf(k.proPortion)}</div></div>
           </div>
           ${fehlendHinweis(k.fehlend, "Preis")}
-          ${schwund==null ? '<div class="hint">Noch kein Backprotokoll — Schwund als 0 % angenommen.</div>' : ""}
+          ${schwund==null ? '<div class="hint">Noch kein Protokolleintrag — Schwund als 0 % angenommen.</div>' : ""}
           <div class="hint">Gesamt = Rohstoffkosten ÷ (1 − Schwund)</div>
           ${preisalterHinweis}
-          ${rechercheButton}
-        </div>
-      </section>
+          ${rechercheButton}`)}
 
-      <section class="card">
-        <h2>Backprotokoll</h2>
-        <div class="body">
+        ${metaBlock("protokoll", "Verfahren & Protokoll",
+          `${esc(rz.verfahren || "Verfahren offen")} · ${rz.backprotokoll.length} ${rz.backprotokoll.length === 1 ? "Eintrag" : "Einträge"}`, `
+          <div class="hint" style="margin-top:0">Verfahren: <b>${esc(rz.verfahren || "—")}</b>${
+            rz.verfahren ? "" : " — für dieses Rezept noch nicht zugeordnet (AP-0306)"}</div>
           ${log}
-          ${backForm}
-        </div>
-      </section>
+          ${backForm}`)}
 
-      ${View.entwKarte(rz)}
+        ${metaBlock("herkunft", "Herkunft", esc(rz.quelle || "—"), `
+          <dl class="herkunft">
+            <dt>Rezept-ID</dt><dd>${esc(rz.id || "—")}</dd>
+            <dt>Kategorie</dt><dd>${esc(rz.kategorie || "—")}${rz.unterkategorie ? " · " + esc(rz.unterkategorie) : ""}</dd>
+            <dt>Quelle</dt><dd>${esc(rz.quelle || "—")}</dd>
+            <dt>Basis-Rohstoff</dt><dd>${Calc.runden(rz.basisMengeG*f)} ${esc(rz.basisName || "—")}</dd>
+            <dt>Sollgewicht</dt><dd>${Calc.runden(rz.sollgewichtG*f)}</dd>
+            <dt>Original</dt><dd>${Calc.runden(rz.basisMengeG)} ${esc(rz.basisName || "—")} · ${nf(rz.portionen,0)} ${esc(rz.einheit)}</dd>
+          </dl>`)}
+
+        ${metaBlock("hinweise", "Hinweise",
+          fd.ampel ? `FODMAP ${esc(fd.ampel)}` : "FODMAP —", `
+          <div class="hint" style="margin-top:0">FODMAP gesamt: <b>${fd.ampel ? esc(fd.ampel) : "—"}</b>${fd.unbewertet ? ` · ${fd.unbewertet} Zutat(en) unbewertet` : ""}</div>
+          ${ohneRohstoff.length
+            ? `<div class="hint"><span class="warn-inline" style="margin-left:0">${ohneRohstoff.length} Zutat(en) ohne Rohstoff-Zuordnung</span> — meist eine Schreibvariante, die als Alias fehlt (O-10). Sie fehlen in Kosten und Nährwerten: ${esc(ohneRohstoff.join(", "))}</div>`
+            : '<div class="hint">Alle Zutaten sind einem Rohstoff zugeordnet.</div>'}`)}
+      </div>
 
       <div class="actions noprint">
         <button class="ghost" id="btnExport">Exportieren</button>
@@ -2181,12 +3043,19 @@ const View = {
         <button class="ghost" id="btnZurueck">Zurück zur Liste</button>
       </div>`;
 
+    // AP-0301: Entwicklung (B6) liegt strukturell in der rechten Schiene (AP-0201 §1),
+    // nicht mehr im Fluss der Mittelspalte — Inhalt/Verhalten von View.entwKarte()
+    // bleibt unverändert, nur das Zielelement wechselt.
+    el("#panelEntwicklung").innerHTML = `<div class="entw-inhalt">${View.entwKarte(rz)}</div>`;
+    View.einkaufsliste();
+    View.notizsection();
+
     // Ereignisse der Rezeptansicht
     document.querySelectorAll("details.phase").forEach(d =>
-      d.addEventListener("toggle", () => {
-        const i = Number(d.dataset.i);
-        d.open ? Store.offenePhasen.add(i) : Store.offenePhasen.delete(i);
-      }));
+      d.addEventListener("toggle", () => View.phaseToggle(d)));
+    // AP-0304: offen/zu je Metadatenblock geraetelokal merken (AP-0201 §1, B5).
+    document.querySelectorAll("details.metablock").forEach(d =>
+      d.addEventListener("toggle", () => View.metablockToggle(d)));
     el("#zielBasis").addEventListener("input", e => {
       const v = Number(e.target.value); if(v > 0) App.skalieren(Calc.faktorAusBasis(v, rz)); });
     el("#zielPortionen").addEventListener("input", e => {
@@ -2195,12 +3064,11 @@ const View = {
     // AP-0306: alle Phasen vor dem Druckdialog aufklappen (details.phase[open], nicht nur
     // die CSS-Regel unten) — moderne Browser rendern den Inhalt eines geschlossenen <details>
     // per content-visibility, das eine reine display:block-Regel auf .phasebody NICHT
-    // uebersteuert. Store.offenePhasen bleibt dabei unveraendert; afterprint (App.start())
-    // baut die Ansicht daraus neu auf und stellt den Bildschirm-Zustand wieder her.
-    el("#btnDruck").addEventListener("click", () => {
-      document.querySelectorAll("details.phase").forEach(d => { d.open = true; });
-      window.print();
-    });
+    // uebersteuert. AP-0304 erweitert das auf die neuen Metadatenbloecke (View.DRUCK_AUFKLAPPEN)
+    // und sperrt waehrenddessen die toggle-Zuhoerer: das Setzen von .open feuert toggle, und
+    // ohne Sperre lief Store.offenePhasen bzw. Layout.meta voll — der afterprint-Rueckbau
+    // (App.start()) haette dann ALLES offen wiederhergestellt statt den Zustand von vorher.
+    el("#btnDruck").addEventListener("click", () => View.drucken());
     el("#btnZurueck").addEventListener("click", () => App.schliessen());
     el("#btnExport").addEventListener("click", () => App.exportEinzeln());
     el("#btnRecherche") && el("#btnRecherche").addEventListener("click", () => App.rechercheOeffnen());
@@ -2217,6 +3085,49 @@ const View = {
       });
     }else{
       el("#btnEintrag").addEventListener("click", () => App.backEintragOeffnen());
+    }
+    // AP-0305: Zutaten-Editor — Bearbeiten-Anstoss, Entwurf-Kachel (§4.4) und, wenn offen,
+    // Zeilen/Formular/Vorschau/Konfliktdialog (§4.1). Alle Elemente existieren nur, wenn der
+    // jeweilige Zustand aktiv ist — Ereignisse darum durchweg mit "el(...) &&" abgesichert.
+    el("#btnZutatenBearbeiten") && el("#btnZutatenBearbeiten").addEventListener("click", () => App.zutatenEditorOeffnen());
+    el("#btnEntwurfOeffnen") && el("#btnEntwurfOeffnen").addEventListener("click", () => App.zutatenEditorEntwurfLaden());
+    el("#btnEntwurfVerwerfen") && el("#btnEntwurfVerwerfen").addEventListener("click", () => App.zutatenEditorEntwurfVerwerfen());
+    if(ed && ed.konflikt){
+      el("#btnZutatenKonfliktMeine") && el("#btnZutatenKonfliktMeine").addEventListener("click", (e) => {
+        const btn = e.currentTarget; btn.disabled = true;
+        App.zutatenEditorKonfliktMeineFassungSpeichern().finally(() => { if(btn) btn.disabled = false; });
+      });
+      el("#btnZutatenKonfliktFremde") && el("#btnZutatenKonfliktFremde").addEventListener("click", () => App.zutatenEditorKonfliktFremdeAnsehen());
+      el("#btnZutatenKonfliktZurueck") && el("#btnZutatenKonfliktZurueck").addEventListener("click", () => App.zutatenEditorKonfliktZurueck());
+      el("#btnZutatenKonfliktBehalten") && el("#btnZutatenKonfliktBehalten").addEventListener("click", () => App.zutatenEditorKonfliktBehalten());
+    }else if(ed){
+      document.querySelectorAll(".editorzeile").forEach(zeile => {
+        const pi = Number(zeile.dataset.pi), zi = Number(zeile.dataset.zi);
+        zeile.querySelectorAll("[data-feld]").forEach(inp =>
+          inp.addEventListener("change", e => App.zutatenEditorZutatFeld(pi, zi, e.target.dataset.feld, e.target.value)));
+        zeile.querySelector("[data-entfernen]").addEventListener("click", () => App.zutatenEditorZutatEntfernen(pi, zi));
+      });
+      document.querySelectorAll("[data-zutat-hinzu]").forEach(btn =>
+        btn.addEventListener("click", () => App.zutatenEditorZutatHinzufuegen(Number(btn.dataset.zutatHinzu))));
+      document.querySelectorAll(".editorschritt").forEach(zeile => {
+        const pi = Number(zeile.dataset.pi), si = Number(zeile.dataset.si);
+        zeile.querySelector("[data-schritt]").addEventListener("change", e => App.zutatenEditorSchrittFeld(pi, si, e.target.value));
+        zeile.querySelector("[data-schritt-entfernen]").addEventListener("click", () => App.zutatenEditorSchrittEntfernen(pi, si));
+      });
+      document.querySelectorAll("[data-schritt-hinzu]").forEach(btn =>
+        btn.addEventListener("click", () => App.zutatenEditorSchrittHinzufuegen(Number(btn.dataset.schrittHinzu))));
+      document.querySelectorAll("[data-zusammenfassen]").forEach(btn =>
+        btn.addEventListener("click", () => {
+          const [pi, nameKey] = btn.dataset.zusammenfassen.split("|");
+          App.zutatenEditorZusammenfassen(Number(pi), nameKey);
+        }));
+      el("#btnZutatenAbbrechen") && el("#btnZutatenAbbrechen").addEventListener("click", () => App.zutatenEditorAbbrechen());
+      el("#btnZutatenSpeichern") && el("#btnZutatenSpeichern").addEventListener("click", () => App.zutatenEditorVorschauOeffnen());
+      el("#btnZutatenVorschauZurueck") && el("#btnZutatenVorschauZurueck").addEventListener("click", () => App.zutatenEditorVorschauZurueck());
+      el("#btnZutatenJetztSpeichern") && el("#btnZutatenJetztSpeichern").addEventListener("click", (e) => {
+        const btn = e.currentTarget; btn.disabled = true;
+        App.zutatenEditorSpeichern().finally(() => { if(btn) btn.disabled = false; });
+      });
     }
     View.entwEreignisse(rz);
   },
@@ -2430,8 +3341,135 @@ const View = {
   }
 };
 
+/* ---------- Layout: dreispaltiges Grundgerüst (AP-0301, nach AP-0201 §2/§3.5) ----
+   Reine Darstellungssteuerung — kein Bezug zum Rechenkern. Zustand je Bereich
+   (offen/zu, aktiver Reiter rechts, Vollbild) liegt gerätelokal in localStorage
+   unter "libarius.layout.v1" (Settings-Wrapper, Schlüssel "layout"). Die Stufe
+   (W/M/K) wird nicht gespeichert, sondern bei jedem Aufruf aus der Fensterbreite
+   gelesen — Breakpoints exakt wie AP-0201 §2.1: 860 px und 1280 px. */
+const Layout = {
+  state: { links: true, rechts: true, rechtsTab: "kochen", vollbild: false },
+  // explizit=false: der Zustand kommt aus der Stufen-Vorgabe, nicht von einem bewussten
+  // Klick des Geräts — beim Drehen/Skalieren darf er dann pro Stufe neu berechnet werden
+  // (§1 Standardzustand). Sobald einmal geklappt/getippt wurde, bleibt die Wahl bestehen,
+  // auch über eine spätere Breitenänderung hinweg (§3.5 "gerätelokal gemerkt").
+  explizit: false,
+
+  stufe(){
+    const w = window.innerWidth;
+    return w >= 1280 ? "w" : (w >= 860 ? "m" : "k");
+  },
+  schmal(){ return Layout.stufe() !== "w"; },
+
+  standard(){
+    const w = !Layout.schmal();
+    Layout.state.links = w;
+    Layout.state.rechts = w;
+  },
+  laden(){
+    const gespeichert = Settings.get("layout", null);
+    if(gespeichert){
+      Object.assign(Layout.state, gespeichert);
+      Layout.explizit = true;
+    }else{
+      // Standardzustand aus AP-0201 §1: bei W beide Schienen offen, bei M/K beide zu.
+      Layout.standard();
+      Layout.state.rechtsTab = "kochen";
+      Layout.explizit = false;
+    }
+  },
+  speichern(){ Layout.explizit = true; Settings.set("layout", Layout.state); },
+
+  /* AP-0304 (AP-0201 §1 B5, §3.5): offen/zu je Metadatenblock, geraetelokal gemerkt.
+     Bewusst ein EIGENER Settings-Schluessel statt Layout.state: das Aufklappen eines
+     Metadatenblocks in der Mittelspalte ist keine bewusste Schienenwahl und darf
+     Layout.explizit nicht setzen — sonst friere man mit dem ersten Klick auf "Kosten"
+     den Schienen-Standardzustand beim Drehen/Skalieren ein (Regel M, §2.2).
+     Standard: alle Bloecke zu. */
+  meta: {},
+  metaLaden(){ const g = Settings.get("metablock", null); Layout.meta = (g && typeof g === "object") ? g : {}; },
+  metaOffen(id){ return Layout.meta[id] === true; },
+  metaSetzen(id, offen){ Layout.meta[id] = !!offen; Settings.set("metablock", Layout.meta); },
+
+  anwenden(){
+    // Regel M/K gilt auch nach einer Fensterbreitenänderung (Drehen, Fenster ziehen) —
+    // nicht nur beim aktiven Öffnen einer Schiene. Ohne bewusste Wahl (explizit=false)
+    // wird bei jeder Breitenänderung einfach der Standardzustand der aktuellen Stufe neu
+    // berechnet; mit bewusster Wahl gilt nur noch die Regel "höchstens eine Schiene bei M/K".
+    if(!Layout.explizit){
+      Layout.standard();
+    }else if(Layout.schmal() && Layout.state.links && Layout.state.rechts){
+      Layout.state.rechts = false;
+    }
+    const b = document.body;
+    b.dataset.links = Layout.state.links ? "offen" : "zu";
+    b.dataset.rechts = Layout.state.rechts ? "offen" : "zu";
+    b.classList.toggle("vollbild", Layout.state.vollbild);
+    document.querySelectorAll(".railtab").forEach(t =>
+      t.classList.toggle("aktiv", t.dataset.tab === Layout.state.rechtsTab));
+    el("#panelKochen").hidden = Layout.state.rechtsTab !== "kochen";
+    el("#panelEntwicklung").hidden = Layout.state.rechtsTab !== "entwicklung";
+    const overlayOffen = Layout.stufe() === "k" && (Layout.state.links || Layout.state.rechts);
+    el("#scrim").hidden = !overlayOffen;
+  },
+
+  // Regel M (AP-0201 §2.2): bei M/K höchstens eine Schiene offen — das Öffnen
+  // der einen schliesst die andere. Bei W sind beide unabhängig (Wireframe W).
+  oeffnenLinks(){
+    Layout.state.links = true;
+    if(Layout.schmal()) Layout.state.rechts = false;
+    Layout.speichern(); Layout.anwenden();
+  },
+  schliessenLinks(){ Layout.state.links = false; Layout.speichern(); Layout.anwenden(); },
+  toggleLinks(){ Layout.state.links ? Layout.schliessenLinks() : Layout.oeffnenLinks(); },
+
+  oeffnenRechts(){
+    Layout.state.rechts = true;
+    if(Layout.schmal()) Layout.state.links = false;
+    Layout.speichern(); Layout.anwenden();
+  },
+  schliessenRechts(){ Layout.state.rechts = false; Layout.speichern(); Layout.anwenden(); },
+  toggleRechts(){ Layout.state.rechts ? Layout.schliessenRechts() : Layout.oeffnenRechts(); },
+
+  tabWaehlen(tab){
+    Layout.state.rechtsTab = tab;
+    Layout.oeffnenRechts();
+  },
+
+  toggleVollbild(){
+    Layout.state.vollbild = !Layout.state.vollbild;
+    Layout.speichern(); Layout.anwenden();
+  },
+
+  scrimKlick(){
+    Layout.state.links = false; Layout.state.rechts = false;
+    Layout.speichern(); Layout.anwenden();
+  },
+
+  init(){
+    Layout.laden();
+    Layout.metaLaden();
+    el("#btnRailLinks").addEventListener("click", Layout.toggleLinks);
+    el("#btnRailLinksSpindel").addEventListener("click", Layout.toggleLinks);
+    el("#btnRailLinksSchliessen").addEventListener("click", Layout.schliessenLinks);
+    el("#btnRailRechts").addEventListener("click", Layout.toggleRechts);
+    el("#btnRailRechtsSpindel").addEventListener("click", Layout.toggleRechts);
+    el("#btnRailRechtsSchliessen").addEventListener("click", Layout.schliessenRechts);
+    el("#btnVollbild").addEventListener("click", Layout.toggleVollbild);
+    el("#btnVollbildEnde").addEventListener("click", Layout.toggleVollbild);
+    el("#scrim").addEventListener("click", Layout.scrimKlick);
+    document.querySelectorAll(".railtab").forEach(t =>
+      t.addEventListener("click", () => Layout.tabWaehlen(t.dataset.tab)));
+    window.addEventListener("resize", Layout.anwenden);
+    window.addEventListener("orientationchange", Layout.anwenden);
+    Layout.anwenden();
+  }
+};
+
 /* ---------- SelfTest: Referenzwerte aus Feinkonzept AP-0206 §9 ---------- */
-function selfTest(){
+// AP-0305: async seit diesem AP — die drei gemockten Schreibpfad-Zweige (Umsetzungsschritt 5)
+// rufen editorSchreiben() ueber eine gemockte Graph-Schicht auf und brauchen echte awaits.
+async function selfTest(){
   const nah = (a,b,t) => a!=null && Math.abs(a-b) < (t||0.001);
   const idx = Model.rohstoffIndex(BEISPIEL_ROHSTOFFE);
   const rzT = { basisMengeG:1000, portionen:1, phasen:[{zutaten:[
@@ -2440,6 +3478,41 @@ function selfTest(){
   const suT = { basisMengeG:1000, portionen:1, phasen:[{zutaten:[
       {name:"Zucker",prozent:0.100,rohstoff:idx.get("zucker"),nameKey:"zucker"},
       {name:"Tagatose",prozent:0.050,rohstoff:idx.get("tagatose"),nameKey:"tagatose"}]}] };
+
+  // AP-0305 Umsetzungsschritt 5: gemockte Graph-Schicht fuer editorSchreiben() — jeder Aufruf
+  // (Erfolg oder Fehlschlag) wird in "log" gebucht, BEVOR ueber "script" entschieden wird, ob er
+  // wirft. So belegt log je Zweig lueckenlos, welche Aufrufe stattfanden und welche nicht.
+  const mockGateway = (script) => {
+    const log = [];
+    return { log,
+      async getItemMeta(){ log.push("getItemMeta"); return script.eTag(); },
+      async backup(){ log.push("backup"); if(script.backupWirft) throw new Error("Backup-Fehler (mock)"); return "datei.xlsx"; },
+      async updateCell(pfad, sheet, addr){ log.push("updateCell:" + addr);
+        if(script.updateCellWirft === addr) throw new Error("Zelle " + addr + " schreiben fehlgeschlagen (mock)");
+        return true; }
+    };
+  };
+  const editorSchreibenHeader = ["Rezept-ID","Name","Kategorie","Unterkategorie","Basis-Rohstoff",
+    "Basis-Menge (g)","Sollgewicht (g)","Portionen","Einheit","Quelle","Phasen (JSON)",
+    "Backprotokoll (JSON)","Entwicklung (JSON)","Verfahren","Protokoll (JSON)","Geändert"];
+  const editorSchreibenParams = { rezeptePfad:"/Test/Rezepte.xlsx", sheetName:"Rezepte",
+    header: editorSchreibenHeader, zeileExcel: 5, normPhasen:[{name:"P",zutaten:[{name:"Mehl",prozent:1,einheit:"g"}],schritte:[]}] };
+  const addrPhasen = Model.zelladresse(editorSchreibenHeader, "Phasen (JSON)", 5);   // "K5"
+  const addrGeaendert = Model.zelladresse(editorSchreibenHeader, "Geändert", 5);     // "P5"
+
+  // Zweig A: gleicher eTag — Backup UND beide Zell-Updates finden statt, Ergebnis "ok".
+  const gwGleich = mockGateway({ eTag:() => ({ eTag:"E1" }) });
+  const ergGleich = await editorSchreiben(gwGleich, { ...editorSchreibenParams, aktuellerETag:"E1" });
+
+  // Zweig B: fremder eTag — Abbruch direkt nach der Pruefung, NICHTS geschrieben.
+  const gwFremd = mockGateway({ eTag:() => ({ eTag:"E2" }) });
+  const ergFremd = await editorSchreiben(gwFremd, { ...editorSchreibenParams, aktuellerETag:"E1" });
+
+  // Zweig C: Schreibfehler mittendrin — Backup gelingt, die Kernzelle (Phasen) schlaegt fehl;
+  // das Nebenfeld (Geändert) darf danach gar nicht erst versucht werden.
+  const gwFehler = mockGateway({ eTag:() => ({ eTag:"E1" }), updateCellWirft: addrPhasen });
+  const ergFehler = await editorSchreiben(gwFehler, { ...editorSchreibenParams, aktuellerETag:"E1" });
+
   const t = [
     ["T1 Skalierung",       nah(Calc.mengeG({prozent:0.65}, 1000, 1.5), 975)],
     ["T2 Stückzahl",        nah(Calc.alsStueck(120, idx.get("vollei")).stueck, 2)],
@@ -2829,15 +3902,262 @@ function selfTest(){
                               return zucker != null && zucker.wert === null
                                 && zucker.refs[0].wert === 0.100 && zucker.refs[0].markiert === false
                                 && wasser.refs[0].markiert === false;
-                            })()]
+                            })()],
+    // ---- AP-0302 Einkaufsliste (B2) — Testblock (3 Fälle) ----
+    // Wasser kommt in zwei Phasen vor (wie bei 25 der 80 produktiven Rezepte, z. B.
+    // "Sauerteigbrot Weiss") — die Einkaufsliste summiert ueber Phasen statt eine
+    // Zutat doppelt zu listen.
+    (() => {
+      const rzEK = { basisMengeG:1000, portionen:1, phasen:[
+        { zutaten:[{name:"Wasser",prozent:0.30,einheit:"g",rohstoff:idx.get("wasser"),nameKey:"wasser"}] },
+        { zutaten:[{name:"Wasser",prozent:0.20,einheit:"g",rohstoff:idx.get("wasser"),nameKey:"wasser"},
+                   {name:"Zucker",prozent:0.10,einheit:"g",rohstoff:idx.get("zucker"),nameKey:"zucker"}] }
+      ]};
+      const posten = Calc.einkaufsliste(rzEK, 1);
+      const wasser = posten.find(p => p.key === "wasser"), zucker = posten.find(p => p.key === "zucker");
+      return ["AP0302-1 Einkaufsliste fasst Zutat aus zwei Phasen zusammen (Wasser 300g+200g=500g)",
+        posten.length === 2 && nah(wasser.g, 500) && nah(zucker.g, 100)];
+    })(),
+    ["AP0302-2 Einkaufsliste folgt der Skalierung (Faktor 1.5, 650g → 975g)",
+                            nah(Calc.einkaufsliste(
+                              { basisMengeG:1000, portionen:1, phasen:[{ zutaten:[
+                                {name:"Wasser",prozent:0.65,einheit:"g",rohstoff:idx.get("wasser"),nameKey:"wasser"}] }] },
+                              1.5)[0].g, 975)],
+    // Abnahmekriterium: fuer eine Zutat, die nur einmal vorkommt, muss die Menge zeichengleich
+    // zur Zutatenzeile der Rezeptur sein — beide nutzen View.mengeText(), hier direkt geprueft.
+    ["AP0302-3 Menge zeichengleich zur Zutatenzeile (974.6g → \"975 g\")",
+                            View.mengeText(974.6, "g", null) === Calc.runden(974.6, "g")],
+    // ---- AP-0303 Korrektur- und Notizsection (B4) — Testblock (4 Fälle) ----
+    // §3.3: die Korrektur wird proportional zur aktuellen Skalierung nachgefuehrt, der
+    // Bezugspunkt faktorBeiEingabe bleibt dabei unveraendert stehen.
+    ["AP0303-1 Korrektur folgt der Skalierung (420g bei Faktor 1 → 630g bei Faktor 1.5)",
+                            nah(Calc.korrekturAktuell({ist:420, faktorBeiEingabe:1}, 1.5), 630)],
+    // §3.2: "Der Prozentwert (Bäckerprozent) rechnet mit der korrigierten Menge" — 500g
+    // Korrektur auf 1000g Basis ergibt 50 %, unabhaengig vom urspruenglichen Sollwert (65 %).
+    ["AP0303-2 Baeckerprozent rechnet mit der korrigierten, nicht der urspruenglichen Menge",
+                            (() => {
+                              const rz = { basisMengeG:1000 };
+                              const k = { ist:500, faktorBeiEingabe:1 };
+                              const pct = Calc.korrekturAktuell(k, 1) / (rz.basisMengeG * 1) * 100;
+                              return nah(pct, 50);
+                            })()],
+    // Abnahmekriterium 1: die Einkaufsliste zeigt fuer eine korrigierte Zutat die korrigierte
+    // Summe, die urspruengliche Summe bleibt als "Soll" (gSoll) fuer die Durchstreichung erhalten.
+    ["AP0303-3 Einkaufsliste zeigt die korrigierte Menge, das Original bleibt als Soll erhalten",
+                            (() => {
+                              const rzEK = { basisMengeG:1000, portionen:1, phasen:[{ zutaten:[
+                                {name:"Wasser",prozent:0.65,einheit:"g",rohstoff:idx.get("wasser"),nameKey:"wasser"}] }] };
+                              const posten = Calc.einkaufsliste(rzEK, 1, {"0/0":{ist:500, einheit:"g", faktorBeiEingabe:1}});
+                              const p = posten[0];
+                              return p.korrigiert === true && nah(p.g, 500) && nah(p.gSoll, 650);
+                            })()],
+    // Der Schreibpfad (App.korrekturenUebernehmenBestaetigt) setzt z.prozent = ist/(basisMengeG
+    // * faktorBeiEingabe) — skaleninvariant, hier ohne Store/DOM als reine Rechnung nachgebaut.
+    ["AP0303-4 Uebernahme-Formel ist skaleninvariant (dieselbe Korrektur ergibt dasselbe Prozent, gleich bei welchem Faktor eingegeben)",
+                            (() => {
+                              const basisMengeG = 1000;
+                              const beiFaktor1 = { ist:650, faktorBeiEingabe:1 };
+                              const beiFaktor2 = { ist:1300, faktorBeiEingabe:2 };
+                              const prozent1 = beiFaktor1.ist / (basisMengeG * beiFaktor1.faktorBeiEingabe);
+                              const prozent2 = beiFaktor2.ist / (basisMengeG * beiFaktor2.faktorBeiEingabe);
+                              return nah(prozent1, 0.65) && nah(prozent1, prozent2);
+                            })()],
+    // ---- AP-0304 Metadaten-Ausklapper (B5) — Testblock (4 Fälle) ----
+    // AP-0201 §1: alle Metadatenbloecke sind standardmaessig ZU. Nur ein ausdruecklich
+    // gemerkter Zustand klappt einen Block wieder auf.
+    (() => {
+      const vorher = Layout.meta;
+      Layout.meta = {};
+      const zuOhneZustand = Layout.metaOffen("naehrwerte") === false && Layout.metaOffen("gibtsnicht") === false;
+      Layout.meta = { naehrwerte:true, kosten:false };
+      const gemerkt = Layout.metaOffen("naehrwerte") === true && Layout.metaOffen("kosten") === false;
+      Layout.meta = vorher;
+      return ["AP0304-1 Metadatenblock ohne gemerkten Zustand ist zu, gemerkter Zustand gilt",
+        zuOhneZustand && gemerkt];
+    })(),
+    // Abnahmekriterium 2: der Druckpfad muss die Phasen UND jeden Metadatenblock erfassen.
+    ["AP0304-2 Druck klappt Phasen und Metadatenblöcke auf (ein Selektor, eine Stelle)",
+                            View.DRUCK_AUFKLAPPEN.includes("details.phase")
+                              && View.DRUCK_AUFKLAPPEN.includes("details.metablock")],
+    // Abnahmekriterium 2, zweite Haelfte: das erzwungene Aufklappen darf den gemerkten
+    // Zustand NICHT ueberschreiben — sonst kaeme der afterprint-Rueckbau mit allem offen zurueck.
+    (() => {
+      const vorherMeta = Layout.meta, vorherDruck = View.druckLaeuft, vorherPhasen = Store.offenePhasen;
+      Layout.meta = {}; Store.offenePhasen = new Set();
+      const mb = { dataset:{ block:"kosten" }, open:true }, ph = { dataset:{ i:"0" }, open:true };
+      View.druckLaeuft = true;  View.metablockToggle(mb); View.phaseToggle(ph);
+      const beimDruckIgnoriert = Layout.metaOffen("kosten") === false && Store.offenePhasen.size === 0;
+      View.druckLaeuft = false; View.metablockToggle(mb); View.phaseToggle(ph);
+      const beiKlickGemerkt = Layout.metaOffen("kosten") === true && Store.offenePhasen.has(0);
+      Layout.meta = vorherMeta; View.druckLaeuft = vorherDruck; Store.offenePhasen = vorherPhasen;
+      Settings.set("metablock", Layout.meta);
+      return ["AP0304-3 Aufklappen für den Druck wird nicht gemerkt, ein echter Klick schon",
+        beimDruckIgnoriert && beiKlickGemerkt];
+    })(),
+    // Die Spalte "Verfahren" (AP-0306 dieses Sprints) speist den Block "Verfahren & Protokoll".
+    // Fehlt die Spalte oder ist die Zelle leer (RZP-048/079/080), bleibt verfahren null.
+    (() => {
+      const header = ["Rezept-ID","Name","Kategorie","Unterkategorie","Basis-Rohstoff","Basis-Menge (g)",
+        "Sollgewicht (g)","Portionen","Einheit","Quelle","Phasen (JSON)","Backprotokoll (JSON)",
+        "Entwicklung (JSON)","Verfahren","Protokoll (JSON)"];
+      const zeile = v => ["RZP-T","Test","Backen",null,"Mehl",1000,1000,1,"Stk",null,"[]","[]",null,v,null];
+      const mit   = Model.parseRezepte([header, zeile("Räuchern")]).rezepte[0];
+      const leer  = Model.parseRezepte([header, zeile(null)]).rezepte[0];
+      const ohne  = Model.parseRezepte([header.slice(0,13), zeile(null).slice(0,13)]).rezepte[0];
+      return ["AP0304-4 Spalte «Verfahren» wird gelesen, leere Zelle und fehlende Spalte bleiben null",
+        mit.verfahren === "Räuchern" && leer.verfahren === null && ohne.verfahren === null];
+    })(),
+    // ---- AP-0305 Zutaten-Editor — Testblock (Validierung, Vorschau, Schreibpfad) ----
+    // V-1: Menge <= 0 weist ab, nennt Feld "Menge" (AP-0203 §2).
+    (() => {
+      const rzB = { basisName:"Mehl", basisMengeG:1000, sollgewichtG:1000 };
+      const phasen = [{ name:"P", zutaten:[{name:"Mehl",prozent:0,einheit:"g"}], schritte:[] }];
+      const p = Editor.pruefen(phasen, rzB);
+      return ["AP0305-3 V-1 Menge ≤ 0 weist ab (Feld „Menge“)",
+        p.ok === false && p.abweisen.some(f => f.feld === "Menge")];
+    })(),
+    // V-2: wird die Zutat entfernt, die dem Basis-Rohstoff entspricht, weist die Prüfung ab —
+    // ohne sie ist kein Bäckerprozent rechenbar (Feld/Menge/Einheit bleiben in diesem AP editierbar,
+    // basisName selbst nicht — die Regel schützt ihn vor dem Verwaisen).
+    (() => {
+      const rzB = { basisName:"Mehl", basisMengeG:1000, sollgewichtG:1000 };
+      const phasen = [{ name:"P", zutaten:[{name:"Wasser",prozent:0.5,einheit:"g"}], schritte:[] }];
+      const p = Editor.pruefen(phasen, rzB);
+      return ["AP0305-4 V-2 fehlender Basis-Rohstoff unter den Zutaten weist ab",
+        p.ok === false && p.abweisen.some(f => f.feld === "Basis-Rohstoff")];
+    })(),
+    // V-3: unaufgelöste Rohstoffe warnen, blockieren aber nicht — greift gegen Store.rohstoffe.
+    (() => {
+      const alt = Store.rohstoffe;
+      Store.rohstoffe = BEISPIEL_ROHSTOFFE;
+      const rzB = { basisName:"Glutamat", basisMengeG:1000, sollgewichtG:1000 };
+      const phasen = [{ name:"P", zutaten:[{name:"Glutamat",prozent:0.01,einheit:"g"}], schritte:[] }];
+      const p = Editor.pruefen(phasen, rzB);
+      Store.rohstoffe = alt;
+      return ["AP0305-5 V-3 unbekannter Rohstoff warnt, weist nicht ab",
+        p.ok === true && p.warnen.some(f => f.feld === "Zutat" && /Glutamat/.test(f.grund))];
+    })(),
+    // V-4: doppelte Zutat in derselben Phase warnt mit Aktion "zusammenfassen"; Editor.zusammenfassen
+    // addiert die Mengen und entfernt die Doppelzeile — Original-Array bleibt unangetastet (Kopie).
+    (() => {
+      const alt = Store.rohstoffe;
+      Store.rohstoffe = BEISPIEL_ROHSTOFFE;
+      const rzB = { basisName:"Wasser", basisMengeG:1000, sollgewichtG:1000 };
+      const phasen = [{ name:"Teig", zutaten:[
+        {name:"Wasser",prozent:0.30,einheit:"g"}, {name:"Wasser",prozent:0.20,einheit:"g"}], schritte:[] }];
+      const p = Editor.pruefen(phasen, rzB);
+      const warnung = p.warnen.find(f => f.nameKey === "wasser");
+      const zusammengefasst = Editor.zusammenfassen(phasen, 0, "wasser");
+      Store.rohstoffe = alt;
+      return ["AP0305-6 V-4 doppelte Zutat je Phase warnt, Zusammenfassen addiert und dedupliziert",
+        !!warnung && warnung.phaseIndex === 0
+          && phasen[0].zutaten.length === 2   // Original unveraendert (Kopie in zusammenfassen())
+          && zusammengefasst[0].zutaten.length === 1
+          && nah(zusammengefasst[0].zutaten[0].prozent, 0.50)];
+    })(),
+    // V-7: leerer Zubereitungsschritt-Text weist ab statt still zu verschwinden.
+    ["AP0305-7 V-7 leerer Schritt-Text weist ab (Feld „Zubereitungsschritt“)",
+                            (() => {
+                              const rzB = { basisName:"Mehl", basisMengeG:1000, sollgewichtG:1000 };
+                              const phasen = [{ name:"P", zutaten:[{name:"Mehl",prozent:1,einheit:"g"}], schritte:[{nr:1,text:"  "}] }];
+                              const p = Editor.pruefen(Editor.normalisiert(phasen), rzB);
+                              return p.ok === false && p.abweisen.some(f => f.feld === "Zubereitungsschritt");
+                            })()],
+    // V-11: eine Zelle über dem Excel-Limit (32'767 Zeichen) weist ab, statt die Datei beim
+    // Schreiben abzuschneiden.
+    ["AP0305-8 V-11 überlange Phasen (JSON)-Zelle weist ab",
+                            (() => {
+                              const rzB = { basisName:"Mehl", basisMengeG:1000, sollgewichtG:1000 };
+                              const phasen = [{ name:"P", zutaten:[
+                                {name:"Mehl",prozent:1,einheit:"g"},
+                                {name:"X".repeat(33000),prozent:0.1,einheit:"g"}], schritte:[] }];
+                              const p = Editor.pruefen(phasen, rzB);
+                              return p.ok === false && p.abweisen.some(f => f.feld === "Phasen (JSON)");
+                            })()],
+    // §3 Schritt 2 (Vorschau): Editor.diff zaehlt hinzugefuegte/entfernte/geaenderte Zutaten und
+    // Schritte positional je Phase — Grundlage der "n Änderungen"-Anzeige.
+    ["AP0305-9 Editor.diff zaehlt hinzugefuegt/entfernt/geaendert korrekt",
+                            (() => {
+                              const original = [{ name:"P", zutaten:[
+                                {name:"Mehl",prozent:0.700,einheit:"g"}, {name:"Zucker",prozent:0.100,einheit:"g"}],
+                                schritte:[{nr:1,text:"Mischen"}] }];
+                              const entwurf = [{ name:"P", zutaten:[
+                                {name:"Mehl",prozent:0.750,einheit:"g"}, {name:"Salz",prozent:0.020,einheit:"g"}],
+                                schritte:[{nr:1,text:"Mischen"},{nr:2,text:"Ruhen lassen"}] }];
+                              const d = Editor.diff(original, entwurf);
+                              return d.anzahl === 3;   // Mehl geaendert, Zucker->Salz geaendert, Schritt hinzugefuegt
+                            })()],
+    // ---- AP-0305 Schreibpfad — drei Zweige mit gemockter Graph-Schicht (Umsetzungsschritt 5) ----
+    // Zweig 1: gleicher eTag — Backup UND beide Zell-Updates finden statt (Kernzelle + "Geändert").
+    ["AP0305-10 Schreibpfad, gleicher eTag: Backup und beide Zell-Updates finden statt",
+                            ergGleich.ergebnis === "ok"
+                              && gwGleich.log.includes("backup")
+                              && gwGleich.log.includes("updateCell:" + addrPhasen)
+                              && gwGleich.log.includes("updateCell:" + addrGeaendert)
+                              && gwGleich.log.filter(x => x === "getItemMeta").length === 2],
+    // Zweig 2: fremder eTag — Abbruch direkt nach der Pruefung, WEDER Backup NOCH ein
+    // Zell-Update finden statt (Abnahmekriterium 2 des AP).
+    ["AP0305-11 Schreibpfad, fremder eTag: kein Backup, kein Data.updateCell",
+                            ergFremd.ergebnis === "konflikt"
+                              && gwFremd.log.length === 1 && gwFremd.log[0] === "getItemMeta"
+                              && !gwFremd.log.includes("backup")
+                              && !gwFremd.log.some(x => x.startsWith("updateCell"))],
+    // Zweig 3: Schreibfehler mittendrin — Backup gelingt, die Kernzelle schlaegt fehl; das
+    // Nebenfeld "Geändert" wird danach gar nicht erst versucht (Kernzelle zuerst, §3 Grundsatz).
+    ["AP0305-12 Schreibpfad, Fehler an der Kernzelle: Backup gelingt, „Geändert“ wird nicht versucht",
+                            ergFehler.ergebnis === "fehler" && ergFehler.stufe === "phasen"
+                              && gwFehler.log.includes("backup")
+                              && gwFehler.log.includes("updateCell:" + addrPhasen)
+                              && !gwFehler.log.includes("updateCell:" + addrGeaendert)]
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
   return { anzahl:t.length, fehler };
 }
 
+// AP-0305/AP-0203 §3 Schritt 4-7 — reiner Schreibkern des Zutaten-Editors, ohne Store/DOM/
+// msalApp: "gateway" traegt nur die drei Graph-Aufrufe (getItemMeta/backup/updateCell), damit
+// der Selbsttest sie durch eine gemockte Schicht ersetzen kann (Umsetzungsschritt 5: "gleicher
+// eTag, fremder eTag, Schreibfehler mittendrin", je Zweig belegt durch die tatsaechlich
+// erfolgten Aufrufe — der Mock im Selbsttest fuehrt dazu selbst Buch, siehe "gateway.log").
+// App.zutatenEditorSpeichern() (unten) ruft dies mit der echten Data-Schicht auf und deckt
+// Schritt 1-3 (Pruefen/Vorschau/Voraussetzungen) sowie Schritt 8 (Abschluss, Store/View) ab.
+async function editorSchreiben(gateway, { rezeptePfad, sheetName, header, zeileExcel, aktuellerETag, normPhasen }){
+  let meta;
+  try{ meta = await gateway.getItemMeta(rezeptePfad); }
+  catch(e){ return { ergebnis:"fehler", stufe:"eTag", meldung: e.message }; }
+
+  // Schritt 4: fremder eTag -> Abbruch VOR jedem Schreiben, kein Backup, kein Data.updateCell.
+  if(aktuellerETag && meta.eTag !== aktuellerETag) return { ergebnis:"konflikt" };
+
+  // Schritt 5: Backup — scheitert es, wird nichts geschrieben.
+  try{ await gateway.backup(rezeptePfad); }
+  catch(e){ return { ergebnis:"fehler", stufe:"backup", meldung: e.message }; }
+
+  // Schritt 6a: Kernzelle "Phasen (JSON)" zuerst — scheitert sie, ist nichts halb geschrieben.
+  const addrPhasen = Model.zelladresse(header, "Phasen (JSON)", zeileExcel);
+  if(!addrPhasen) return { ergebnis:"fehler", stufe:"phasen", meldung:'Spalte "Phasen (JSON)" fehlt in Rezepte.xlsx' };
+  try{ await gateway.updateCell(rezeptePfad, sheetName, addrPhasen, JSON.stringify(normPhasen)); }
+  catch(e){ return { ergebnis:"fehler", stufe:"phasen", meldung: e.message }; }
+
+  // Schritt 6c: Komfortspalte "Geändert" — nicht fatal, nur meldepflichtig.
+  let nebenfehler = false;
+  const addrGeaendert = Model.zelladresse(header, "Geändert", zeileExcel);
+  if(addrGeaendert){
+    try{ await gateway.updateCell(rezeptePfad, sheetName, addrGeaendert, new Date().toISOString().slice(0,10)); }
+    catch(e){ nebenfehler = true; }
+  }
+
+  // Schritt 7: eTag neu lesen; scheitert das, faellt die naechste Pruefung auf §4.3 zurueck.
+  let neuerETag = null;
+  try{ neuerETag = (await gateway.getItemMeta(rezeptePfad)).eTag; }catch(e){ neuerETag = null; }
+
+  return { ergebnis:"ok", neuerETag, nebenfehler };
+}
+
 /* ---------- App --------------------------------------------------------- */
 const App = {
-  start(){
+  async start(){
+    Layout.init();
     Store.rohstoffe = BEISPIEL_ROHSTOFFE;
     Store.rezepte   = Model.aufloesen(BEISPIEL_REZEPTE, BEISPIEL_ROHSTOFFE);
 
@@ -2856,7 +4176,10 @@ const App = {
     // aufgerufen wird) — sonst haeuften sich bei jedem Rezeptwechsel weitere Listener an.
     window.addEventListener("afterprint", () => { if(Store.aktuellesRezept) View.rezept(); });
 
-    const st = selfTest();
+    // AP-0305: selfTest() ist seit diesem AP async — die drei gemockten Schreibpfad-Zweige
+    // (Umsetzungsschritt 5) brauchen echte awaits. App.start() selbst wird ohne await
+    // aufgerufen (DOMContentLoaded-Handler unten), das ist unveraendert unkritisch.
+    const st = await selfTest();
     el("#selftest").textContent = st.fehler.length
       ? ` · Selbsttest: ${st.fehler.length} von ${st.anzahl} fehlgeschlagen (${st.fehler.join(", ")})`
       : ` · Selbsttest: ${st.anzahl}/${st.anzahl} ok`;
@@ -2961,6 +4284,14 @@ const App = {
     // stünden im nächsten Rezept die Vergleichsspalten des vorigen.
     Store.referenzIds = [];
     Store.devForm = null;
+    // AP-0303: die Korrekturablage selbst bleibt unter ihrer rezeptId liegen (AP-0201 §3.4,
+    // Abnahmekriterium 3) — nur der Uebernahme-Bestaetigungsdialog ist ein Formular ueber dem
+    // vorherigen Rezept und muss beim Wechsel zu.
+    Store.korrekturUebernehmenOffen = false;
+    // AP-0305: ein Editor-Entwurf gehoert zum vorherigen Rezept und muss beim Wechsel zu —
+    // der Entwurf selbst bleibt aber in Entwurf (localStorage), bis er geladen oder verworfen
+    // wird (§4.4), genau wie Korrekturen.alle oben.
+    Store.zutatenEditor = null;
     View.rezept();
     window.scrollTo({top:0, behavior:"smooth"});
   },
@@ -2976,7 +4307,132 @@ const App = {
     }
   },
 
-  schliessen(){ Store.aktuellesRezept = null; View.rezept(); },
+  schliessen(){ Store.aktuellesRezept = null; Store.korrekturUebernehmenOffen = false; View.rezept(); },
+
+  /* ---------- Korrekturen (AP-0303, B4) -------------------------------------
+     Kochkorrekturen wirken sofort und ohne Bestaetigung (AP-0203 §6.2) — nur der letzte
+     Schritt, "Ins Rezept übernehmen", schreibt nach Rezepte.xlsx, und der braucht immer
+     erst die Bestaetigung aus View.korrekturUebernehmenVorschau(). */
+  korrekturSetzen(rezeptId, key, wert){
+    if(!(wert > 0)) return;
+    const rz = Store.aktuellesRezept;
+    if(!rz || rz.id !== rezeptId) return;
+    const [i, j] = key.split("/").map(Number);
+    const z = rz.phasen[i] && rz.phasen[i].zutaten[j];
+    if(!z) return;
+    const kx = Korrekturen.get(rezeptId);
+    // AP-0201 §3.1: sollBeiEingabe/faktorBeiEingabe sind der feste Bezugspunkt, ueber den
+    // jede spaetere Skalierung nachgefuehrt wird (Calc.korrekturAktuell) — "ist" selbst
+    // wird nie mutiert, deshalb ueberschreibt ein erneutes Eintippen den ganzen Eintrag.
+    kx.zutaten[key] = {
+      ist: wert, einheit: z.einheit,
+      sollBeiEingabe: Calc.mengeG(z, rz.basisMengeG, Store.faktor),
+      faktorBeiEingabe: Store.faktor,
+      ts: new Date().toISOString()
+    };
+    Korrekturen.speichern();
+    View.rezept();
+    View.liste(); // AP-0201 §3.4: Punktmarkierung offener Korrekturen in der Navigation
+  },
+
+  korrekturLoeschen(rezeptId, key){
+    const kx = Korrekturen.get(rezeptId);
+    delete kx.zutaten[key];
+    Korrekturen.speichern();
+    View.rezept();
+    View.liste();
+  },
+
+  // AP-0201 §3.5: "Löschen nur ausdrücklich, je Rezept, mit Rückfrage."
+  korrekturenVerwerfen(rezeptId){
+    const kx = Korrekturen.get(rezeptId);
+    if(!Object.keys(kx.zutaten).length && !kx.notiz.trim()) return;
+    if(!confirm("Alle Korrekturen und die Notiz dieses Rezepts verwerfen? Das lässt sich nicht rückgängig machen.")) return;
+    kx.zutaten = {}; kx.notiz = "";
+    Korrekturen.speichern();
+    View.rezept();
+    View.liste();
+  },
+
+  // AP-0203 §6.3 "Ins Rezept übernehmen", auf den schmalen Fall zugeschnitten: nur die
+  // korrigierten Zutaten wandern in "Phasen (JSON)", der volle Kopffeld-Editor ist AP-0305.
+  // Baut auf dem Schreibvorgang aus App.entwBefoerdernBestaetigt auf (§3 Schreibvorgang):
+  // Verbindung pruefen -> eTag-Konflikt pruefen -> Backup -> Zell-Update -> eTag neu lesen,
+  // bei jedem Fehler rollt rz.phasen vollstaendig zurueck.
+  async korrekturenUebernehmenBestaetigt(){
+    const rz = Store.aktuellesRezept;
+    if(!rz) return;
+    const kx = Korrekturen.get(rz.id);
+    const keys = Object.keys(kx.zutaten);
+    if(!keys.length) return;
+
+    const altePhasen = rz.phasen;
+    const neuePhasen = rz.phasen.map(p => ({ ...p, zutaten: p.zutaten.map(z => ({ ...z })) }));
+    keys.forEach(key => {
+      const [i, j] = key.split("/").map(Number);
+      const z = neuePhasen[i] && neuePhasen[i].zutaten[j];
+      if(!z) return;
+      const kk = kx.zutaten[key];
+      // Skaleninvariant: ist/(basisMengeG*faktorBeiEingabe) ist dasselbe Verhaeltnis wie
+      // korrekturAktuell(kk,faktor)/(basisMengeG*faktor) fuer jedes faktor — der Faktor
+      // kuerzt sich heraus, es braucht keine Umrechnung ueber den aktuellen Store.faktor.
+      z.prozent = kk.ist / (rz.basisMengeG * kk.faktorBeiEingabe);
+    });
+    rz.phasen = neuePhasen;
+    Model.aufloesen([rz], Store.rohstoffe);
+
+    const verbunden = Store.rezepteWorkbook && Data.verfuegbar() && msalApp.getActiveAccount();
+    if(!verbunden){
+      rz.phasen = altePhasen; Model.aufloesen([rz], Store.rohstoffe);
+      Store.korrekturUebernehmenOffen = false;
+      View.meldung("Übernahme braucht eine OneDrive-Verbindung — ohne sie bleibt nichts dauerhaft gespeichert, "
+        + "die Korrekturen bleiben unverändert stehen.", "warn", "Nicht übernommen");
+      View.rezept();
+      return;
+    }
+    if(!rz._raw){
+      rz.phasen = altePhasen; Model.aufloesen([rz], Store.rohstoffe);
+      View.meldung("Zeilenposition dieses Rezepts ist unbekannt (frisch importiert, noch nicht neu geladen). "
+        + "Seite neu laden und erneut versuchen.", "err", "Übernahme nicht möglich");
+      return;
+    }
+    try{
+      if(Store.rezepteETag){
+        const meta = await Data.getItemMeta(CONFIG.rezeptePfad);
+        if(meta.eTag !== Store.rezepteETag){
+          rz.phasen = altePhasen; Model.aufloesen([rz], Store.rohstoffe);
+          Store.korrekturUebernehmenOffen = false;
+          View.meldung("Rezepte.xlsx wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. "
+            + "Bitte erneut übernehmen.", "warn", "Konflikt erkannt");
+          const konto = msalApp.getActiveAccount();
+          await App.datenLaden(konto);
+          App.rezeptOeffnen(rz.id);
+          return;
+        }
+      }
+      await Data.backup(CONFIG.rezeptePfad);
+      const header = rz._raw.spalten, zeileExcel = rz._raw.zeile + 1;
+      const iPhasen = header.indexOf("Phasen (JSON)");
+      if(iPhasen === -1) throw new Error('Spalte "Phasen (JSON)" fehlt in Rezepte.xlsx');
+      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
+        Model.zelladresse(header, "Phasen (JSON)", zeileExcel), JSON.stringify(Import.phasenExport(rz.phasen)));
+      try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
+      catch(e){ Store.rezepteETag = null; }
+
+      // AP-0201 §3.5/§6.4: nie loeschen — die uebernommenen Korrekturen wandern archiviert.
+      kx.uebernommen = [...(kx.uebernommen || []), { ts: new Date().toISOString(), ziel: "Rezept", werte: kx.zutaten }];
+      kx.zutaten = {};
+      Korrekturen.speichern();
+      Store.korrekturUebernehmenOffen = false;
+      View.meldung(keys.length + " Korrektur(en) ins Rezept übernommen, Backup angelegt.", "ok", "Übernommen");
+      View.rezept();
+      View.liste();
+    }catch(e){
+      rz.phasen = altePhasen; Model.aufloesen([rz], Store.rohstoffe);
+      View.meldung("Übernahme fehlgeschlagen: " + e.message + " — Rezept in OneDrive nicht verändert.", "err", "Fehler beim Speichern");
+      View.rezept();
+    }
+  },
 
   /* ---------- Backprotokoll (AP-0305) --------------------------------------
      Ablauf: Formular oeffnen -> pruefen -> (Beispieldaten: nur im Speicher | OneDrive:
@@ -3070,6 +4526,262 @@ const App = {
       View.meldung("Speichern fehlgeschlagen: " + e.message + " — Backprotokoll in OneDrive nicht verändert.", "err", "Fehler beim Speichern");
       View.rezept();
     }
+  },
+
+  /* ---------- Zutaten-Editor (AP-0305) -------------------------------------
+     Ersetzt das rohe JSON-Textfeld des Entwicklungsmodus fuer den produktiven Feldumfang
+     Zutat/Menge/Einheit/Bäckerprozent/Zubereitungsschritte (AP-0203 §1, Umsetzungsschritt 1).
+     Ablauf wie beschrieben in AP-0203 §3: Pruefen (Editor.pruefen, laeuft bei jedem Rendern) ->
+     Vorschau (ein Klick auf "Speichern" zeigt sie, erst "Jetzt speichern" schreibt) ->
+     Voraussetzungen -> eTag -> Backup -> Zell-Updates (editorSchreiben) -> eTag neu lesen ->
+     Abschluss. Konflikt siehe App.zutatenEditorKonfliktOeffnen() (§4). */
+  zutatenEditorOeffnen(){
+    const rz = Store.aktuellesRezept;
+    if(!rz) return;
+    Store.zutatenEditor = {
+      rezeptId: rz.id,
+      phasen: rz.phasen.map(ph => ({
+        name: ph.name,
+        zutaten: (ph.zutaten || []).map(z => ({ name: z.name, prozent: z.prozent, einheit: z.einheit })),
+        schritte: (ph.schritte || []).map(s => ({ nr: s.nr, text: s.text }))
+      })),
+      vorschauBestaetigt: false,
+      konflikt: null
+    };
+    View.rezept();
+  },
+
+  zutatenEditorAbbrechen(){
+    Store.zutatenEditor = null;
+    View.rezept();
+  },
+
+  // feld ist eines von "name"/"einheit"/"menge"/"prozent" — menge und prozent schreiben
+  // beide in dieselbe interne Groesse z.prozent (AP-0203 §1.4: "gespeichert wird der Faktor
+  // menge ÷ basisMengeG"), damit die jeweils andere Anzeige beim naechsten Rendern nachzieht.
+  zutatenEditorZutatFeld(pi, zi, feld, wert){
+    const ed = Store.zutatenEditor, rz = Store.aktuellesRezept;
+    const z = ed && ed.phasen[pi] && ed.phasen[pi].zutaten[zi];
+    if(!z) return;
+    if(feld === "name") z.name = wert;
+    else if(feld === "einheit") z.einheit = wert;
+    else if(feld === "menge"){
+      const g = Number(wert);
+      z.prozent = (wert !== "" && isFinite(g) && rz.basisMengeG > 0) ? g / rz.basisMengeG : "";
+    }else if(feld === "prozent"){
+      const p = Number(wert);
+      z.prozent = (wert !== "" && isFinite(p)) ? p / 100 : "";
+    }
+    ed.vorschauBestaetigt = false;
+    View.rezept();
+  },
+
+  zutatenEditorZutatHinzufuegen(pi){
+    const ed = Store.zutatenEditor;
+    if(!ed || !ed.phasen[pi]) return;
+    ed.phasen[pi].zutaten.push({ name:"", prozent:"", einheit:"g" });
+    ed.vorschauBestaetigt = false;
+    View.rezept();
+  },
+
+  zutatenEditorZutatEntfernen(pi, zi){
+    const ed = Store.zutatenEditor;
+    if(!ed || !ed.phasen[pi]) return;
+    ed.phasen[pi].zutaten.splice(zi, 1);
+    ed.vorschauBestaetigt = false;
+    View.rezept();
+  },
+
+  // Aktion zur V-4-Warnung: mehrfach vorkommende Zutat derselben Phase zusammenfassen (Mengen
+  // addiert) statt sie einzeln loeschen zu muessen.
+  zutatenEditorZusammenfassen(pi, nameKey){
+    const ed = Store.zutatenEditor;
+    if(!ed) return;
+    ed.phasen = Editor.zusammenfassen(ed.phasen, pi, nameKey);
+    ed.vorschauBestaetigt = false;
+    View.rezept();
+  },
+
+  zutatenEditorSchrittFeld(pi, si, wert){
+    const ed = Store.zutatenEditor;
+    const s = ed && ed.phasen[pi] && ed.phasen[pi].schritte[si];
+    if(!s) return;
+    s.text = wert;
+    ed.vorschauBestaetigt = false;
+    View.rezept();
+  },
+
+  zutatenEditorSchrittHinzufuegen(pi){
+    const ed = Store.zutatenEditor;
+    if(!ed || !ed.phasen[pi]) return;
+    ed.phasen[pi].schritte.push({ nr: ed.phasen[pi].schritte.length + 1, text:"" });
+    ed.vorschauBestaetigt = false;
+    View.rezept();
+  },
+
+  zutatenEditorSchrittEntfernen(pi, si){
+    const ed = Store.zutatenEditor;
+    if(!ed || !ed.phasen[pi]) return;
+    ed.phasen[pi].schritte.splice(si, 1);
+    ed.vorschauBestaetigt = false;
+    View.rezept();
+  },
+
+  // §3 Schritt 1->2: "Speichern" zeigt beim ersten Klick nur die Vorschau (View.zutatenEditorMarkup
+  // haelt den Speichern-Knopf disabled, solange Editor.pruefen abweist — hier defensiv erneut geprueft).
+  zutatenEditorVorschauOeffnen(){
+    const ed = Store.zutatenEditor, rz = Store.aktuellesRezept;
+    if(!ed || !rz) return;
+    const pruefung = Editor.pruefen(Editor.normalisiert(ed.phasen), rz);
+    if(!pruefung.ok) return;
+    ed.vorschauBestaetigt = true;
+    View.rezept();
+  },
+
+  zutatenEditorVorschauZurueck(){
+    const ed = Store.zutatenEditor;
+    if(!ed) return;
+    ed.vorschauBestaetigt = false;
+    View.rezept();
+  },
+
+  // §3 Schritt 3-8. "Jetzt speichern" (nach der Vorschau) ruft dies auf; die "Meine Fassung
+  // speichern"-Aktion des Konfliktdialogs ebenfalls (mit bereits bestaetigter Vorschau).
+  async zutatenEditorSpeichern(){
+    const ed = Store.zutatenEditor, rz = Store.aktuellesRezept;
+    if(!ed || !rz || ed.rezeptId !== rz.id || !ed.vorschauBestaetigt) return;
+    const normPhasen = Editor.normalisiert(ed.phasen);
+    const pruefung = Editor.pruefen(normPhasen, rz);
+    if(!pruefung.ok) return;
+
+    // Schritt 3: Voraussetzungen.
+    const verbunden = Store.rezepteWorkbook && Data.verfuegbar() && msalApp.getActiveAccount();
+    if(!verbunden){
+      rz.phasen = normPhasen;
+      Model.aufloesen([rz], Store.rohstoffe);
+      Store.zutatenEditor = null;
+      View.meldung("Änderungen bleiben in dieser Sitzung erhalten, ohne OneDrive-Verbindung wird nichts gespeichert.",
+        "warn", "Nicht dauerhaft gespeichert");
+      View.rezept();
+      return;
+    }
+    if(!rz._raw){
+      View.meldung("Zeilenposition dieses Rezepts ist unbekannt (frisch importiert, noch nicht neu geladen). "
+        + "Seite neu laden und erneut versuchen.", "err", "Speichern nicht möglich");
+      return;
+    }
+
+    // §4.3 Sonderfall: kein Vergleichs-eTag bekannt -> vor dem Schreiben neu laden statt vergleichen.
+    if(!Store.rezepteETag){
+      Entwurf.speichern(rz.id, normPhasen);
+      View.meldung("Der Stand von Rezepte.xlsx konnte zuletzt nicht bestätigt werden — der Bestand wird vor "
+        + "dem Speichern neu geladen.", "warn", "Stand wird geprüft");
+      const konto = msalApp.getActiveAccount();
+      await App.datenLaden(konto);
+      App.rezeptOeffnen(rz.id);
+      App.zutatenEditorEntwurfLaden();
+      return;
+    }
+
+    const header = rz._raw.spalten, zeileExcel = rz._raw.zeile + 1;
+    const ergebnis = await editorSchreiben(Data, {
+      rezeptePfad: CONFIG.rezeptePfad, sheetName: Store.rezepteSheetName,
+      header, zeileExcel, aktuellerETag: Store.rezepteETag, normPhasen
+    });
+
+    if(ergebnis.ergebnis === "konflikt"){
+      // §4.1: Entwurf sichern, Bestand neu laden, Konfliktdialog statt nur der Kachel.
+      Entwurf.speichern(rz.id, normPhasen);
+      const konto = msalApp.getActiveAccount();
+      await App.datenLaden(konto);
+      App.rezeptOeffnen(rz.id);
+      App.zutatenEditorKonfliktOeffnen();
+      return;
+    }
+    if(ergebnis.ergebnis === "fehler"){
+      View.meldung("Speichern fehlgeschlagen: " + ergebnis.meldung + " — Rezept in OneDrive nicht verändert.",
+        "err", "Fehler beim Speichern");
+      View.rezept();
+      return;
+    }
+
+    // Schritt 8: Abschluss.
+    rz.phasen = normPhasen;
+    Model.aufloesen([rz], Store.rohstoffe);
+    Store.rezepteETag = ergebnis.neuerETag;
+    Store.zutatenEditor = null;
+    Entwurf.verwerfen(rz.id);
+    View.meldung("Rezept gespeichert, Backup in " + (CONFIG.backupOrdner || "/Backups") + " angelegt."
+      + (ergebnis.nebenfehler ? ' Hinweis: Spalte „Geändert“ konnte nicht mitaktualisiert werden.' : ""),
+      ergebnis.nebenfehler ? "warn" : "ok", "Gespeichert");
+    View.rezept();
+    View.liste();
+  },
+
+  // §4.1 Schritt 4: oeffnet den Konfliktdialog mit dem gerade gesicherten Entwurf ueber dem
+  // frisch geladenen Bestand.
+  zutatenEditorKonfliktOeffnen(){
+    const rz = Store.aktuellesRezept;
+    const gespeichert = rz && Entwurf.lesen(rz.id);
+    if(!gespeichert) return;
+    Store.zutatenEditor = {
+      rezeptId: rz.id,
+      phasen: JSON.parse(JSON.stringify(gespeichert.phasen)),
+      vorschauBestaetigt: false,
+      konflikt: { fremdeAnsicht:false }
+    };
+    View.rezept();
+  },
+
+  zutatenEditorKonfliktMeineFassungSpeichern(){
+    const ed = Store.zutatenEditor;
+    if(!ed) return Promise.resolve();
+    ed.konflikt = null;
+    ed.vorschauBestaetigt = true;
+    return App.zutatenEditorSpeichern();
+  },
+
+  zutatenEditorKonfliktFremdeAnsehen(){
+    const ed = Store.zutatenEditor;
+    if(!ed || !ed.konflikt) return;
+    ed.konflikt.fremdeAnsicht = true;
+    View.rezept();
+  },
+
+  zutatenEditorKonfliktZurueck(){
+    const ed = Store.zutatenEditor;
+    if(!ed || !ed.konflikt) return;
+    ed.konflikt.fremdeAnsicht = false;
+    View.rezept();
+  },
+
+  zutatenEditorKonfliktBehalten(){
+    const ed = Store.zutatenEditor;
+    if(!ed) return;
+    ed.konflikt = null;
+    View.rezept();
+  },
+
+  // §4.4: Kachel-Aktionen fuer einen liegengebliebenen Entwurf beim Oeffnen eines Rezepts.
+  zutatenEditorEntwurfLaden(){
+    const rz = Store.aktuellesRezept;
+    const gespeichert = rz && Entwurf.lesen(rz.id);
+    if(!gespeichert) return;
+    Store.zutatenEditor = {
+      rezeptId: rz.id,
+      phasen: JSON.parse(JSON.stringify(gespeichert.phasen)),
+      vorschauBestaetigt: false,
+      konflikt: null
+    };
+    View.rezept();
+  },
+
+  zutatenEditorEntwurfVerwerfen(){
+    const rz = Store.aktuellesRezept;
+    if(!rz) return;
+    if(!confirm("Nicht gespeicherten Entwurf für dieses Rezept endgültig verwerfen?")) return;
+    Entwurf.verwerfen(rz.id);
+    View.rezept();
   },
 
   /* ---------- Entwicklungsmodus (AP-0311) ----------------------------------
