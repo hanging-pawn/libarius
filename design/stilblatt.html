@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>libarius — Stilblatt</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="libarius.css">
+<style>
+  body{margin:0}
+  .blatt{padding:var(--lb-zeile) var(--lb-rand) calc(2 * var(--lb-zeile));
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,400px));
+    column-gap:80px;align-items:start}
+  .farbfeld{width:56px}
+  .farbfeld i{display:block;width:28px;height:28px}
+  .farbreihe{display:flex;gap:28px;height:84px}
+</style>
+</head>
+<body class="lb lb-papier">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="lb-suche" viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="4"/><path d="M9.5 9.5l4 4"/></symbol>
+  <symbol id="lb-import" viewBox="0 0 16 16"><path d="M8 2v8M5 7l3 3 3-3M2.5 11v2.5h11V11"/></symbol>
+  <symbol id="lb-kochmodus" viewBox="0 0 16 16"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3"/></symbol>
+  <symbol id="lb-anmeldung" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="3"/><path d="M2.5 14c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5"/></symbol>
+  <symbol id="lb-schiene" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M6 3.5v9"/></symbol>
+  <symbol id="lb-chevron" viewBox="0 0 12 12"><path d="M2.5 4.5l3.5 3.5 3.5-3.5"/></symbol>
+</svg>
+
+<div class="blatt">
+
+  <!-- ------------------------------------------------------ Spalte 1 -->
+  <div>
+    <div class="lb-neben">Farben</div>
+    <div class="farbreihe">
+      <div class="farbfeld"><i style="background:var(--lb-papier);box-shadow:inset 0 0 0 1px var(--lb-linie)"></i><div class="lb-klein">Papier</div><div class="lb-neben">#faf8f5</div></div>
+      <div class="farbfeld"><i style="background:var(--lb-linie)"></i><div class="lb-klein">Linie</div><div class="lb-neben">#e4ded6</div></div>
+      <div class="farbfeld"><i style="background:var(--lb-graphit)"></i><div class="lb-klein">Graphit</div><div class="lb-neben">#2a2724</div></div>
+      <div class="farbfeld" style="width:64px"><i style="background:var(--lb-neben)"></i><div class="lb-klein">Nebentext</div><div class="lb-neben">#7a716a</div></div>
+      <div class="farbfeld" style="width:96px"><i style="height:var(--lb-rot-staerke);background:var(--lb-rot);margin-top:19px"></i><div class="lb-klein" style="margin-top:7.5px">Rot, nur Linie</div><div class="lb-neben">#a63a2b</div></div>
+    </div>
+
+    <div class="lb-luecke"></div>
+
+    <div class="lb-neben">Typografie · Fira Sans · Raster 28 px</div>
+    <div class="lb-titel">Rezepttitel 26 · 2 Zeilen</div>
+    <div class="lb-phasentitel">Phase 17 Medium</div>
+    <div>Fliesstext 15 Regular, Arbeitsschritte und Zutaten</div>
+    <div class="lb-neben">Nebentext 13, Kategorien, Metadaten</div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Ziffern tabellarisch</span><span class="menge" style="width:140px">1200</span><span class="einheit">g</span></div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm"></span><span class="menge" style="width:140px">18</span><span class="einheit">g</span></div>
+
+    <div class="lb-luecke"></div>
+
+    <div class="lb-neben">Rote Linie · drei Rollen</div>
+    <div style="display:flex;height:var(--lb-bedien)">
+      <div class="lb-randlinie" style="margin-right:30px"></div>
+      <div>1 Randlinie<div class="lb-neben">links der Rezeptur, volle Höhe</div></div>
+    </div>
+    <div class="lb-trenner"></div>
+    <div>2 Trenner<span class="lb-neben"> · zwischen Kopf, Phasen, Metadaten, 1.5 px</span></div>
+    <div class="lb-zutat lb-zutat--schlicht lb-korrektur"><span class="nm">3 Korrektur</span><span class="menge" style="width:140px"><s>480</s> <b>510</b></span><span class="einheit">g</span></div>
+  </div>
+
+  <!-- ------------------------------------------------------ Spalte 2 -->
+  <div>
+    <div class="lb-neben">Listeneintrag · normal / aktiv / leer</div>
+    <div class="lb-eintrag"><span class="nm">Focaccia</span><span class="zusatz">Backen</span></div>
+    <div class="lb-eintrag lb-eintrag--aktiv"><span class="nm">Sauerteigbrot 2.0</span><span class="zusatz">Backen</span></div>
+    <div class="lb-leer">Keine Rezepte in Süsses</div>
+
+    <div class="lb-luecke"></div>
+
+    <div class="lb-neben">Zutatentabelle · ohne Korrektur</div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Weizenmehl 550</span><span class="menge" style="width:140px">720</span><span class="einheit">g</span></div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Wasser, 20 °C</span><span class="menge" style="width:140px">480</span><span class="einheit">g</span></div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Salz</span><span class="menge" style="width:140px">18</span><span class="einheit">g</span></div>
+
+    <div class="lb-luecke"></div>
+
+    <div class="lb-neben">Zutatentabelle · mit Korrektur</div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Weizenmehl 550</span><span class="menge" style="width:140px">720</span><span class="einheit">g</span></div>
+    <div class="lb-zutat lb-zutat--schlicht lb-korrektur"><span class="nm">Wasser, 20 °C</span><span class="menge" style="width:140px"><s>480</s> <b>510</b></span><span class="einheit">g</span></div>
+    <div class="lb-zutat lb-zutat--schlicht lb-korrektur"><span class="nm">Salz</span><span class="menge" style="width:140px"><s>18</s> <b>20</b></span><span class="einheit">g</span></div>
+
+    <div class="lb-luecke"></div>
+
+    <div class="lb-neben">Kopfzeilen-Symbole · 16 px, Strich 1.2, Graphit</div>
+    <div style="display:flex;gap:28px;height:var(--lb-bedien)">
+      <div style="width:64px"><div style="height:var(--lb-zeile);display:flex;align-items:center"><svg class="lb-ikone"><use href="#lb-suche"/></svg></div><div class="lb-neben">Suche</div></div>
+      <div style="width:64px"><div style="height:var(--lb-zeile);display:flex;align-items:center"><svg class="lb-ikone"><use href="#lb-import"/></svg></div><div class="lb-neben">Import</div></div>
+      <div style="width:80px"><div style="height:var(--lb-zeile);display:flex;align-items:center"><svg class="lb-ikone"><use href="#lb-kochmodus"/></svg></div><div class="lb-neben">Kochmodus</div></div>
+      <div style="width:80px"><div style="height:var(--lb-zeile);display:flex;align-items:center"><svg class="lb-ikone"><use href="#lb-anmeldung"/></svg></div><div class="lb-neben">Anmeldung</div></div>
+      <div style="width:64px"><div style="height:var(--lb-zeile);display:flex;align-items:center"><svg class="lb-ikone"><use href="#lb-schiene"/></svg></div><div class="lb-neben">Schiene</div></div>
+    </div>
+  </div>
+
+  <!-- ------------------------------------------------------ Spalte 3 -->
+  <div>
+    <div class="lb-neben">Bedienelemente · 56 px</div>
+    <div class="lb-feld lb-feld--leer">Rezepte durchsuchen</div>
+    <div class="lb-neben">Suchfeld, leer</div>
+    <div class="lb-feld">Brio</div>
+    <div class="lb-neben">Suchfeld, mit Eingabe</div>
+
+    <div class="lb-luecke"></div>
+
+    <div class="lb-posten"><span class="lb-kaestchen"></span><span class="nm">Kästchen, offen</span></div>
+    <div class="lb-posten lb-posten--erledigt"><span class="lb-kaestchen lb-kaestchen--an"></span><span class="nm">Kästchen, abgehakt</span></div>
+
+    <div class="lb-luecke"></div>
+
+    <div class="lb-posten"><span class="lb-schalter"><i></i></span><span class="nm">Schalter, aus</span></div>
+    <div class="lb-posten"><span class="lb-schalter lb-schalter--an"><i></i></span><span class="nm">Schalter, an</span></div>
+
+    <div class="lb-luecke"></div>
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;height:var(--lb-bedien)">
+      <div class="lb-neben">Skalierung, 2 Zeilen</div>
+      <div class="lb-skalierung"><div class="lb-neben">Skalierung</div><div class="wert">1200 g</div></div>
+    </div>
+
+    <div class="lb-luecke"></div>
+
+    <div class="lb-neben">Kategorie · Auswahl zugeklappt</div>
+    <div class="lb-dropdown"><span>Backen</span><svg class="lb-ikone" style="width:12px;height:12px"><use href="#lb-chevron"/></svg></div>
+
+    <div class="lb-luecke"></div>
+
+    <div class="lb-neben">Raster · Nachweis</div>
+    <div class="lb-posten"><span class="nm">Zeile 1 · Text sitzt auf der Linie</span><span class="menge">28</span></div>
+    <div class="lb-posten"><span class="nm">Zeile 2 · Linie bei 19 px der Zelle</span><span class="menge">56</span></div>
+    <div class="lb-posten"><span class="nm">Zeile 3 · nichts steht dazwischen</span><span class="menge">84</span></div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,600 @@
+/* ============================================================================
+   libarius — Gestaltungsgrundlage
+   Quelle: Claude-Design-Projekt «Libarius UI Mockups», Entwurf vom 09.09.2026
+           (libarius.dc.html, Rezeptur.dc.html, Rezeptur2.dc.html).
+   Kanonisch ist die Geometrie aus Durchgang 2 (Artboards 2a/2b). Wo Durchgang 1
+   davon abweicht, gilt Durchgang 2 — begruendet in DESIGN.md, «Korrekturen».
+   Grundsatz: Papier mit Linienraster. Keine Karten, keine Schatten, keine
+   Rundungen, kein Dunkelmodus, keine Fotos. Rot ist ausschliesslich Linie.
+   ========================================================================= */
+
+/* ---------------------------------------------------------------- Marken --
+   Alle Masse haengen an --lb-zeile. Wer das Raster wechselt (Kochmodus),
+   setzt nur --lb-zeile, --lb-linie-y und die Schriftgrade neu. */
+:root{
+  color-scheme:light;
+
+  /* Farben — fuenf, mehr nicht */
+  --lb-papier:#faf8f5;      /* Grundflaeche */
+  --lb-leinwand:#edeae4;    /* Flaeche um die Artboards, nur in den Entwuerfen */
+  --lb-linie:#e4ded6;       /* Rasterlinie, Notizlinie */
+  --lb-graphit:#2a2724;     /* Text, Bedienlinien, Kaestchen */
+  --lb-neben:#7a716a;       /* Nebentext, Einheiten, Metadaten */
+  --lb-notiz:#5f574f;       /* Notiztext auf der Zutatenzeile */
+  --lb-rot:#a63a2b;         /* nur Linie und Korrekturwert */
+
+  /* Raster */
+  --lb-zeile:28px;          /* Zeilenhoehe = Rasterschritt */
+  --lb-linie-y:19px;        /* Rasterlinie liegt 19 px unter der Zeilenoberkante */
+  --lb-bedien:56px;         /* Bedienelement = zwei Zeilen */
+  --lb-bedien-y:47px;       /* Graphitlinie des Bedienelements */
+  --lb-rand:40px;           /* Seitenrand */
+  --lb-gasse:32px;          /* Spaltenabstand, beidseitig der Randlinie */
+  --lb-rot-staerke:1.5px;   /* jede rote Linie */
+
+  /* Spaltenbreiten der Hauptansicht (1440) */
+  --lb-schiene:200px;       /* linke Schiene: Tabs, Kategorie, Rezepte */
+  --lb-liste:272px;         /* rechte Schiene: Einkaufsliste */
+
+  /* Schrift */
+  --lb-schrift:'Fira Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,
+               Helvetica,Arial,sans-serif;
+  --lb-text:15px;           /* Fliesstext, Zutaten, Arbeitsschritte */
+  --lb-klein:13px;          /* Nebentext, Kategorien, Metadaten */
+  --lb-phase:17px;          /* Phasentitel, Medium */
+  --lb-titel:26px;          /* Rezepttitel, Medium, zwei Zeilen hoch */
+
+  /* Zutatenzeile */
+  --lb-menge:96px;
+  --lb-einheit:32px;
+  --lb-notizspalte:240px;
+
+  /* Symbole */
+  --lb-ikone:16px;
+  --lb-ikone-strich:1.2;
+}
+
+/* Kochmodus: gleiches System, groesserer Schritt (Artboard 1e). */
+.lb-kochmodus{
+  --lb-zeile:38px; --lb-linie-y:26px; --lb-bedien:76px; --lb-bedien-y:64px;
+  --lb-gasse:38px; --lb-text:22px; --lb-klein:17px; --lb-titel:36px;
+  --lb-menge:200px; --lb-einheit:44px;
+}
+
+/* ---------------------------------------------------------------- Flaeche --
+   .lb-papier traegt das Linienraster. Die Linie sitzt bei --lb-linie-y, also
+   knapp unter der Schriftgrundlinie — Text sitzt auf der Linie, nicht darauf. */
+.lb-papier{
+  background-color:var(--lb-papier);
+  background-image:repeating-linear-gradient(to bottom,
+    transparent 0 var(--lb-linie-y),
+    var(--lb-linie) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+    transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile));
+}
+
+.lb{
+  font-family:var(--lb-schrift);
+  font-size:var(--lb-text);
+  line-height:var(--lb-zeile);
+  color:var(--lb-graphit);
+  font-variant-numeric:tabular-nums;
+}
+.lb *{box-sizing:border-box}
+
+/* ---------------------------------------------------------------- Schrift -- */
+.lb-titel{font-size:var(--lb-titel);line-height:var(--lb-zeile);font-weight:500;
+  padding-top:var(--lb-zeile);letter-spacing:-.01em;margin:0}
+.lb-phasentitel{font-size:var(--lb-phase);font-weight:500}
+.lb-klein{font-size:var(--lb-klein)}
+.lb-neben{font-size:var(--lb-klein);color:var(--lb-neben)}
+.lb-schritt{text-wrap:pretty;max-width:520px}
+
+/* ------------------------------------------------------------- Rote Linie --
+   Drei Rollen, mehr gibt es nicht:
+   1 Randlinie  — senkrecht, volle Hoehe, links der Rezeptur
+   2 Trenner    — eine Rasterzeile, deren Linie rot und 1.5 px ist
+   3 Korrektur  — Sollmenge durchgestrichen in Nebentext, neuer Wert rot        */
+.lb-randlinie{width:var(--lb-rot-staerke);background:var(--lb-rot);align-self:stretch}
+.lb-trenner{height:var(--lb-zeile);
+  background:linear-gradient(var(--lb-rot),var(--lb-rot)) no-repeat
+             0 var(--lb-linie-y)/100% var(--lb-rot-staerke)}
+.lb-korrektur s{color:var(--lb-neben)}
+.lb-korrektur b{color:var(--lb-rot);font-weight:400}
+
+/* -------------------------------------------------------- Bedienelemente --
+   56 px hoch = zwei Zeilen. Das Element ersetzt seine Rasterlinie durch eine
+   Graphitlinie bei --lb-bedien-y. Einzeilige Felder nehmen --lb-linie-y.      */
+.lb-feld{height:var(--lb-bedien);padding-top:var(--lb-zeile);
+  background:linear-gradient(var(--lb-graphit),var(--lb-graphit)) no-repeat
+             0 var(--lb-bedien-y)/100% 1px}
+.lb-feld--leer{color:var(--lb-neben)}
+.lb-zeilenfeld{height:var(--lb-zeile);
+  background:linear-gradient(var(--lb-graphit),var(--lb-graphit)) no-repeat
+             0 var(--lb-linie-y)/100% 1px}
+
+.lb-dropdown{display:flex;justify-content:space-between;align-items:center;
+  height:var(--lb-zeile);
+  background:linear-gradient(var(--lb-graphit),var(--lb-graphit)) no-repeat
+             0 var(--lb-linie-y)/100% 1px}
+
+/* Skalierung: Label 13 ueber dem Wert, zusammen zwei Zeilen. */
+.lb-skalierung{text-align:right}
+.lb-skalierung .wert{min-width:96px;
+  background:linear-gradient(var(--lb-graphit),var(--lb-graphit)) no-repeat
+             0 var(--lb-linie-y)/100% 1px}
+
+/* Kaestchen 12x12; abgehakt = gefuellt mit 2 px Papierring. */
+.lb-kaestchen{display:inline-block;width:12px;height:12px;flex:none;
+  border:1px solid var(--lb-graphit);margin-right:12px}
+.lb-kaestchen--an{background:var(--lb-graphit);
+  box-shadow:inset 0 0 0 2px var(--lb-papier)}
+
+/* Schalter 28x12 mit 8x8 Knopf. */
+.lb-schalter{display:inline-flex;width:28px;height:12px;flex:none;padding:1px;
+  border:1px solid var(--lb-graphit);margin-right:12px;justify-content:flex-start}
+.lb-schalter--an{justify-content:flex-end}
+.lb-schalter i{width:8px;height:8px;background:var(--lb-graphit);display:block}
+
+/* -------------------------------------------------------------- Symbole ---
+   16 px, Strich 1.2, Graphit, keine Flaeche. Sprite siehe DESIGN.md.          */
+.lb-ikone{width:var(--lb-ikone);height:var(--lb-ikone);fill:none;
+  stroke:currentColor;stroke-width:var(--lb-ikone-strich);
+  stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* -------------------------------------------------------------- Kopfzeile --
+   Eine Rasterzeile hoch. Die linke Marke ist so breit wie die linke Schiene,
+   die rechte Symbolgruppe so breit wie die Einkaufsliste — dadurch stehen
+   Kopfzeile und Spalten auf denselben Kanten.                                  */
+.lb-kopf{display:flex;align-items:center;height:var(--lb-zeile);
+  padding:0 var(--lb-rand);gap:var(--lb-gasse)}
+.lb-kopf .marke{width:var(--lb-schiene);display:flex;align-items:center}
+.lb-kopf .titel{flex:1;text-align:center;font-size:var(--lb-klein);
+  color:var(--lb-neben);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-kopf .werkzeuge{width:var(--lb-liste);display:flex;justify-content:flex-end;
+  gap:20px;align-items:center}
+
+/* ---------------------------------------------------------------- Raster ---
+   Fuenf Spalten: Schiene · Randlinie · Rezeptur · Randlinie · Einkaufsliste.
+   Die Randlinie bekommt links und rechts dieselbe Gasse — im Entwurf standen
+   dort 32 px und 30.5 px (DESIGN.md, K-1).                                     */
+.lb-raster{display:grid;
+  grid-template-columns:var(--lb-schiene) var(--lb-rot-staerke) minmax(0,1fr)
+                        var(--lb-rot-staerke) var(--lb-liste);
+  column-gap:var(--lb-gasse);
+  padding:0 var(--lb-rand) var(--lb-zeile);
+  align-items:stretch}
+.lb-raster > *{min-width:0}
+.lb-raster .lb-randlinie{margin-top:calc(-2 * var(--lb-zeile))}
+
+/* Mitte allein (Schiene versteckt, Artboard 1b/1c): die Rezeptur nimmt die
+   frei gewordene Breite auf, statt eine 120-px-Luecke stehen zu lassen (K-2). */
+.lb-raster--ohne-schiene{grid-template-columns:0 var(--lb-rot-staerke)
+                        minmax(0,1fr) var(--lb-rot-staerke) var(--lb-liste)}
+.lb-raster--ohne-schiene > .lb-schiene{display:none}
+.lb-raster--nur-mitte{
+  --lb-mitte:880px;
+  grid-template-columns:minmax(0,1fr) var(--lb-rot-staerke)
+                        minmax(0,calc(var(--lb-mitte) + var(--lb-gasse)))
+                        minmax(0,1fr);
+  column-gap:0}
+.lb-raster--nur-mitte > .lb-rezeptur{padding-left:var(--lb-gasse)}
+
+/* --------------------------------------------------------------- Schiene --- */
+.lb-schiene > .kopf{display:flex;justify-content:space-between;
+  font-size:var(--lb-klein);color:var(--lb-neben)}
+.lb-eintrag{display:flex;text-underline-offset:5px;text-decoration-thickness:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-eintrag > .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.lb-eintrag > .zusatz{font-size:var(--lb-klein);color:var(--lb-neben);padding-left:8px}
+.lb-eintrag--aktiv{text-decoration:underline}
+.lb-eintrag--still{color:var(--lb-neben)}
+.lb-leer{color:var(--lb-neben)}
+.lb-luecke{height:var(--lb-zeile)}
+
+/* ------------------------------------------------------------- Rezeptur ----
+   Kopf: Titel links, Skalierung rechts, daneben die Notizspalte beschriftet.  */
+.lb-rezeptkopf{display:flex;justify-content:space-between;align-items:flex-end;
+  height:var(--lb-bedien);gap:var(--lb-gasse)}
+.lb-rezeptkopf .rechts{display:flex;align-items:flex-end;gap:24px}
+.lb-rezeptkopf .notizkopf{width:var(--lb-notizspalte);font-size:var(--lb-klein);
+  color:var(--lb-neben)}
+
+/* Zutatenzeile: Name rechtsbuendig an die Menge, Notiz auf derselben Zeile.
+   Der Name gehoert zur Menge, die Notiz gehoert zur Zutat — keine Wiederholung. */
+.lb-zutat{display:flex;height:var(--lb-zeile);align-items:baseline}
+.lb-zutat > .nm{flex:1;min-width:0;text-align:right;padding-right:16px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-zutat > .menge{width:var(--lb-menge);text-align:right;white-space:nowrap}
+.lb-zutat > .einheit{width:var(--lb-einheit);padding-left:8px;color:var(--lb-neben)}
+.lb-zutat > .notiz{width:var(--lb-notizspalte);margin-left:24px;
+  color:var(--lb-notiz);font-size:var(--lb-klein);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;
+  background:linear-gradient(var(--lb-linie),var(--lb-linie)) no-repeat
+             0 var(--lb-linie-y)/100% 1px}
+
+/* Ohne Notizspalte (Kochmodus, Druck, schmale Geraete): Name wieder linksbuendig. */
+.lb-zutat--schlicht > .nm{text-align:left;padding-right:0}
+.lb-zutat--schlicht > .notiz{display:none}
+
+/* Metadaten: Name, Zusammenfassung, Pfeil. Aufklappbar in der Anwendung. */
+.lb-meta{display:flex;height:var(--lb-zeile);gap:0}
+.lb-meta > .nm{width:160px;flex:none}
+.lb-meta > .zus{flex:1;min-width:0;color:var(--lb-neben);font-size:var(--lb-klein);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-meta > .pfeil{color:var(--lb-neben)}
+
+/* -------------------------------------------------------- Einkaufsliste ---- */
+.lb-posten{display:flex;align-items:center;height:var(--lb-zeile)}
+.lb-posten > .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.lb-posten > .quelle{font-size:var(--lb-klein);color:var(--lb-neben);padding-right:12px}
+.lb-posten > .menge{color:var(--lb-neben);white-space:nowrap}
+.lb-posten--erledigt > .nm{color:var(--lb-neben)}
+
+/* -------------------------------------------------- Entwicklungsmodus ------
+   Overlay ueber der Rezeptur, nicht daneben. Der Schleier ist Graphit 10 %.    */
+.lb-schleier{position:fixed;inset:0;background:rgba(42,39,36,.10);z-index:9}
+.lb-overlay{position:fixed;left:200px;right:200px;top:var(--lb-bedien);
+  bottom:var(--lb-zeile);padding:0 48px;overflow:auto;z-index:10}
+.lb-vergleich{display:flex;height:var(--lb-zeile)}
+.lb-vergleich > .nm{flex:1;min-width:0}
+.lb-vergleich > .basis{width:200px;text-align:right}
+.lb-vergleich > .neu{width:240px;text-align:right}
+.lb-vergleich--kopf{font-size:var(--lb-klein);color:var(--lb-neben)}
+.lb-vergleich .abweichung{color:var(--lb-rot)}
+/* Protokollzeile: Etikett ohne Linie, Wert auf der Linie. Laengere Werte
+   duerfen umbrechen — die Linie wiederholt sich dann je Zeile, statt dass der
+   Text aus seiner Zelle laeuft. */
+.lb-protokoll{display:flex;min-height:var(--lb-zeile)}
+.lb-protokoll > .lbl{width:220px;flex:none;color:var(--lb-neben)}
+.lb-protokoll > .wert{flex:1;min-width:0;min-height:var(--lb-zeile);
+  background:repeating-linear-gradient(to bottom,
+    transparent 0 var(--lb-linie-y),
+    var(--lb-graphit) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+    transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile))}
+
+/* ------------------------------------------------------------ Geraete ------
+   E-2: Mac und iPad gleichrangig. Drei Stufen, keine Priorisierung.
+   >=1200  drei Spalten
+   900-1199 Einkaufsliste weicht (Inhalt wandert in die linke Schiene)
+   <900    Schienen als Overlay ueber der Rezeptur (Artboard 1f)               */
+/* Unter 1200 px verliert die Einkaufsliste ihre eigene Spalte. Sie wird nicht
+   versteckt, sondern ruecht unter die Rezeptur — mit rotem Trenner davor, weil
+   sie damit zum naechsten Abschnitt derselben Spalte wird. */
+@media (max-width:1199px){
+  .lb-raster{grid-template-columns:var(--lb-schiene) var(--lb-rot-staerke)
+                                   minmax(0,1fr)}
+  .lb-raster > .lb-randlinie{grid-row:1 / 3}
+  .lb-raster > .lb-randlinie--rechts{display:none}
+  .lb-raster > .lb-liste{grid-column:3;grid-row:2;width:auto;
+    margin-top:var(--lb-zeile)}
+  .lb-raster > .lb-liste::before{content:"";display:block;height:var(--lb-zeile);
+    background:linear-gradient(var(--lb-rot),var(--lb-rot)) no-repeat
+               0 var(--lb-linie-y)/100% var(--lb-rot-staerke)}
+  .lb-kopf .werkzeuge{width:auto}
+  .lb-zutat > .notiz{width:180px}
+}
+@media (max-width:899px){
+  :root{--lb-rand:24px}
+  .lb-raster{grid-template-columns:var(--lb-rot-staerke) minmax(0,1fr)}
+  .lb-raster > .lb-liste{grid-column:2;grid-row:2}
+  .lb-raster > .lb-schiene{position:fixed;left:0;top:0;bottom:0;width:min(62vw,520px);
+    z-index:10;padding:var(--lb-bedien) var(--lb-rand) var(--lb-zeile);overflow:auto}
+  body:not(.lb-schiene-offen) .lb-raster > .lb-schiene{display:none}
+  body:not(.lb-schiene-offen) .lb-schleier--schiene{display:none}
+  .lb-kopf .marke{width:auto}
+  .lb-rezeptkopf .notizkopf{display:none}
+  .lb-zutat > .nm{text-align:left;padding-right:0}
+  .lb-zutat > .notiz{display:none}
+  .lb-overlay{left:0;right:0;padding:0 var(--lb-rand)}
+}
+
+/* --------------------------------------------------------------- Druck -----
+   Papier auf Papier: Raster und Schienen fallen weg, die Rezeptur bleibt.     */
+@media print{
+  .lb-papier{background-image:none}
+  .lb-kopf,.lb-schiene,.lb-liste,.lb-randlinie,.lb-schleier{display:none}
+  .lb-raster{display:block;padding:0}
+  .lb-zutat > .notiz{display:none}
+  .lb-zutat > .nm{text-align:left;padding-right:0}
+}
+
+
+/* ============================================================================
+   NACHTRAG 10.09.2026 — Marker, Zustaende, Meldungen, Overlay-Rahmen
+   AP-0201 (libarius-gestaltung), Entscheid O-20: R-44, R-45, K-21.
+   Gezeichnet in stilblatt-nachtrag.html, in Worten in DESIGN.md, Abschnitt
+   «Marker, Zustände, Meldungen, Overlays». Oberhalb wurde nichts geaendert.
+
+   Lesart:  gerade Linie = da · Wellenlinie = falsch · Punktlinie = kommt noch ·
+            doppelt starke Linie = hier bist du.
+   Hover aendert die Schrift, Fokus die Linie. Kein Zustand nutzt Rot, keiner
+   aendert eine Hoehe.
+   ========================================================================= */
+:root{
+  /* Textmarker: Leuchtstift-Pigmente. Eigenes Mittel neben den drei roten
+     Rollen, keine vierte Rolle — das Marker-Rot ist hell und rose, nie --lb-rot.
+     Die Werte stehen hier zur Dokumentation; die Striche darunter tragen sie
+     fest im Bild, weil data-URIs keine CSS-Variablen lesen. */
+  --lb-marker-gelb:#f9d73a;         /* Warnung, Deckkraft 55 % */
+  --lb-marker-gruen:#8fd46a;        /* Erfolg,  Deckkraft 45 % */
+  --lb-marker-rot:#f37a82;          /* Fehler,  Deckkraft 38 % */
+
+  --lb-fokus-staerke:2px;           /* doppelt so stark wie die Bedienlinie */
+  --lb-versatz:0px;                 /* Scroll-Rest bis zur naechsten Rasterlinie, per JS */
+
+  /* Strich: dehnt sich mit dem Text (Schraege, unruhige Kanten, satterer Rand,
+     eine hellere Bahn der Stiftkante). Ansatz: 8 px, liegt links dunkler
+     darueber — dort setzt der Stift auf. */
+  --lb-marker-strich-gelb:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M3 6.6C8.5 6.6 8.5 6 14 6C20.5 6 20.5 4.9 27 4.9C34 4.9 34 4.3 41 4.3C49.5 4.3 49.5 4.9 58 4.9C66 4.9 66 5.6 74 5.6C83 5.6 83 4.9 92 4.9C100 4.9 100 3.8 108 3.8C117 3.8 117 3.1 126 3.1C134.5 3.1 134.5 3.8 143 3.8C151.5 3.8 151.5 4.3 160 4.3C168 4.3 168 2.9 176 2.9C183 2.9 183 2.2 190 2.2C193.5 2.2 193.5 2.5 197 2.5L199.6 3.9L198.7 7.6L199.9 11.8L198.9 15.4L192 16.1C185 16.1 185 17.1 178 17.1C170.5 17.1 170.5 17.7 163 17.7C155 17.7 155 17.2 147 17.2C139 17.2 139 16.7 131 16.7C122.5 16.7 122.5 16.5 114 16.5C106 16.5 106 17.6 98 17.6C90 17.6 90 18.6 82 18.6C74 18.6 74 18.5 66 18.5C58 18.5 58 17.8 50 17.8C42 17.8 42 17.7 34 17.7C26.5 17.7 26.5 19 19 19C12.5 19 12.5 19.6 6 19.6L2.6 19.2L.7 16L1.7 11.8L.4 8.6Z' fill='%23f9d73a' fill-opacity='.55' stroke='%23f9d73a' stroke-opacity='.3' stroke-width='1.2' vector-effect='non-scaling-stroke'/%3E%3Cpath d='M9 13.4C60 12.8 120 12 191 10.6' fill='none' stroke='%23f9d73a' stroke-opacity='.18' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  --lb-marker-ansatz-gelb:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 20' preserveAspectRatio='none'%3E%3Cpath d='M2.8 6.4C.9 9.2.3 14.4 2.2 19.5C4.8 19.7 7.3 19.4 9.6 18.8C8.4 14.2 8.6 9.9 9.8 6C7.4 5.8 5 5.9 2.8 6.4Z' fill='%23f9d73a' fill-opacity='.4'/%3E%3C/svg%3E");
+  --lb-marker-strich-gruen:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M3 6.6C8.5 6.6 8.5 6 14 6C20.5 6 20.5 4.9 27 4.9C34 4.9 34 4.3 41 4.3C49.5 4.3 49.5 4.9 58 4.9C66 4.9 66 5.6 74 5.6C83 5.6 83 4.9 92 4.9C100 4.9 100 3.8 108 3.8C117 3.8 117 3.1 126 3.1C134.5 3.1 134.5 3.8 143 3.8C151.5 3.8 151.5 4.3 160 4.3C168 4.3 168 2.9 176 2.9C183 2.9 183 2.2 190 2.2C193.5 2.2 193.5 2.5 197 2.5L199.6 3.9L198.7 7.6L199.9 11.8L198.9 15.4L192 16.1C185 16.1 185 17.1 178 17.1C170.5 17.1 170.5 17.7 163 17.7C155 17.7 155 17.2 147 17.2C139 17.2 139 16.7 131 16.7C122.5 16.7 122.5 16.5 114 16.5C106 16.5 106 17.6 98 17.6C90 17.6 90 18.6 82 18.6C74 18.6 74 18.5 66 18.5C58 18.5 58 17.8 50 17.8C42 17.8 42 17.7 34 17.7C26.5 17.7 26.5 19 19 19C12.5 19 12.5 19.6 6 19.6L2.6 19.2L.7 16L1.7 11.8L.4 8.6Z' fill='%238fd46a' fill-opacity='.45' stroke='%238fd46a' stroke-opacity='.28' stroke-width='1.2' vector-effect='non-scaling-stroke'/%3E%3Cpath d='M9 13.4C60 12.8 120 12 191 10.6' fill='none' stroke='%238fd46a' stroke-opacity='.16' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  --lb-marker-ansatz-gruen:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 20' preserveAspectRatio='none'%3E%3Cpath d='M2.8 6.4C.9 9.2.3 14.4 2.2 19.5C4.8 19.7 7.3 19.4 9.6 18.8C8.4 14.2 8.6 9.9 9.8 6C7.4 5.8 5 5.9 2.8 6.4Z' fill='%238fd46a' fill-opacity='.34'/%3E%3C/svg%3E");
+  --lb-marker-strich-rot:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M3 6.6C8.5 6.6 8.5 6 14 6C20.5 6 20.5 4.9 27 4.9C34 4.9 34 4.3 41 4.3C49.5 4.3 49.5 4.9 58 4.9C66 4.9 66 5.6 74 5.6C83 5.6 83 4.9 92 4.9C100 4.9 100 3.8 108 3.8C117 3.8 117 3.1 126 3.1C134.5 3.1 134.5 3.8 143 3.8C151.5 3.8 151.5 4.3 160 4.3C168 4.3 168 2.9 176 2.9C183 2.9 183 2.2 190 2.2C193.5 2.2 193.5 2.5 197 2.5L199.6 3.9L198.7 7.6L199.9 11.8L198.9 15.4L192 16.1C185 16.1 185 17.1 178 17.1C170.5 17.1 170.5 17.7 163 17.7C155 17.7 155 17.2 147 17.2C139 17.2 139 16.7 131 16.7C122.5 16.7 122.5 16.5 114 16.5C106 16.5 106 17.6 98 17.6C90 17.6 90 18.6 82 18.6C74 18.6 74 18.5 66 18.5C58 18.5 58 17.8 50 17.8C42 17.8 42 17.7 34 17.7C26.5 17.7 26.5 19 19 19C12.5 19 12.5 19.6 6 19.6L2.6 19.2L.7 16L1.7 11.8L.4 8.6Z' fill='%23f37a82' fill-opacity='.38' stroke='%23f37a82' stroke-opacity='.26' stroke-width='1.2' vector-effect='non-scaling-stroke'/%3E%3Cpath d='M9 13.4C60 12.8 120 12 191 10.6' fill='none' stroke='%23f37a82' stroke-opacity='.14' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  --lb-marker-ansatz-rot:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 20' preserveAspectRatio='none'%3E%3Cpath d='M2.8 6.4C.9 9.2.3 14.4 2.2 19.5C4.8 19.7 7.3 19.4 9.6 18.8C8.4 14.2 8.6 9.9 9.8 6C7.4 5.8 5 5.9 2.8 6.4Z' fill='%23f37a82' fill-opacity='.3'/%3E%3C/svg%3E");
+
+  /* Wellenlinie Graphit fuer den Fehlerzustand eines Feldes. */
+  --lb-welle:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 4'%3E%3Cpath d='M0 2.5Q2 .5 4 2.5T8 2.5' fill='none' stroke='%232a2724' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------- Textmarker --
+   Wie von Hand mit dem Leuchtstift gezogen: deckt Mittel- und Oberlaengen,
+   nicht die ganze Rasterzeile; steigt nach rechts leicht an; Kanten unruhig.
+   Jede Textzeile ist ein eigener Strich (clone) — ueber einen Umbruch entsteht
+   nie ein Rechteck. Text bleibt Graphit, die Rasterlinie scheint durch.
+   Element: <mark>. Die Art steht als Wort im markierten Text, die Farbe allein
+   traegt keine Bedeutung. Keine eigene Hoehe: der Marker aendert keine Zeile. */
+.lb-marker{color:inherit;background-color:transparent;
+  background-image:var(--lb-marker-ansatz,var(--lb-marker-ansatz-gelb)),
+                   var(--lb-marker-strich,var(--lb-marker-strich-gelb));
+  background-repeat:no-repeat,no-repeat;
+  background-position:0 0,0 0;
+  background-size:8px 100%,100% 100%;
+  padding:0 .25em;margin:0 -.25em;
+  -webkit-box-decoration-break:clone;box-decoration-break:clone}
+.lb-marker--gelb,.lb-meldung--warnung{
+  --lb-marker-strich:var(--lb-marker-strich-gelb);--lb-marker-ansatz:var(--lb-marker-ansatz-gelb)}
+.lb-marker--gruen,.lb-meldung--erfolg{
+  --lb-marker-strich:var(--lb-marker-strich-gruen);--lb-marker-ansatz:var(--lb-marker-ansatz-gruen)}
+.lb-marker--rot,.lb-meldung--fehler{
+  --lb-marker-strich:var(--lb-marker-strich-rot);--lb-marker-ansatz:var(--lb-marker-ansatz-rot)}
+
+/* ------------------------------------------------------ Anklickbare Zeile ---
+   56 px = zwei Rasterzeilen. Der Text steht auf der UNTEREN Linie (47), wie
+   beim Feld; die obere Zeile bleibt Luft. Die Modifier --hover und --fokus
+   zeichnen den Zustand fest (Referenzseite); die Anwendung nimmt :hover und
+   :focus-visible. Knoepfe verhalten sich wie anklickbare Zeilen. */
+.lb-bedienzeile{display:flex;align-items:baseline;min-width:0;
+  height:var(--lb-bedien);padding-top:var(--lb-zeile);line-height:var(--lb-zeile);
+  cursor:pointer}
+button.lb-bedienzeile{font:inherit;color:inherit;background-color:transparent;
+  border:0;border-radius:0;margin:0;padding:var(--lb-zeile) 0 0;text-align:left}
+.lb-bedienzeile > .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;text-underline-offset:5px;text-decoration-thickness:1px}
+.lb-bedienzeile > .zusatz{font-size:var(--lb-klein);color:var(--lb-neben);padding-left:8px}
+/* aktiv (Bestand, wie .lb-eintrag--aktiv): Unterstreichung Graphit */
+.lb-bedienzeile--aktiv > .nm{text-decoration:underline;text-decoration-color:var(--lb-graphit)}
+/* Hover: Unterstreichung in Nebentext — leiser als aktiv */
+.lb-bedienzeile:hover > .nm,.lb-bedienzeile--hover > .nm{text-decoration:underline;
+  text-decoration-color:var(--lb-neben)}
+.lb-bedienzeile--aktiv:hover > .nm{text-decoration-color:var(--lb-graphit)}
+/* Fokus (Tastatur): Graphitlinie 2 px auf der Linie der Zeile, volle Breite */
+.lb-bedienzeile:focus-visible,.lb-bedienzeile--fokus{outline:0;
+  background-image:linear-gradient(var(--lb-graphit),var(--lb-graphit));
+  background-repeat:no-repeat;background-position:0 var(--lb-bedien-y);
+  background-size:100% var(--lb-fokus-staerke)}
+/* Fehler: Wellenlinie unter dem Namen, Grund rechts */
+.lb-bedienzeile--fehler > .nm{text-decoration:underline wavy var(--lb-graphit);
+  text-decoration-thickness:1px;text-underline-offset:4px}
+.lb-bedienzeile--ladend{cursor:progress}
+.lb-grund{flex:none;padding-left:8px;white-space:nowrap;
+  font-size:var(--lb-klein);color:var(--lb-graphit)}
+
+/* Nebentext mitten in einer Textzeile (<p>… <span class="lb-neben">…</span>):
+   mit geerbter Zeilenhoehe 28 zieht der kleinere Grad die Zeile auf 29 px —
+   gleiche Ursache wie die 29-px-Zutatenzeile beim Einbau am 09.09.2026.
+   Ohne eigene Zeilenhoehe bestimmt die Textzeile allein die Hoehe. */
+:is(p,li) > span:is(.lb-neben,.lb-klein){line-height:1}
+
+/* ------------------------------------------------------------ Eingabefeld ---
+   .lb-feld aus dem Stilblatt (56 px, Graphitlinie bei 47) bekommt ein Etikett
+   in der oberen Zeile; der Wert steht auf der unteren. Der Fehlergrund steht
+   rechts in der Etikettzeile — ein Fehler verschiebt nichts darunter. */
+.lb-etikett{display:flex;justify-content:space-between;gap:8px;
+  height:var(--lb-zeile);margin-top:calc(-1 * var(--lb-zeile));
+  font-size:var(--lb-klein);color:var(--lb-neben);white-space:nowrap}
+/* Hover: Etikett und Platzhalter werden dunkler, die Linie bleibt */
+.lb-feld:hover .lb-etikett,.lb-feld--hover .lb-etikett{color:var(--lb-graphit)}
+.lb-feld--leer:hover,.lb-feld--leer.lb-feld--hover{color:var(--lb-notiz)}
+/* Fokus: Linie doppelt stark, Etikett Graphit, Einfuegemarke */
+.lb-feld:focus-within,.lb-feld--fokus{background-size:100% var(--lb-fokus-staerke)}
+.lb-feld:focus-within .lb-etikett,.lb-feld--fokus .lb-etikett{color:var(--lb-graphit)}
+.lb-einfuegemarke{border-right:1px solid var(--lb-graphit);margin-left:1px}
+/* Fehler: Wellenlinie statt gerader Linie */
+.lb-feld--fehler{background:var(--lb-welle) repeat-x 0 calc(var(--lb-bedien-y) - 2px)/8px 4px}
+/* ladend: Punktlinie statt gerader Linie */
+.lb-feld--ladend{background:radial-gradient(circle at 1px 1px,var(--lb-graphit) .7px,transparent 1px)
+  repeat-x 0 calc(var(--lb-bedien-y) - .5px)/4px 2px}
+
+/* ------------------------------------------------------------ ladend -------
+   Skelettzeile: Punktlinie in Nebentext an der Stelle, an der Text kommt —
+   dieselbe Zeile, dieselbe Hoehe, kein Spinner, nichts verschiebt sich
+   (AP-0201 §1). Pulsiert nur ueber die Deckkraft. */
+.lb-skelett{display:inline-block;vertical-align:top;height:var(--lb-zeile);
+  width:var(--lb-skelett-breite,60%);
+  background:radial-gradient(circle at 1.5px 1.5px,var(--lb-neben) 1px,transparent 1.3px)
+    repeat-x 0 calc(var(--lb-linie-y) - 1.5px)/6px 3px}
+.lb-ladend{animation:lb-ladend 1.6s ease-in-out infinite}
+@keyframes lb-ladend{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.lb-ladend{animation:none}}
+
+/* -------------------------------------------------------------- Meldung ----
+   Kennungszeile mit Marker («Art · Kernsatz»), darunter Text auf den Linien,
+   bei Bedarf Aktionen als 56-px-Zeile, danach eine Zeile Abstand. Keine
+   Randlinie, keine Flaeche, kein Rahmen (R-44). Hoehe = Zeilen x 28 + 56. */
+.lb-meldung{margin:0 0 var(--lb-zeile)}
+.lb-meldung > p{margin:0}
+.lb-meldung > .kennung b{font-weight:500}
+.lb-meldung > .text{max-width:520px;text-wrap:pretty}
+.lb-meldung > .aktionen{display:flex;flex-wrap:wrap;column-gap:var(--lb-gasse);row-gap:0}
+
+/* -------------------------------------------------------- Overlay-Rahmen ---
+   Papier mit eigenem Raster, Randlinie links (rote Rolle 1), Schleier dahinter.
+   Kein Rahmen rundum, kein Schatten, keine Rundung (R-37).
+   Liniengleich: die Oberkante liegt auf einer Rasterlinie. Ist die Seite um
+   einen Rest gescrollt, rueckt sie um --lb-versatz auf die naechste Linie —
+   JS setzt (28 - scrollY % 28) % 28 beim Scrollen. Hoehe auf ganze Zeilen
+   abgerundet, unten mindestens eine Zeile Luft (K-4). Das Raster scrollt mit
+   dem Inhalt (attachment local). */
+.lb-overlay-rahmen{position:fixed;z-index:10;box-sizing:border-box;
+  top:calc(var(--lb-overlay-oben,var(--lb-bedien)) + var(--lb-versatz,0px));
+  height:calc(100vh - var(--lb-overlay-oben,var(--lb-bedien)) - var(--lb-versatz,0px) - var(--lb-zeile));
+  height:round(down,calc(100dvh - var(--lb-overlay-oben,var(--lb-bedien)) - var(--lb-versatz,0px) - var(--lb-zeile)),var(--lb-zeile));
+  overflow:auto;overscroll-behavior:contain;
+  padding:0 var(--lb-gasse) 0 calc(var(--lb-rot-staerke) + var(--lb-gasse));
+  background-color:var(--lb-papier);
+  background-image:linear-gradient(var(--lb-rot),var(--lb-rot)),
+    repeating-linear-gradient(to bottom,
+      transparent 0 var(--lb-linie-y),
+      var(--lb-linie) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+      transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile));
+  background-repeat:no-repeat,repeat;
+  background-size:var(--lb-rot-staerke) 100%,100% 100%;
+  background-position:0 0,0 0;
+  background-attachment:local,local}
+/* ueber der Rezeptur: Randlinie des Overlays auf der Randlinie der Rezeptur
+   (--lb-overlay-links = deren x); die Breite legt der Bereich fest */
+.lb-overlay-rahmen--mitte{left:var(--lb-overlay-links,var(--lb-rand));right:var(--lb-rand)}
+/* Nebenansicht B7: 640 px, zentriert */
+.lb-overlay-rahmen--b7{left:0;right:0;margin-inline:auto;
+  width:min(640px,calc(100vw - 2 * var(--lb-rand)))}
+.lb-overlay-rahmen > .kopf{display:flex;justify-content:space-between;
+  align-items:flex-end;height:var(--lb-bedien)}
+/* Schliessen innerhalb des Rahmens (K-5), 56 x 56, Zeichen auf der Linie */
+.lb-schliessen{flex:none;width:var(--lb-bedien);height:var(--lb-bedien);
+  margin:0;padding:var(--lb-zeile) 0 0;border:0;border-radius:0;
+  background-color:transparent;font:inherit;font-size:var(--lb-phase);
+  line-height:var(--lb-zeile);color:var(--lb-graphit);text-align:right;cursor:pointer}
+.lb-schliessen:hover{color:var(--lb-neben)}
+.lb-schliessen:focus-visible{outline:0;
+  background-image:linear-gradient(var(--lb-graphit),var(--lb-graphit));
+  background-repeat:no-repeat;background-position:0 var(--lb-bedien-y);
+  background-size:100% var(--lb-fokus-staerke)}
+
+@media print{
+  .lb-overlay-rahmen{display:none}
+}
+
+
+/* ============================================================================
+   NACHTRAG 10.09.2026 — Cue-Spalte der linken Schiene (Cornell-Schnitt)
+   AP-0202 (libarius-gestaltung) · O-17.3, O-20/R-13 · Entwurf: entwurf-cue.html
+
+   Nur in der GEOEFFNETEN Schiene: Cue-Spalte links (Stichwort), Notizflaeche
+   rechts (Eintrag), Zusammenfassung unten ueber die volle Breite (Einkaufsliste).
+   Zugeklappt verschwindet alles mit der Schiene — keine stehende Leiste.
+
+   Cue = die Kategorie vor ihrer Rezeptgruppe; bei offenem Rezept mit mindestens
+   zwei Phasen zusaetzlich die Phasennummer vor jeder Sprungmarke. Cue und Notiz
+   trennt eine 1-px-Linie in Linienfarbe, NICHT Rot: Rolle 1 ist die Randlinie
+   links der Rezeptur; eine zweite rote Senkrechte in der Schiene machte sie
+   mehrdeutig.
+
+   Breiten, gemessen in Fira Sans am 10.09.2026:
+     W  280     Cue  72 · Gasse 16 · Linie 1 · Gasse 16 · Notiz 175
+     M  240     Cue  72 · Gasse 12 · Linie 1 · Gasse 12 · Notiz 143
+     K  >= 413  Cue 112 · Gasse 16 · Linie 1 · Gasse 16 · Notiz >= 268
+   72 ist das kleinste Mass, bei dem alle 13 Kategorien mit Silbentrennung in
+   hoechstens zwei Zeilen stehen (laengstes Stueck «mischungen» = 72 px). Ohne
+   Trennung laufen «Zuckermischungen» und «Grundzubereitung» ueber.
+   Hoehen: Kopf 28 · Sprungmarke 56 · Kategorie und Rezept 56, +28 je weitere
+   Zeile · Luecke 28. Namen brechen um, sie werden nie abgeschnitten.
+   ========================================================================= */
+.lb-cornell{--lb-cue:72px;--lb-cue-gasse:16px;
+  background-image:linear-gradient(var(--lb-linie),var(--lb-linie));
+  background-repeat:no-repeat;
+  background-position:calc(var(--lb-cue) + var(--lb-cue-gasse)) 0;
+  background-size:1px 100%}
+@media (min-width:860px) and (max-width:1279px){.lb-cornell{--lb-cue-gasse:12px}}
+@media (max-width:859px){.lb-cornell{--lb-cue:112px}}
+/* feste Stufe — fuer Referenzseiten, die mehrere Breiten nebeneinander zeigen */
+.lb-cornell--w{--lb-cue:72px;--lb-cue-gasse:16px}
+.lb-cornell--m{--lb-cue:72px;--lb-cue-gasse:12px}
+.lb-cornell--k{--lb-cue:112px;--lb-cue-gasse:16px}
+
+/* Cue und Eintrag richten sich an ihrer ERSTEN Textzeile aus (Linie 47 der Zeile).
+   Jeder Eintrag behaelt oben seine Luftzeile; bricht er um, waechst er nach
+   unten. Ohne die Luftzeile laeuft ein umbrechender Eintrag in den vorigen
+   hinein und die Liste liest sich wie Fliesstext (gesehen im Entwurf). */
+.lb-cue-kopf,.lb-cue-zeile,.lb-cue-gruppe{display:grid;
+  grid-template-columns:var(--lb-cue) minmax(0,1fr);
+  column-gap:calc(2 * var(--lb-cue-gasse) + 1px)}
+.lb-cue-zeile,.lb-cue-gruppe{align-items:start}
+
+/* Kopf des Sprungblocks: «Phasen» in der Cue, Rezeptname in der Notiz */
+.lb-cue-kopf{height:var(--lb-zeile);align-items:baseline;
+  font-size:var(--lb-klein);color:var(--lb-neben)}
+.lb-cue-kopf > *{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Cue: 13 px Nebentext, Luftzeile oben, erste Textzeile auf Linie 47; bricht
+   mit Silbentrennung auf eine zweite Zeile darunter (lang="de" noetig). */
+.lb-cue{display:block;min-width:0;min-height:var(--lb-bedien);padding-top:var(--lb-zeile);
+  font-size:var(--lb-klein);line-height:var(--lb-zeile);color:var(--lb-neben);
+  -webkit-hyphens:auto;hyphens:auto;overflow-wrap:break-word;
+  text-underline-offset:5px;text-decoration-thickness:1px}
+/* Als Knopf: Luftzeile ueber padding-top, nicht 0 — sonst zentriert der Knopf
+   seinen Inhalt senkrecht und die Cue steht 13 bzw. 28 px neben ihrem Eintrag. */
+button.lb-cue{font:inherit;font-size:var(--lb-klein);line-height:var(--lb-zeile);
+  color:var(--lb-neben);background-color:transparent;border:0;border-radius:0;
+  margin:0;padding:var(--lb-zeile) 0 0;text-align:left;cursor:pointer}
+button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--lb-neben)}
+.lb-cue:focus-visible{outline:0;
+  background-image:linear-gradient(var(--lb-graphit),var(--lb-graphit));
+  background-repeat:no-repeat;
+  background-position:0 calc(100% - var(--lb-zeile) + var(--lb-linie-y));
+  background-size:100% var(--lb-fokus-staerke)}
+/* Die Kategorie bleibt oben stehen, solange ihre Gruppe im Blick ist. */
+.lb-cue-gruppe > .lb-cue{position:sticky;top:0;align-self:start}
+
+/* Notizflaeche: die Rezepte der Gruppe */
+.lb-cue-notiz{min-width:0;margin:0;padding:0;list-style:none}
+.lb-cue-notiz > li{margin:0}
+.lb-cue-notiz .lb-bedienzeile{width:100%}
+.lb-cue-anzahl > .nm{color:var(--lb-neben)}
+
+/* Eintrag, der umbrechen darf: Luftzeile oben, erste Textzeile auf Linie 47,
+   jede weitere Zeile +28 (AP-0310: auf M keine abgeschnittenen Namen). */
+.lb-bedienzeile--umbruch,button.lb-bedienzeile--umbruch{height:auto;
+  min-height:var(--lb-bedien);padding-top:var(--lb-zeile);align-items:baseline}
+.lb-bedienzeile--umbruch > .nm{white-space:normal;overflow:visible;text-overflow:clip;
+  -webkit-hyphens:auto;hyphens:auto;overflow-wrap:break-word}
+.lb-bedienzeile--umbruch:focus-visible,.lb-bedienzeile--umbruch.lb-bedienzeile--fokus{
+  background-position:0 calc(100% - var(--lb-zeile) + var(--lb-linie-y))}
+
+/* Sprungmarke: die ganze Zeile ist das Tippziel. Aktiv = die Phase, die gerade
+   oben in der Rezeptur steht — Unterstreichung Graphit wie ein aktiver Eintrag. */
+.lb-sprungmarke{color:inherit;text-decoration:none;cursor:pointer}
+.lb-sprungmarke > .lb-bedienzeile{min-width:0;cursor:inherit}
+.lb-sprungmarke:hover .nm{text-decoration:underline;text-decoration-color:var(--lb-neben)}
+.lb-sprungmarke--aktiv .nm,.lb-sprungmarke--aktiv:hover .nm{text-decoration:underline;
+  text-decoration-color:var(--lb-graphit)}
+.lb-sprungmarke--neben .nm{color:var(--lb-neben)}
+.lb-sprungmarke:focus-visible{outline:0}
+.lb-sprungmarke:focus-visible > .lb-bedienzeile{
+  background-image:linear-gradient(var(--lb-graphit),var(--lb-graphit));
+  background-repeat:no-repeat;
+  background-position:0 calc(100% - var(--lb-zeile) + var(--lb-linie-y));
+  background-size:100% var(--lb-fokus-staerke)}
+
+/* Zusammenfassung unten: Kopf 28 ueber die volle Breite */
+.lb-zusammenfassung-kopf{display:flex;justify-content:space-between;align-items:baseline;
+  height:var(--lb-zeile);font-size:var(--lb-klein);color:var(--lb-neben)}
+
+/* Die Schiene scrollt in sich, das Papier dahinter steht still. Ohne Fang
+   bliebe der Text nach dem Scrollen zwischen den Linien stehen. Jede Zeile
+   beginnt auf einem Vielfachen von 28, darum faengt die Schiene dort. */
+.lb-schienen-inhalt{overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:y mandatory}
+.lb-schienen-inhalt :is(.lb-feld,.lb-cue-kopf,.lb-cue-zeile,.lb-cue-gruppe,
+  .lb-cue-notiz > li,.lb-bedienzeile,.lb-luecke,.lb-trenner,
+  .lb-zusammenfassung-kopf){scroll-snap-align:start}

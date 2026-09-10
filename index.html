@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500&display=swap" rel="stylesheet">
 <title>libarius — Rezeptverwaltung</title>
 <style>
 :root{
@@ -339,6 +342,855 @@ textarea.importtext{width:100%;min-height:10rem;font:13px/1.4 ui-monospace,Menlo
   margin:0;z-index:12;width:min(640px,92vw);max-height:86vh;overflow-y:auto;
   box-shadow:0 10px 40px rgba(0,0,0,.35)}
 footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);font-size:.78rem}
+/* ============================================================================
+   Gestaltungsschicht — Übernahme des Entwurfs «Libarius UI Mockups» (09.09.2026)
+   Regeln, Korrekturen K-1…K-8 und offene Punkte: DESIGN.md.
+   Referenzseiten: design/stilblatt.html, design/entwurf-*.html.
+
+   Diese Schicht steht bewusst UNTER allen bisherigen Regeln und überschreibt sie
+   durch ihre Position. Oben wurde nichts gelöscht (CLAUDE.md Regel 1) — wer eine
+   Karte zurückholen will, kommentiert hier aus statt oben einzufügen.
+
+   Farben kommen weiterhin aus --bg/--line/--ink/--muted/--rot. Deren Werte sind
+   bereits exakt die des Entwurfs (Papier #faf8f5, Linie #e4ded6, Graphit #2a2724,
+   Nebentext #7a716a, Rot #a63a2b). Dadurch trägt der Dunkelmodus die neue Optik
+   mit, solange über ihn nicht entschieden ist (DESIGN.md, offener Punkt 2).
+
+   Tippziele: der Entwurf zeichnet 28-px-Zeilen, die Bedienung braucht laut
+   AP-0301 mindestens 44 px. Aufgelöst mit dem Bedienmass des Entwurfs selbst —
+   jede anklickbare Zeile ist 56 px hoch: zwei Rasterzeilen und damit ≥ 44 px.
+   Nur nicht anklickbare Zeilen (Zutaten, Schritte, Metadatenwerte) sind 28 px.
+   ========================================================================= */
+:root{
+  --lb-zeile:28px; --lb-linie-y:19px;
+  --lb-bedien:56px; --lb-bedien-y:47px;
+  --lb-rand:40px; --lb-gasse:32px; --lb-rot-staerke:1.5px;
+  --lb-schrift:'Fira Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,
+               Helvetica,Arial,sans-serif;
+  /* AP-0310: aus dem Nachtrag "Marker, Zustaende..." von libarius.css uebernommen —
+     dort mit den uebrigen Zustands-Regeln (K-21), hier nur diese eine Marke, weil
+     sie die Cue-Spalte fuer :focus-visible braucht. Doppelt so stark wie die
+     56-px-Bedienlinie (1 px). */
+  --lb-fokus-staerke:2px;
+
+  /* AP-0307 (libarius-gestaltung), O-20/R-44/K-21: die restlichen Bausteine desselben
+     Nachtrags — Leuchtstift-Pigmente fuer den Textmarker. Eigenes Mittel neben den drei
+     roten Rollen, keine vierte Rolle: das Marker-Rot ist hell und rose, nie --rot. Werte
+     unveraendert aus design/stilblatt-nachtrag.html / design/libarius.css uebernommen —
+     die Striche selbst sind data-URIs und koennen keine CSS-Variablen lesen, darum stehen
+     die fertigen SVGs hier fest verdrahtet, nicht aus den Pigment-Werten berechnet. */
+  --lb-marker-gelb:#f9d73a; --lb-marker-gruen:#8fd46a; --lb-marker-rot:#f37a82;
+  --lb-marker-strich-gelb:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M3 6.6C8.5 6.6 8.5 6 14 6C20.5 6 20.5 4.9 27 4.9C34 4.9 34 4.3 41 4.3C49.5 4.3 49.5 4.9 58 4.9C66 4.9 66 5.6 74 5.6C83 5.6 83 4.9 92 4.9C100 4.9 100 3.8 108 3.8C117 3.8 117 3.1 126 3.1C134.5 3.1 134.5 3.8 143 3.8C151.5 3.8 151.5 4.3 160 4.3C168 4.3 168 2.9 176 2.9C183 2.9 183 2.2 190 2.2C193.5 2.2 193.5 2.5 197 2.5L199.6 3.9L198.7 7.6L199.9 11.8L198.9 15.4L192 16.1C185 16.1 185 17.1 178 17.1C170.5 17.1 170.5 17.7 163 17.7C155 17.7 155 17.2 147 17.2C139 17.2 139 16.7 131 16.7C122.5 16.7 122.5 16.5 114 16.5C106 16.5 106 17.6 98 17.6C90 17.6 90 18.6 82 18.6C74 18.6 74 18.5 66 18.5C58 18.5 58 17.8 50 17.8C42 17.8 42 17.7 34 17.7C26.5 17.7 26.5 19 19 19C12.5 19 12.5 19.6 6 19.6L2.6 19.2L.7 16L1.7 11.8L.4 8.6Z' fill='%23f9d73a' fill-opacity='.55' stroke='%23f9d73a' stroke-opacity='.3' stroke-width='1.2' vector-effect='non-scaling-stroke'/%3E%3Cpath d='M9 13.4C60 12.8 120 12 191 10.6' fill='none' stroke='%23f9d73a' stroke-opacity='.18' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  --lb-marker-ansatz-gelb:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 20' preserveAspectRatio='none'%3E%3Cpath d='M2.8 6.4C.9 9.2.3 14.4 2.2 19.5C4.8 19.7 7.3 19.4 9.6 18.8C8.4 14.2 8.6 9.9 9.8 6C7.4 5.8 5 5.9 2.8 6.4Z' fill='%23f9d73a' fill-opacity='.4'/%3E%3C/svg%3E");
+  --lb-marker-strich-gruen:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M3 6.6C8.5 6.6 8.5 6 14 6C20.5 6 20.5 4.9 27 4.9C34 4.9 34 4.3 41 4.3C49.5 4.3 49.5 4.9 58 4.9C66 4.9 66 5.6 74 5.6C83 5.6 83 4.9 92 4.9C100 4.9 100 3.8 108 3.8C117 3.8 117 3.1 126 3.1C134.5 3.1 134.5 3.8 143 3.8C151.5 3.8 151.5 4.3 160 4.3C168 4.3 168 2.9 176 2.9C183 2.9 183 2.2 190 2.2C193.5 2.2 193.5 2.5 197 2.5L199.6 3.9L198.7 7.6L199.9 11.8L198.9 15.4L192 16.1C185 16.1 185 17.1 178 17.1C170.5 17.1 170.5 17.7 163 17.7C155 17.7 155 17.2 147 17.2C139 17.2 139 16.7 131 16.7C122.5 16.7 122.5 16.5 114 16.5C106 16.5 106 17.6 98 17.6C90 17.6 90 18.6 82 18.6C74 18.6 74 18.5 66 18.5C58 18.5 58 17.8 50 17.8C42 17.8 42 17.7 34 17.7C26.5 17.7 26.5 19 19 19C12.5 19 12.5 19.6 6 19.6L2.6 19.2L.7 16L1.7 11.8L.4 8.6Z' fill='%238fd46a' fill-opacity='.45' stroke='%238fd46a' stroke-opacity='.28' stroke-width='1.2' vector-effect='non-scaling-stroke'/%3E%3Cpath d='M9 13.4C60 12.8 120 12 191 10.6' fill='none' stroke='%238fd46a' stroke-opacity='.16' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  --lb-marker-ansatz-gruen:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 20' preserveAspectRatio='none'%3E%3Cpath d='M2.8 6.4C.9 9.2.3 14.4 2.2 19.5C4.8 19.7 7.3 19.4 9.6 18.8C8.4 14.2 8.6 9.9 9.8 6C7.4 5.8 5 5.9 2.8 6.4Z' fill='%238fd46a' fill-opacity='.34'/%3E%3C/svg%3E");
+  --lb-marker-strich-rot:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 20' preserveAspectRatio='none'%3E%3Cpath d='M3 6.6C8.5 6.6 8.5 6 14 6C20.5 6 20.5 4.9 27 4.9C34 4.9 34 4.3 41 4.3C49.5 4.3 49.5 4.9 58 4.9C66 4.9 66 5.6 74 5.6C83 5.6 83 4.9 92 4.9C100 4.9 100 3.8 108 3.8C117 3.8 117 3.1 126 3.1C134.5 3.1 134.5 3.8 143 3.8C151.5 3.8 151.5 4.3 160 4.3C168 4.3 168 2.9 176 2.9C183 2.9 183 2.2 190 2.2C193.5 2.2 193.5 2.5 197 2.5L199.6 3.9L198.7 7.6L199.9 11.8L198.9 15.4L192 16.1C185 16.1 185 17.1 178 17.1C170.5 17.1 170.5 17.7 163 17.7C155 17.7 155 17.2 147 17.2C139 17.2 139 16.7 131 16.7C122.5 16.7 122.5 16.5 114 16.5C106 16.5 106 17.6 98 17.6C90 17.6 90 18.6 82 18.6C74 18.6 74 18.5 66 18.5C58 18.5 58 17.8 50 17.8C42 17.8 42 17.7 34 17.7C26.5 17.7 26.5 19 19 19C12.5 19 12.5 19.6 6 19.6L2.6 19.2L.7 16L1.7 11.8L.4 8.6Z' fill='%23f37a82' fill-opacity='.38' stroke='%23f37a82' stroke-opacity='.26' stroke-width='1.2' vector-effect='non-scaling-stroke'/%3E%3Cpath d='M9 13.4C60 12.8 120 12 191 10.6' fill='none' stroke='%23f37a82' stroke-opacity='.14' stroke-width='2' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
+  --lb-marker-ansatz-rot:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 20' preserveAspectRatio='none'%3E%3Cpath d='M2.8 6.4C.9 9.2.3 14.4 2.2 19.5C4.8 19.7 7.3 19.4 9.6 18.8C8.4 14.2 8.6 9.9 9.8 6C7.4 5.8 5 5.9 2.8 6.4Z' fill='%23f37a82' fill-opacity='.3'/%3E%3C/svg%3E");
+}
+
+/* --------------------------------------------------------------- Marker ---
+   Wie von Hand mit dem Leuchtstift gezogen: deckt Mittel-/Oberlaengen, nicht
+   die ganze Rasterzeile, steigt nach rechts, Kanten unruhig, Ansatz links
+   satter (dort setzt der Stift auf). Jede Textzeile ein eigener Strich
+   (box-decoration-break:clone) — nie ein Rechteck ueber mehrere Zeilen. Text
+   bleibt Graphit, die Rasterlinie scheint durch. Eigenes Mittel, keine vierte
+   rote Rolle (O-20/R-44/R-45). Element <mark>, oder — wie bei den Meldungen
+   unten — jedes andere Element mit dieser Klasse; die Farbe traegt keine
+   Bedeutung ohne das Wort daneben. */
+.lb-marker{color:inherit;background-color:transparent;
+  background-image:var(--lb-marker-ansatz,var(--lb-marker-ansatz-gelb)),
+                   var(--lb-marker-strich,var(--lb-marker-strich-gelb));
+  background-repeat:no-repeat,no-repeat;background-position:0 0,0 0;
+  background-size:8px 100%,100% 100%;
+  padding:0 .25em;margin:0 -.25em;
+  -webkit-box-decoration-break:clone;box-decoration-break:clone}
+.lb-marker--gelb{--lb-marker-strich:var(--lb-marker-strich-gelb);--lb-marker-ansatz:var(--lb-marker-ansatz-gelb)}
+.lb-marker--gruen{--lb-marker-strich:var(--lb-marker-strich-gruen);--lb-marker-ansatz:var(--lb-marker-ansatz-gruen)}
+.lb-marker--rot{--lb-marker-strich:var(--lb-marker-strich-rot);--lb-marker-ansatz:var(--lb-marker-ansatz-rot)}
+
+/* ---------------------------------------------------------------- Papier ---
+   Linienraster auf der ganzen Fläche. Die Linie liegt 19 px unter der
+   Zeilenoberkante — Text sitzt auf ihr, nicht darüber. */
+body{
+  font:400 15px/var(--lb-zeile) var(--lb-schrift);
+  font-variant-numeric:tabular-nums;
+  background-color:var(--bg);
+  background-image:repeating-linear-gradient(to bottom,
+    transparent 0 var(--lb-linie-y),
+    var(--line) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+    transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile));
+}
+
+/* ------------------------------------------------------------- Kopfzeile ---
+   Zwei Rasterzeilen hoch (56 px) statt einer, weil die Knöpfe darin 44 px
+   Tippfläche brauchen. Kein Panel, kein Rahmen, keine Pillen. */
+header.app{
+  background:var(--bg);border-bottom:0;box-shadow:none;
+  height:var(--lb-bedien);padding:0 var(--lb-rand);gap:20px;flex-wrap:nowrap;
+  overflow-x:auto;overflow-y:hidden;scrollbar-width:none;
+  font-size:13px;color:var(--muted)}
+header.app::-webkit-scrollbar{display:none}
+/* Die Kopfzeile bleibt eine Bedienzeile hoch. Passt der Inhalt nicht, schiebt sie
+   sich waagrecht — sie bricht nicht um, weil ein Umbruch alles darunter aus dem
+   Raster schoebe. Auf schmalen Geraeten treten Wortmarke und Kennzeichen zurueck. */
+header.app > *{flex:none}
+header.app button{white-space:nowrap}
+header.app h1{font-size:13px;font-weight:400;color:var(--muted);letter-spacing:0}
+header.app .badge{border:0;border-radius:0;padding:0;font-size:13px}
+header.app .kopftitel{flex:1 1 auto;min-width:0;text-align:center;font-size:13px;
+  color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header.app button{height:var(--lb-bedien);min-height:var(--lb-bedien);
+  background:transparent;color:var(--ink);border:0;border-radius:0;padding:0;
+  font-size:13px;font-weight:400;display:inline-flex;align-items:center;gap:6px}
+/* AP-0307 (libarius-gestaltung), R-45: Hover war Rot (vierte Rolle) — Symbolknöpfe
+   haben keinen Text zum Unterstreichen, darum dieselbe Abstufung wie `.lb-schliessen:hover`
+   in libarius.css (Graphit -> Nebentext statt Farbe). */
+header.app button:hover{filter:none;color:var(--muted)}
+.railtoggle{border:0;border-radius:0;min-width:var(--lb-zeile);
+  min-height:var(--lb-bedien);color:var(--ink)}
+/* Symbole des Entwurfs: 16 px, Strich 1.2, Graphit, keine Fläche. */
+.lb-ikone{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.2;
+  stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* AP-0301 (libarius-gestaltung), R-03/R-04: Menü hinter dem Anmelde-Symbol.
+   Angemeldet zeigt sich am gefuellten statt leeren Symbol (R-04) - dieselbe
+   Kontur, nur fill:currentColor statt none, keine zweite Symboldatei noetig. */
+.lb-kontomenu{position:relative;flex:none;height:var(--lb-bedien)}
+#btnLogin.angemeldet .lb-ikone{fill:currentColor}
+/* position:fixed statt absolute: header.app hat overflow-y:hidden (fuer die
+   waagrecht schiebende Kopfzeile bei zu wenig Platz) und wuerde ein absolut
+   positioniertes Menü unterhalb der 56-px-Kopfzeile abschneiden. */
+.lb-menu{position:fixed;right:var(--lb-rand);top:var(--lb-bedien);z-index:6;
+  min-width:220px;background:var(--bg);border:1px solid var(--line);
+  border-radius:0;display:flex;flex-direction:column;padding:0}
+.lb-menu button{justify-content:flex-start;padding:0 var(--lb-rand);width:100%}
+.lb-menu[hidden]{display:none}
+
+/* ---------------------------------------------------------------- Raster ---
+   Fünf Spalten: Schiene · Randlinie · Inhalt · Randlinie · Schiene.
+   Beide Randlinien haben links und rechts dieselbe Gasse (Korrektur K-1).
+   Ist eine Schiene zu, fällt ihre Spalte auf 0 — die Randlinie bleibt stehen,
+   genau wie im Entwurf 1b. */
+main#hauptraster{
+  grid-template-columns:auto auto minmax(0,760px)
+                        auto auto;
+  column-gap:0;row-gap:0;justify-content:center;
+  padding:0 var(--lb-rand) var(--lb-zeile);max-width:none;
+  min-height:calc(100vh - 2 * var(--lb-bedien));align-items:stretch}
+/* AP-0302 (libarius-gestaltung): die Gasse haengt an der Randlinie selbst
+   (Rand statt Grid-Gap), damit sie mit ihr verschwindet, sobald die
+   zugehoerige Schiene zu ist (R-59) - vorher blieben Gasse+Linie als
+   32+1.5+32=65.5px totes Mass stehen, weil column-gap unabhaengig vom
+   Inhalt der Spalte war. Die Spaltenbreite selbst kommt jetzt aus dem
+   Inhalt (auto), nicht mehr aus einer festen Grid-Spur. */
+.lb-randlinie{background:var(--rot);align-self:stretch;
+  width:var(--lb-rot-staerke);margin:0 var(--lb-gasse)}
+.lb-randlinie--links{grid-column:2}
+.lb-randlinie--rechts{grid-column:4}
+.inhalt{grid-column:3;max-width:760px;margin:0;width:auto}
+.rail--links{grid-column:1}
+.rail--rechts{grid-column:5}
+.rail{background:transparent;border:0;border-radius:0;box-shadow:none;
+  overflow:visible;top:var(--lb-bedien);
+  max-height:calc(100vh - var(--lb-bedien))}
+/* AP-0302 (libarius-gestaltung), R-15: Schienenkopf 56 px statt 28 - die
+   Knoepfe darin brauchen die volle Bedienzeile, sonst ragen sie 14 px oben
+   und unten ueber. Der Schieneninhalt beginnt dadurch bei 112 statt 84. */
+.railkopf{border-bottom:0;padding:0;height:var(--lb-bedien);gap:12px}
+.railkopf .lbl{font-size:13px;text-transform:none;letter-spacing:0;
+  font-weight:400;padding:0;color:var(--muted)}
+.railtab,.railspindel,.railclose{border:0;border-radius:0;background:transparent;
+  color:var(--muted);min-height:var(--lb-bedien);min-width:var(--lb-zeile);
+  padding:0 6px;font-size:13px;font-weight:400}
+.railtab.aktiv{background:transparent;color:var(--ink);
+  text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px}
+.railinhalt{overflow-y:auto}
+.rail .empty,.empty{color:var(--muted);padding:0;text-align:left}
+/* AP-0307 (libarius-gestaltung), R-46: einzige Festfarbe der Schicht (DESIGN.md
+   Entscheid 2 — die Schicht rechnet nur mit Marken) — im Dunkelmodus waere Graphit
+   10 % auf dunklem Papier unsichtbar. color-mix rechnet die Deckkraft ueber die
+   aktuelle Marke --ink statt einen festen Hellmodus-Wert einzufrieren. */
+.scrim{background:color-mix(in srgb, var(--ink) 10%, transparent)}
+
+/* ------------------------------------------------------------ Karten weg ---
+   Keine Karte, kein Schatten, keine Rundung. Zwischen zwei Blöcken steht der
+   rote Trenner — eine Rasterzeile, deren Linie rot und 1.5 px ist (Rolle 2). */
+.card,.metastapel{background:transparent;border:0;border-radius:0;box-shadow:none;
+  margin:0;overflow:visible}
+.card .body,.metabody,.phasebody{padding:0}
+.card + .card::before,.metastapel::before,.card + .metastapel::before{
+  content:"";display:block;height:var(--lb-zeile);
+  background:linear-gradient(var(--rot),var(--rot)) no-repeat
+             0 var(--lb-linie-y)/100% var(--lb-rot-staerke)}
+.card > h2{padding:0;height:var(--lb-zeile);font-size:13px;font-weight:400;
+  text-transform:none;letter-spacing:0;color:var(--muted);border-bottom:0}
+
+/* ------------------------------------------------------------- Rezeptkopf --
+   AP-0303 (libarius-gestaltung), R-24/K-19: Titel und Skalierung auf derselben
+   56-px-Zeile statt untereinander (168 statt 84 px) - der Untertitel steht per
+   forciertem Zeilenumbruch (flex-basis:100%) darunter. Reihenfolge im Markup
+   bleibt h2/.sub/.scaler (AP-0201), die Anzeigereihenfolge kommt aus `order`.
+   Auf schmalen Stufen bricht die Skalierung von selbst um (flex-wrap), ohne
+   eigene Media-Query. */
+.rezeptkopf{display:flex;flex-wrap:wrap;align-items:flex-start;
+  column-gap:var(--lb-gasse)}
+.rezeptkopf h2{order:1;flex:1 1 auto;min-width:0;
+  font-size:26px;line-height:var(--lb-zeile);font-weight:500;
+  padding-top:var(--lb-zeile);letter-spacing:-.01em;margin:0}
+/* Nur im Rezeptkopf steht das Etikett links statt oben, damit die Skalierung
+   in dieselbe 56-px-Zeile wie der Titel passt (K-19) - .scaler bleibt fuer
+   Protokoll-/Verfahrensformulare (dort mit Etikett ueber dem Feld) unberuehrt,
+   diese Regel greift nur unter .rezeptkopf. */
+.rezeptkopf .scaler{order:2;flex:none;align-items:center}
+.rezeptkopf .scaler label{flex-direction:row;align-items:center;gap:8px}
+.rezeptkopf .scaler input{width:64px}
+.rezeptkopf .sub{order:3;flex:0 0 100%;font-size:13px;color:var(--muted)}
+.scaler{border-top:0;margin:0;padding:0;gap:var(--lb-gasse);align-items:flex-end}
+.scaler label{font-size:13px;color:var(--muted);gap:0}
+
+/* ------------------------------------------------------- Bedienelemente ----
+   56 px hoch, die Rasterlinie wird durch eine Graphitlinie bei 47 px ersetzt.
+   Kein Rahmen, keine Rundung, keine Füllfarbe. */
+input,select,textarea{background:transparent;border:0;border-radius:0;
+  padding:var(--lb-zeile) 0 0;height:var(--lb-bedien);min-height:var(--lb-bedien);
+  color:var(--ink);
+  background-image:linear-gradient(var(--ink),var(--ink));
+  background-repeat:no-repeat;background-position:0 var(--lb-bedien-y);
+  background-size:100% 1px}
+textarea{display:block;height:auto;min-height:calc(4 * var(--lb-zeile));padding-top:0;
+  background-image:repeating-linear-gradient(to bottom,
+    transparent 0 var(--lb-linie-y),
+    var(--line) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+    transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile));
+  background-position:0 0;background-size:100% 100%;resize:vertical}
+/* AP-0307 (libarius-gestaltung), R-45: Fokus war Rot (vierte Rolle) — jetzt wie im
+   Stilblatt-Nachtrag eine doppelt starke Graphitlinie (--lb-fokus-staerke) statt
+   Farbe. Nur input/select bekommen die staerkere Linie (ihre Grundlinie ist eine
+   einzelne 1-px-Linie); textarea traegt ihr ganzes Raster als Hintergrund
+   (background-size:100% 100%, die Zeilen selbst liegen im Gradient) — dieselbe
+   Groesse wie fuer input/select wuerde das Raster auf einen 2-px-Streifen stauchen. */
+input:focus,select:focus{outline:0;
+  background-image:linear-gradient(var(--ink),var(--ink));
+  background-size:100% var(--lb-fokus-staerke)}
+textarea:focus{outline:0;background-image:repeating-linear-gradient(to bottom,
+    transparent 0 var(--lb-linie-y),
+    var(--ink) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+    transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile))}
+input[type=checkbox]{height:12px;min-height:12px;width:12px;padding:0;
+  background:transparent;border:1px solid var(--ink);appearance:none;
+  background-image:none;flex:none}
+input[type=checkbox]:checked{background:var(--ink);
+  box-shadow:inset 0 0 0 2px var(--bg)}
+button,label.ghost{background:transparent;color:var(--ink);border:0;border-radius:0;
+  padding:0 var(--lb-gasse) 0 0;height:var(--lb-bedien);min-height:var(--lb-bedien);
+  font-weight:400;font-size:15px;
+  display:inline-flex;align-items:center}
+button.ghost,label.ghost{background:transparent;color:var(--ink);border:0}
+/* AP-0307 (libarius-gestaltung), R-45: Hover war Rot (vierte Rolle) — jetzt eine
+   Unterstreichung in Nebentext, dasselbe Muster wie `.lb-bedienzeile:hover`/
+   `ul.recipes button:hover`. Bei reinen Symbolknoepfen (kein sichtbarer Text)
+   hat text-decoration keine Wirkung — dort fehlt der Text, nicht die Regel. */
+button:hover,label.ghost:hover{filter:none;color:inherit;
+  text-decoration:underline;text-decoration-color:var(--muted);
+  text-underline-offset:5px;text-decoration-thickness:1px}
+button:disabled{color:var(--muted)}
+/* Alte Inline-Abstaende (.4–.9 rem) fallen aus dem 28-px-Raster und verschieben alles
+   darunter zwischen die Linien. Sie stehen in rund zwanzig Vorlagen quer durch die
+   Ansichten; die Schicht hebt sie hier gesammelt auf, statt jede Vorlage anzufassen. */
+.actions[style],.hint[style],.editorhinzu{margin:0 !important;padding:0 !important}
+textarea[style]{min-height:calc(4 * var(--lb-zeile)) !important}
+/* AP-0303 (libarius-gestaltung), R-21: gap als Kurzform setzt row-gap mit -
+   bricht die Zeile um, wird sie sonst 144 statt 28/56 px hoch. Nur der
+   Spaltenabstand (column-gap) soll 32 px betragen. */
+.actions{gap:0 var(--lb-gasse);align-items:baseline}
+.filters{display:block}
+/* AP-0302 (libarius-gestaltung), R-17: Kinder waren inline-block (Default),
+   das erzeugt einen 0.5-px-Versatz durch den Inline-Whitespace zwischen den
+   Elementen - display:block schliesst die Luecke. */
+.filters input,.filters select{display:block;width:100%;min-width:0}
+
+/* -------------------------------------------------------------- Schienen ---
+   Kategorie als Zeile mit Graphitlinie, Rezepte als Liste. Anklickbare
+   Zeilen 56 px (Tippziel), Beschriftungen 13 px Nebentext. */
+.navgruppe,.navgruppe:last-child,.navgruppe-fehler{border:0}
+.navgruppe > summary{padding:0;height:var(--lb-bedien);font-size:13px;
+  font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);gap:8px;
+  background:linear-gradient(var(--ink),var(--ink)) no-repeat
+             0 var(--lb-bedien-y)/100% 1px}
+.navgruppe > summary::before{content:"›";color:var(--muted);font-size:15px}
+.navgruppe .anzahl{font-weight:400}
+.navgruppe .punkt{color:var(--rot)}
+ul.recipes li,ul.recipes li:last-child{border:0}
+ul.recipes button{padding:0;height:var(--lb-bedien);min-height:var(--lb-bedien);
+  gap:8px;align-items:center}
+ul.recipes button:hover{background:transparent;
+  text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px}
+ul.recipes .nm{font-weight:400;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+ul.recipes .meta{font-size:13px;color:var(--muted)}
+li.fehlerzeile{padding:0;min-height:var(--lb-bedien);align-items:center}
+li.fehlerzeile .nm{font-weight:400}
+
+/* Einkaufsliste: 12-px-Kästchen, abgehakt gefüllt mit 2-px-Papierring. */
+ul.einkaufsliste li,ul.einkaufsliste li:last-child{border:0}
+ul.einkaufsliste label{padding:0;height:var(--lb-bedien);
+  min-height:var(--lb-bedien);align-items:center;gap:12px}
+ul.einkaufsliste input[type=checkbox]{width:12px;height:12px;accent-color:auto}
+ul.einkaufsliste .menge{font-size:15px;color:var(--muted)}
+ul.einkaufsliste li.abgehakt .nm{text-decoration:none;color:var(--muted)}
+ul.einkaufsliste li.abgehakt .menge{text-decoration:none}
+
+/* -------------------------------------------------------------- Rezeptur ---
+   Phase: roter Trenner, Titel 17 Medium. Zutatenzeile: Name rechtsbündig an
+   die Menge (Entwurf Durchgang 2), Bäckerprozent als Nebentext dazwischen,
+   Einheit in 32 px rechts. Mengenspalte 96 px (Korrektur K-7). */
+details.phase,details.phase:last-child{border-bottom:0}
+details.phase > summary{padding:0;height:var(--lb-bedien);font-size:17px;
+  font-weight:500;gap:8px;align-items:center}
+details.phase > summary::before{content:"›";color:var(--muted);font-size:15px;
+  font-weight:400}
+details.phase::before{content:"";display:block;height:var(--lb-zeile);
+  background:linear-gradient(var(--rot),var(--rot)) no-repeat
+             0 var(--lb-linie-y)/100% var(--lb-rot-staerke)}
+table.zutaten{margin:0}
+table.zutaten{border-collapse:collapse;border-spacing:0}
+table.zutaten td{padding:0;height:var(--lb-zeile);line-height:var(--lb-zeile);
+  border-bottom:0;vertical-align:top}
+table.zutaten td:first-child{text-align:right;padding-right:16px}
+table.zutaten td.menge{width:96px;font-weight:400}
+table.zutaten td.pct{width:64px;font-size:13px;padding-right:16px}
+/* Kleinere Schriftgrade in einer 28-px-Zeile (FODMAP-Punkt, Warnung, durchgestrichene
+   Sollmenge) machen die Zeile sonst 29 px hoch — ihre Grundlinienausrichtung zieht das
+   Zeilenkaestchen auf. Als inline-block mit fester Hoehe bleibt das Raster stehen. */
+.fodmap-ampel,.warn-inline,.korrektur-soll{display:inline-block;
+  height:var(--lb-zeile);line-height:var(--lb-zeile);vertical-align:top}
+/* Korrektur (rote Rolle 3): neuer Wert rot, Sollmenge durchgestrichen daneben. */
+.korrektur-soll{font-size:15px;color:var(--muted)}
+table.zutaten td.menge{color:var(--rot)}
+table.zutaten td.menge:not(:has(.korrektur-soll)){color:var(--ink)}
+/* AP-0307 (libarius-gestaltung), R-45: Warntext ("unbekannter Rohstoff",
+   "fehlerhaft (Zeile …)") ist bereits durch das Wort selbst erklaert — Graphit mit
+   einer "!"-Glyphe genuegt, keine der drei roten Rollen betroffen. */
+.warn-inline{font-size:13px;color:var(--ink)}
+.warn-inline::before{content:"! "}
+/* AP-0303 (libarius-gestaltung), R-26: Nummern zurueck (O-20) als 13-px-Neben-
+   text vor dem Schritt statt der von list-style:none entfernten Browser-Zahl -
+   Zeilenhoehe bleibt dabei 28 px. Ueber counter() statt list-style, damit der
+   Bezug (AP-0201 B4, Korrektur je Schritt) spaeter am Text ansetzen kann, ohne
+   die Nummer im Markup mitfuehren zu muessen. */
+ol.schritte{padding:0;list-style:none;counter-reset:schritt}
+ol.schritte li{counter-increment:schritt;margin:0;text-wrap:pretty;max-width:520px;
+  padding-left:32px;position:relative}
+ol.schritte li::before{content:counter(schritt) ".";position:absolute;left:0;top:0;
+  font-size:13px;color:var(--muted)}
+
+/* Metadaten: Name, Zusammenfassung, Pfeil — anklickbar, darum 56 px. */
+details.metablock,details.metablock:last-child{border-bottom:0}
+details.metablock > summary{padding:0;height:var(--lb-bedien);font-size:15px;
+  font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink);gap:8px}
+details.metablock > summary:hover{background:transparent;color:var(--rot)}
+/* AP-0303 (libarius-gestaltung), R-25: Pfeil wandert von ::before nach ::after,
+   Kurzwert steht davor - alte Regel (Zeile ~209) setzt ::before-Inhalt, hier
+   auf "none" neutralisiert statt geloescht. Der Auto-Abstand (frueher auf dem
+   Kurzwert) sitzt jetzt auf dem Pfeil, damit er ganz rechts aussen bleibt. */
+details.metablock > summary::before{content:none}
+details.metablock > summary::after{content:"›";color:var(--muted);font-size:15px;
+  margin-left:auto}
+.metablock .metakurz{font-weight:400;font-size:13px;color:var(--muted);margin-left:0}
+.kpis{display:block}
+.kpi{background:transparent;border:0;border-radius:0;padding:0;
+  display:flex;height:var(--lb-zeile)}
+.kpi .k{flex:1;font-size:13px;text-transform:none;letter-spacing:0;
+  color:var(--muted)}
+.kpi .v{font-size:15px;font-weight:400}
+.hint{font-size:13px;margin:0}
+dl.herkunft{font-size:15px;gap:0 var(--lb-gasse)}
+/* AP-0303 (libarius-gestaltung), R-20: border-bottom auf einer border-collapse-
+   Tabelle zieht die Zeile um 0.5 px auf (28.5 statt 28, #rezeptbereich landet
+   dadurch bei 68*28+1) - die Linie kommt jetzt wie bei .navgruppe > summary als
+   Hintergrundverlauf auf der Rasterlinie (19 px), das aendert die Boxhoehe nicht. */
+table.log th{font-size:13px;text-transform:none;letter-spacing:0;font-weight:400;
+  color:var(--muted);padding:0;height:var(--lb-zeile);border-bottom:0;
+  background:linear-gradient(var(--line),var(--line)) no-repeat
+             0 var(--lb-linie-y)/100% 1px}
+table.log td{padding:0;height:var(--lb-zeile);border-bottom:0}
+
+/* --------------------------------------------------------- Meldungen etc. --
+   AP-0307 (libarius-gestaltung), O-20/R-44: Erfolg/Warnung/Fehler waren durch
+   dieselbe rote Randlinie nicht mehr auseinanderzuhalten (die Randlinie war schon
+   selbst der Fehler — Rot ist Rolle 1/2/3, keine vierte Meldungsfarbe). Jetzt wie
+   von Hand markiert: die Kennungszeile (<b>) traegt den Leuchtstift in der Farbe
+   der Art, der Rest bleibt Graphit auf den Linien. Keine Randlinie, keine Flaeche,
+   kein Rahmen mehr (DESIGN.md, "Meldungen"). */
+/* AP-0303 (libarius-gestaltung), R-22/R-23: alte Regeln (Zeilen ~246/251)
+   ruecken die Rezeptur zusaetzlich 16/2.4 px nach unten - die Meldung traegt
+   ihren Abstand bereits selbst (margin-bottom:var(--lb-zeile) unten). */
+#meldungen{margin:0}
+.msg{background:transparent;border:0;border-left:0;
+  border-radius:0;padding:0;margin:0 0 var(--lb-zeile);
+  font-size:15px}
+.msg b{font-weight:500;background-repeat:no-repeat,no-repeat;
+  background-position:0 0,0 0;background-size:8px 100%,100% 100%;
+  padding:0 .25em;margin:0 -.25em;
+  -webkit-box-decoration-break:clone;box-decoration-break:clone}
+.msg.warn b{background-image:var(--lb-marker-ansatz-gelb),var(--lb-marker-strich-gelb)}
+.msg.ok b{background-image:var(--lb-marker-ansatz-gruen),var(--lb-marker-strich-gruen)}
+.msg.err b{background-image:var(--lb-marker-ansatz-rot),var(--lb-marker-strich-rot)}
+/* AP-0311 (libarius-gestaltung): table.log als Kind einer .msg (Uebernehmen-
+   Vorschau) braucht Abstand zum Fliesstext darueber - Rasterzeile statt Inline-Wert. */
+.msg.warn table.log{margin-top:var(--lb-zeile)}
+
+/* --------------------------------------------------- Rot auf drei Rollen ---
+   AP-0307 (libarius-gestaltung), O-20/R-45: restliche Fundstellen aus dem Review
+   durchgegangen. `.navgruppe .punkt` (offene Korrektur, Zeile ~163/620) bleibt
+   Rot — sie gehoert zur Korrektur-Rolle 3, kein neuer Fund. Die folgenden vier
+   sind reine Anzeige-Verstaerkung ohne eigene Bedeutung, die das Glyphen/Wort
+   daneben nicht schon traegt — auf Graphit zurueckgefuehrt: */
+/* negative Abweichung (Entwicklungsmodus-Diff): Pfeilrichtung (▲/▼) traegt die
+   Aussage bereits, Farbe war Verdopplung. */
+.entw-delta.entw-auf,.entw-delta.entw-ab{color:var(--muted)}
+/* Referenz-Vergleich (B7) „> 20 %": dieselbe Glyphe wie im Druck (Zeile ~1049,
+   dort bereits Schwarz) — jetzt auch auf dem Bildschirm Graphit statt Rot. */
+table.vergleich td.abw{color:var(--ink)}
+/* Farbflaechen ausserhalb der drei Rollen (R-47/R-48): Code-Chip im Import und
+   Hover der Referenzliste nutzten --accent/--accent-soft, keine Markenfarbe
+   dieser Schicht — entfernt statt auf eine andere Farbe umgestellt. */
+.importfehler li code{background:none;color:inherit;
+  font-family:ui-monospace,Menlo,Consolas,monospace}
+.refliste button:hover{background:none;text-decoration:underline;
+  text-decoration-color:var(--muted)}
+
+.importvorschau,.editorvorschau,.entw-overlay,.refliste,.refchip,.entw-scroll,
+.tabellescroll{border-radius:0}
+.entw-overlay,.editorvorschau,.importvorschau{background:var(--bg);border:0;
+  padding:0;margin:0}
+.entw-overlay-b7{box-shadow:none;border:var(--lb-rot-staerke) solid var(--rot);
+  background:var(--bg);padding:0 var(--lb-gasse)}
+.refchip{border-radius:0;padding:0 8px}
+/* AP-0309 (libarius-gestaltung), R-49: Import ohne Entwurfsvorlage (AP-0403 §5) —
+   Textfeld, Fehlerzeilen und Vorschau-Titel auf Rasterwerte statt der alten
+   Inline-Abstaende (Zeilen 254/257/262f, Fundstellen von damals). */
+textarea.importtext{font-family:var(--lb-schrift);font-size:15px;
+  line-height:var(--lb-zeile);border:0;border-radius:0;padding:0;
+  min-height:calc(6 * var(--lb-zeile))}
+.importfehler li{padding:0;min-height:var(--lb-zeile);font-size:15px}
+.importvorschau h3{margin:0;height:var(--lb-zeile);line-height:var(--lb-zeile);
+  font-size:15px;font-weight:500}
+.editorphase,.editorzeile,.editorzeile:last-child,.korrekturzeile,
+.korrekturzeile:last-child,.zuordnungzeile,.importfehler li{border-bottom:0}
+.korrekturzeile,.editorzeile,.editorschritt,.zuordnungzeile{gap:0 var(--lb-gasse);
+  min-height:var(--lb-bedien);padding:0}
+/* AP-0309, R-50: Zutaten-Editor — Phase/Fehler/Warnung/Vorschau auf 0, die Hoehe
+   traegt die Rasterzeile der Kinder statt eines eigenen Innenabstands. */
+.editorphase{padding:0}
+.editorfehler,.editorwarnung,.editorvorschau ul{margin:0}
+.editorfehler li,.editorwarnung li{padding:0;min-height:var(--lb-zeile)}
+.korrekturphase h4,.editorphase h4{font-size:13px;text-transform:none;
+  letter-spacing:0;font-weight:400;color:var(--muted);margin:0;
+  height:var(--lb-zeile)}
+/* AP-0307 (libarius-gestaltung), R-45: Loeschsymbol war Rot (vierte Rolle) — jetzt
+   Nebentext, wie ein zurueckhaltendes Werkzeugsymbol statt einer Warnfarbe. */
+.editorzeile button.entfernen,.editorschritt button.entfernen{border:0;
+  color:var(--muted);min-height:var(--lb-bedien)}
+footer.app{max-width:none;padding:0 var(--lb-rand) var(--lb-zeile);font-size:13px}
+
+/* ------------------------------------- Entwicklungsmodus als Overlay (B6) --
+   AP-0304 (libarius-gestaltung), O-20/R-09: B6 verlaesst die rechte Schiene und
+   wird Overlay ueber der Rezeptur, Vorlage design/entwurf-rezeptur.html (1d).
+   Randlinie links (Rolle 1) + Schleier statt Rahmen (R-37), kein Schatten, keine
+   Rundung. Oberkante auf einer Rasterlinie 56 px unter dem Fensterrand, unten
+   eine Rasterzeile Luft (K-4). Breite: die volle Flaeche zwischen den Seiten-
+   raendern (die Vorlage haengt sie an die alten Schienenbreiten — die Varianten-
+   tabelle braucht die Breite, damit zwei bis vier Spalten ohne Zwang tragen). */
+#entwSchleier{position:fixed;inset:0;background:rgba(42,39,36,.10);z-index:10}
+#entwSchleier[hidden]{display:none}
+#panelEntwicklung{position:fixed;z-index:11;box-sizing:border-box;
+  top:var(--lb-bedien);left:var(--lb-rand);right:var(--lb-rand);
+  height:calc(100vh - var(--lb-bedien) - var(--lb-zeile));
+  overflow:auto;overscroll-behavior:contain;
+  padding:0 var(--lb-gasse) 0 calc(var(--lb-rot-staerke) + var(--lb-gasse));
+  background-color:var(--bg);
+  background-image:linear-gradient(var(--rot),var(--rot)),
+    repeating-linear-gradient(to bottom,
+      transparent 0 var(--lb-linie-y),
+      var(--line) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+      transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile));
+  background-repeat:no-repeat,repeat;
+  background-size:var(--lb-rot-staerke) 100%,100% 100%;
+  background-position:0 0,0 0;
+  background-attachment:local,local}
+#panelEntwicklung[hidden]{display:none}
+#panelEntwicklung .entw-inhalt{padding-bottom:var(--lb-zeile)}
+/* Kopf des Overlays: Titel links, Rezeptname + Schliessen-× rechts (K-5),
+   dieselbe 56-px-Bedienzeile wie jeder andere Kopf. */
+.entw-overlay-kopf{display:flex;justify-content:space-between;align-items:flex-end;
+  height:var(--lb-bedien);gap:var(--lb-gasse)}
+.entw-overlay-kopf .lb-titel{font-size:17px;font-weight:500;line-height:var(--lb-zeile);
+  padding-top:var(--lb-zeile);margin:0}
+.entw-overlay-kopf-rechts{display:flex;align-items:flex-end;gap:var(--lb-gasse)}
+.entw-overlay-kopf-rechts .lb-neben{font-size:13px;color:var(--muted);
+  padding-bottom:var(--lb-linie-y);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#btnEntwSchliessen{flex:none;padding:var(--lb-zeile) 0 0;font-size:17px;color:var(--muted)}
+#btnEntwSchliessen:hover{color:var(--rot)}
+
+.entw-abzeichen{border:0;border-radius:0;padding:0;font-size:13px;
+  height:var(--lb-zeile);line-height:var(--lb-zeile);margin:0;display:block}
+
+/* Leiste: eine Bedienzeile, bricht sie um (K-Stufe, viele Knoepfe), bleibt der
+   Zeilenabstand 0 — nur der Spaltenabstand ist 32 px (R-31: gap/margin 9.6 -> 0). */
+.entw-leiste{gap:0 var(--lb-gasse);margin:0;min-height:var(--lb-bedien);
+  align-items:center;row-gap:0}
+.entw-leiste label{display:inline-flex;align-items:center;gap:8px;
+  height:var(--lb-bedien);font-size:13px;color:var(--muted)}
+.entw-leiste select{height:var(--lb-bedien);min-height:var(--lb-bedien);font-size:13px;
+  background-position:0 var(--lb-linie-y)}
+
+/* Die Variantentabelle selbst ist bewusst dicht: Achse und Wertespalten muessen
+   Zeile fuer Zeile aneinander ausgerichtet bleiben. Ihre Zellen bleiben darum
+   eine Rasterzeile hoch (28 px) und folgen NICHT der 56-px-Regel fuer Tippziele
+   — sie waren schon vor dieser Schicht 34 px hoch, die Zeile wird also nicht
+   schlechter erreichbar, sondern nur rastertreu (DESIGN.md, Entscheid 1).
+   Praezisiert 10.09.2026 (O-20/R-35/R-56): die Ausnahme gilt NUR fuer die
+   Zellen — Leiste, Kopf und Fuss (oben/unten) sind Bedienzeilen wie ueberall
+   sonst, 56 px. */
+.entw-scroll{border:0;border-radius:0}
+.entw-achse{background:var(--bg);border-right:1px solid var(--line)}
+.entw-spalte{border-right:1px solid var(--line)}
+.entw-spalte.entw-aktiv{background:transparent}
+.entw-zelle{height:var(--lb-zeile);min-height:var(--lb-zeile);padding:0 8px;
+  border-bottom:0;font-size:15px;line-height:var(--lb-zeile)}
+.entw-zelle.entw-phase{height:var(--lb-zeile);min-height:var(--lb-zeile);
+  background:transparent;font-size:13px;text-transform:none;letter-spacing:0;
+  font-weight:400;color:var(--muted)}
+.entw-zelle input[type=number],.entw-zelle input[type=text],
+.entw-kopf input[type=text]{height:var(--lb-zeile);min-height:var(--lb-zeile);
+  padding:0;margin:0;font-size:15px;background-position:0 var(--lb-linie-y)}
+.entw-kopf input[type=text]{font-size:13px}
+.entw-zelle button{height:var(--lb-zeile);min-height:var(--lb-zeile);padding:0 8px;
+  font-size:13px}
+.entw-kopf-knoepfe button,.entw-fuss button,.entw-leiste button{
+  height:var(--lb-bedien);min-height:var(--lb-bedien);padding:0 var(--lb-gasse) 0 0;
+  font-size:13px}
+
+/* Achsen- und Spaltenkopf: dieselbe feste Hoehe aus vier 56-px-Zeilen (v-Knopf+
+   Badge, Diff, Notizfeld, Kopfknoepfe) — die Achse traegt nur eine Beschriftung
+   und wird darum bodenbuendig gesetzt. Die inline min-height an den vormaligen
+   JS-Aufrufstellen (6.6rem/3.6rem) entfaellt zugunsten dieser Klasse, weil NUR
+   eine gemeinsame Regel Achse und Spalten garantiert identisch hoch haelt
+   (R-30, dringend: Achse und Wertespalten standen zuvor 98.8 px versetzt). */
+.entw-kopf{height:calc(4 * var(--lb-bedien));min-height:0;padding:0 8px;
+  border-bottom:1px solid var(--line);display:flex;flex-direction:column;
+  justify-content:flex-end}
+.entw-kopf-zeile1{display:flex;align-items:center;height:var(--lb-bedien)}
+.entw-kopf .entw-v{font-weight:500;font-size:15px}
+.entw-kopf .entw-badge-aktiv{border:0;border-radius:0;padding:0 0 0 6px;
+  font-size:13px;color:var(--muted)}
+.entw-kopf .entw-diff{font-size:13px;line-height:var(--lb-bedien);height:var(--lb-bedien);
+  margin:0;overflow:hidden}
+.entw-kopf-knoepfe{margin:0;gap:0;height:var(--lb-bedien);align-items:center}
+.entw-achse-basis{font-size:13px;color:var(--muted)}
+.entw-fuss{height:calc(2 * var(--lb-bedien));border-top:1px solid var(--line);
+  padding:0 8px;display:flex;flex-direction:column;justify-content:flex-start}
+.entw-fuss .entw-letzter{font-size:13px;height:var(--lb-bedien);display:flex;align-items:center}
+.entw-fuss .actions{margin:0;height:var(--lb-bedien);align-items:center}
+.entw-delta{font-size:13px}
+.entw-wert.entw-geaendert{font-weight:500}
+.entw-merkmal label{font-size:15px}
+/* R-39: der Drehhinweis (K-Stufe, Zeile ~95) ist selbst eine Bedienzeile, keine
+   Textkarte mit rem-Innenabstand. */
+#panelEntwicklung::after{padding:0;height:var(--lb-bedien);display:flex;
+  align-items:center;font-size:13px}
+
+/* ---------------------------- Nebenansicht B7 und Bewertungsformular -------
+   AP-0305 (libarius-gestaltung), R-34, R-36 bis R-39. Form wie der Overlay-
+   Rahmen aus design/libarius.css (.lb-overlay-rahmen--b7) und wie B6 aus
+   AP-0304: Papier mit eigenem Raster, Randlinie links (Rolle 1), der Schleier
+   ist das .scrim davor — kein roter Rahmen rundum mehr (R-37, vorher Zeile 764).
+   Oberkante zwei Bedienzeilen unter dem Fensterrand, plus --lb-versatz: B7 steht
+   fix, das Raster von #panelEntwicklung darunter scrollt (attachment local) —
+   Layout.init setzt den Scroll-Rest, damit die Linien deckungsgleich bleiben.
+   Hoehe folgt dem Inhalt (jeder Block ist ein Vielfaches von 28), gedeckelt auf
+   ganze Zeilen mit einer Zeile Luft unten (K-4). Kein transform (R-36). */
+/* R-34: .entw-overlay trug noch margin-top:.9rem (Zeile 331) — das Bewertungs-
+   formular stand dadurch 14.4 px unter der Variantentabelle zwischen den Linien. */
+.entw-overlay{margin:0}
+.entw-overlay-b7{position:fixed;z-index:12;box-sizing:border-box;margin:0 auto;
+  top:calc(2 * var(--lb-bedien) + var(--lb-versatz,0px));bottom:auto;
+  left:0;right:0;transform:none;
+  width:min(640px,calc(100vw - 2 * var(--lb-rand)));height:auto;
+  max-height:calc(100vh - 2 * var(--lb-bedien) - var(--lb-versatz,0px) - var(--lb-zeile));
+  max-height:round(down,calc(100dvh - 2 * var(--lb-bedien) - var(--lb-versatz,0px) - var(--lb-zeile)),var(--lb-zeile));
+  overflow-y:auto;overscroll-behavior:contain;
+  border:0;box-shadow:none;
+  padding:0 var(--lb-gasse) 0 calc(var(--lb-rot-staerke) + var(--lb-gasse));
+  background-color:var(--bg);
+  background-image:linear-gradient(var(--rot),var(--rot)),
+    repeating-linear-gradient(to bottom,
+      transparent 0 var(--lb-linie-y),
+      var(--line) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+      transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile));
+  background-repeat:no-repeat,repeat;
+  background-size:var(--lb-rot-staerke) 100%,100% 100%;
+  background-position:0 0,0 0;
+  background-attachment:local,local}
+/* Kopf B7: Titel 17 Medium auf der Linie, Schliessen-× rechts im Rahmen (K-5),
+   56 px. Beim Bewertungsformular (in B6, ohne eigenen Rahmen) nur der Titel. */
+.entw-b7-kopf{display:flex;justify-content:space-between;align-items:flex-start;
+  height:var(--lb-bedien);gap:var(--lb-gasse)}
+.entw-b7-kopf h3{margin:0;padding-top:var(--lb-zeile);font-size:17px;font-weight:500;
+  line-height:var(--lb-zeile);min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.lb-schliessen{flex:none;width:var(--lb-bedien);height:var(--lb-bedien);
+  margin:0;padding:var(--lb-zeile) 0 0;justify-content:flex-end;align-items:flex-start;
+  font-size:17px;line-height:var(--lb-zeile);color:var(--ink)}
+.lb-schliessen:hover{color:var(--muted);text-decoration:none}
+/* Abschnitt: eine Rasterzeile Luft statt Trennlinie mit 11.2-px-Abstaenden (R-38) */
+.entw-abschnitt{padding-top:var(--lb-zeile)}
+.entw-overlay .hint,.entw-overlay-b7 .hint{line-height:var(--lb-zeile);min-height:var(--lb-zeile)}
+.entw-overlay .warn-inline{margin-left:0}
+.entw-zwischentitel{margin:0;height:var(--lb-zeile);line-height:var(--lb-zeile);
+  font-size:13px;font-weight:400;color:var(--muted)}
+.entw-overlay table.vergleich tr.gruppe td{padding-top:0;font-size:13px;font-weight:400;
+  text-transform:none;letter-spacing:0}
+.entw-overlay table.vergleich td.abw::after{font-size:13px;line-height:1}
+
+/* Protokollzeile nach Entwurf 1d (design/libarius.css .lb-protokoll, R-34):
+   Etikett 220 px ohne Linie, Wert auf der Linie; lange Werte brechen um, die
+   Linie wiederholt sich je Zeile. Dient spaeter auch dem Verfahrensprotokoll
+   (AP-0309). Feldzeile: Etikett und Feld auf EINER Zeile — weil anklickbar,
+   56 statt 28 px hoch (O-20/R-35: nur Zellen der Variantentabelle bleiben 28),
+   Etikett und Wert stehen auf der unteren Linie wie beim Eingabefeld. */
+.lb-protokoll{display:flex;min-height:var(--lb-zeile);margin:0}
+.lb-protokoll > .lbl{width:220px;flex:none;color:var(--muted);font-size:15px;
+  line-height:var(--lb-zeile)}
+.lb-protokoll > .wert{flex:1;min-width:0;min-height:var(--lb-zeile);
+  line-height:var(--lb-zeile);
+  background:repeating-linear-gradient(to bottom,
+    transparent 0 var(--lb-linie-y),
+    var(--ink) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+    transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile))}
+.lb-protokoll--feld{min-height:var(--lb-bedien);align-items:flex-start;gap:0}
+.lb-protokoll--feld > .lbl{padding-top:var(--lb-zeile);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.lb-protokoll--feld > input:not([type=checkbox]):not([type=range]),
+.lb-protokoll--feld > select{flex:1;min-width:0;width:auto;margin:0}
+.lb-protokoll--feld > input[type=checkbox]{margin:calc(var(--lb-zeile) + 8px) 0 0}
+/* Merkmal-Skala: Etikett 220 · Regler · Zahl, alles auf der unteren Zeile */
+.entw-merkmal.lb-protokoll--feld{margin:0;gap:0 var(--lb-gasse);height:var(--lb-bedien)}
+.entw-merkmal.lb-protokoll--feld > input[type=range]{flex:1;min-width:0;margin:0;
+  height:var(--lb-zeile);min-height:var(--lb-zeile);padding:0;
+  margin-top:var(--lb-zeile);background-image:none}
+.entw-merkmal.lb-protokoll--feld > .entw-skalawert{flex:none;width:var(--lb-zeile);
+  padding-top:var(--lb-zeile);line-height:var(--lb-zeile);text-align:right}
+/* AP-0309, R-51: Verfahrensprotokoll-Formular (View.rezept, protokollForm) — die Huelle
+   trug einen grauen border-top plus 14.4 px Polster oben und unten (Fundstelle von
+   AP-0403); jetzt derselbe rote Trenner (Rolle 2) wie zwischen zwei Karten
+   (.card + .card::before, Zeile ~521) statt einer Graphitlinie, sonst kein eigenes Mass. */
+.lb-protokollform{margin:0}
+.lb-protokollform::before{content:"";display:block;height:var(--lb-zeile);
+  background:linear-gradient(var(--rot),var(--rot)) no-repeat
+             0 var(--lb-linie-y)/100% var(--lb-rot-staerke)}
+
+/* Referenz-Vergleich: Chips und Trefferliste ohne Rahmen, 56-px-Bedienzeilen
+   (R-38: .refchip 6.4, .refliste 176/8) */
+.refchips{display:flex;flex-wrap:wrap;column-gap:var(--lb-gasse);row-gap:0}
+.entw-overlay-b7 .refchip{border:0;margin:0;padding:0;gap:8px;height:var(--lb-bedien);
+  align-items:center;font-size:15px}
+.entw-overlay-b7 .refchip button{padding:0;min-width:var(--lb-zeile);
+  justify-content:center;font-size:13px;color:var(--muted)}
+.entw-overlay-b7 .refliste{border:0;margin:0;max-height:calc(6 * var(--lb-bedien))}
+.entw-overlay-b7 .refliste button{display:flex;align-items:center;gap:8px;
+  width:100%;height:var(--lb-bedien);padding:0;border-bottom:0}
+.refliste .refkat{font-size:13px;color:var(--muted);line-height:1}
+
+/* ------------------------------------------------------------- Kochmodus ---
+   Gleiches System, Rasterschritt 38 statt 28 (Entwurf 1e). */
+body.vollbild{--lb-zeile:38px;--lb-linie-y:26px;--lb-bedien:76px;--lb-bedien-y:64px;
+  font-size:22px;line-height:38px}
+body.vollbild .rezeptkopf h2{font-size:36px;line-height:38px}
+body.vollbild table.zutaten td.menge{font-size:22px;width:200px}
+body.vollbild table.zutaten td.pct{width:96px;font-size:17px}
+/* AP-0303 (libarius-gestaltung), R-27: ohne Notizspalte (K-9) hat der rechts-
+   buendige Name im Kochmodus nichts, wogegen er ausrichtet - DESIGN.md
+   "Zutatenzeile" verlangt links, nur hier und im Druck (R-43), nicht in der
+   Hauptansicht (R-29 bleibt offen bis AP-0401). */
+body.vollbild table.zutaten td:first-child{text-align:left;padding-right:8px}
+body.vollbild details.phase > summary{font-size:22px}
+/* AP-0306 (libarius-gestaltung), K-17/O-20: "nur das Rezept, nichts sonst" (Entwurf
+   1e) — Skalierung (Eingabefelder), Aktionsknöpfe und der Metadaten-Ausklapper
+   fallen weg. Ausgeblendet, nicht entfernt (Weg zurück bleibt offen). Der gewaehlte
+   Skalierungsfaktor bleibt trotzdem ablesbar: `.rezeptkopf .sub` (Kategorie · Phasen
+   · Portionen · Gewicht) ist keine .scaler-Klasse und rechnet unveraendert mit
+   Store.faktor mit — nur die Eingabe verschwindet, nicht die Anzeige. */
+body.vollbild .rezeptkopf .scaler,
+body.vollbild .actions,
+body.vollbild .metastapel{display:none}
+/* Entwurf 1e/1c, K-3/K-18: Randlinie sitzt direkt an der mittigen Rezeptur, nicht
+   am Seitenrand (R-28) — vier Spuren statt zwei: zwei gleich grosse Fuellspuren
+   aussen zentrieren das Paar aus Linie und Inhalt, wie `.lb-raster--nur-mitte` im
+   Entwurf. `.lb-randlinie` traegt sonst ihre Gasse als eigenen Rand (AP-0302,
+   Kommentar bei `.lb-randlinie`) — das passt hier nicht (die 1.5-px-Spur ist fix,
+   kein `auto`, ein 32-px-Rand liesse die Linie aus ihrer Spur wandern), darum
+   `margin:0` und die Gasse stattdessen als `padding-left` auf dem Inhalt, der
+   Text beginnt so exakt eine Gasse nach der Linie (Abnahmekriterium 3). Oben zwei
+   Rasterzeilen Luft (die Kopfzeile ist im Kochmodus weg und darf keine Luecke
+   hinterlassen). */
+body.vollbild main#hauptraster{
+  grid-template-columns:minmax(0,1fr) var(--lb-rot-staerke) minmax(0,960px) minmax(0,1fr);
+  column-gap:0;
+  padding:calc(2 * var(--lb-zeile)) var(--lb-rand) var(--lb-zeile)}
+body.vollbild .lb-randlinie--links{grid-column:2;margin:0}
+body.vollbild .lb-randlinie--rechts{display:none}
+body.vollbild .inhalt{grid-column:3;max-width:960px;padding-left:var(--lb-gasse);margin:0}
+body.vollbild ol.schritte li{max-width:none}
+/* Der Schliessen-Knopf sitzt innerhalb des Seitenrandes (Korrektur K-5). */
+#btnVollbildEnde{top:var(--lb-zeile);right:var(--lb-rand);
+  background:transparent;color:var(--muted);border:0}
+
+/* --------------------------------------------------------------- Geräte ----
+   Die Stufen aus AP-0301 bleiben (1280 / 860 px); nur die Masse sind neu.
+   Unter 860 px wird die Schiene zum Overlay, wie im Entwurf 1f. */
+@media (max-width:1279px){
+  .rail--links,.rail--rechts{width:var(--lb-schiene,240px)}
+  /* Ist die rechte Schiene ganz weg (nicht nur als Spindel), faellt ihre Randlinie
+     mit — sie haette nichts mehr zu begrenzen. Die linke bleibt stehen: sie ist die
+     Randlinie der Rezeptur und gehoert im Entwurf 1b/1f auch dann ins Bild. */
+  body[data-rechts="zu"] .lb-randlinie--rechts{display:none}
+}
+/* AP-0302 (libarius-gestaltung), R-10/R-16: auf Stufe W (ab 1280 px) klappt die
+   alte Regel (Zeile ~81) die linke Schiene nur auf eine 41.6-px-Spindel mit
+   senkrechter Beschriftung zusammen statt sie zu verstecken - O-17.3 verlangt
+   "nichts ausser der roten Randlinie". Der Schalter dafuer sitzt seit R-08 in
+   der Kopfzeile, ein Rest in der Schiene ist nicht mehr noetig. */
+@media (min-width:1280px){
+  body[data-links="zu"] .rail--links{display:none;width:auto}
+}
+@media (max-width:1023px){
+  header.app h1,header.app .badge{display:none}
+}
+@media (max-width:859px){
+  :root{--lb-rand:24px}
+  .lb-randlinie--rechts{display:none}
+  /* AP-0302 (libarius-gestaltung), R-18: main-Regel (oben) setzt bereits
+     top:var(--lb-bedien), zusammen mit padding-top:var(--lb-bedien) hier
+     ergaebe das eine leere Bedienzeile im Overlay - top:0 haelt das Overlay
+     bei K wieder auf Ganzer Hoehe wie vor der Schicht.
+     R-14: max-width:none hebt die alte 420-px-Deckelung (Zeile ~76) auf,
+     die width:min(62vw,520px) sonst weiter auf 420 px begrenzt. */
+  .rail{top:0;width:min(62vw,520px);max-width:none;
+    padding:var(--lb-bedien) var(--lb-rand) var(--lb-zeile);
+    background:var(--bg);border-radius:0}
+  table.zutaten td:first-child{text-align:left;padding-right:8px}
+}
+
+/* ============================================================================
+   AP-0310 (libarius-gestaltung): Cue-Spalte der linken Schiene (Cornell-Schnitt)
+   O-17.3, O-20/R-13 · Entwurf design/entwurf-cue.html · Bausteine aus
+   design/libarius.css, Abschnitt "Cue-Spalte" (Nachtrag 10.09.2026) — hier mit
+   den App-Marken --line/--ink/--muted/--bg statt --lb-linie/--lb-graphit/
+   --lb-neben/--lb-papier uebernommen, --lb-klein wie im uebrigen Abschnitt als
+   literal 13px statt eigener Variable (so schon bei .railkopf .lbl, .card > h2 usw.).
+   .lb-bedienzeile ist Bestand von libarius.css (Basiskomponente vor dem
+   Cue-Nachtrag), hier zum ersten Mal in die App uebernommen, weil erst die
+   Cue-Spalte sie braucht — Fehler-/Ladend-Zustaende (K-21) bleiben aussen vor,
+   die nutzt hier nichts.
+
+   Nur in der GEOEFFNETEN Schiene: Cue-Spalte links (Stichwort), Notizflaeche
+   rechts (Eintrag). Zugeklappt verschwindet alles mit .rail--links (R-08) —
+   keine stehende Leiste, das stellt die @media-Regel oben sicher. */
+.lb-luecke{height:var(--lb-zeile)}
+
+/* Anklickbare Zeile, 56 px: Text auf der unteren Linie (47), obere Zeile Luft.
+   --umbruch laesst den Text umbrechen statt ihn abzuschneiden (AP-0310
+   Abnahmekriterium: auf Stufe M keine abgeschnittenen Namen) — jede weitere
+   Zeile waechst die Zeile um 28 px. */
+.lb-bedienzeile{display:flex;align-items:baseline;min-width:0;
+  height:var(--lb-bedien);padding-top:var(--lb-zeile);line-height:var(--lb-zeile);
+  cursor:pointer}
+button.lb-bedienzeile{font:inherit;color:inherit;background-color:transparent;
+  border:0;border-radius:0;margin:0;padding:var(--lb-zeile) 0 0;text-align:left}
+.lb-bedienzeile > .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;text-underline-offset:5px;text-decoration-thickness:1px}
+.lb-bedienzeile--aktiv > .nm{text-decoration:underline;text-decoration-color:var(--ink)}
+.lb-bedienzeile:hover > .nm,.lb-bedienzeile--hover > .nm{text-decoration:underline;
+  text-decoration-color:var(--muted)}
+.lb-bedienzeile--aktiv:hover > .nm{text-decoration-color:var(--ink)}
+.lb-bedienzeile:focus-visible{outline:0;
+  background-image:linear-gradient(var(--ink),var(--ink));
+  background-repeat:no-repeat;background-position:0 var(--lb-bedien-y);
+  background-size:100% var(--lb-fokus-staerke)}
+.lb-bedienzeile--umbruch,button.lb-bedienzeile--umbruch{height:auto;
+  min-height:var(--lb-bedien);padding-top:var(--lb-zeile);align-items:baseline}
+.lb-bedienzeile--umbruch > .nm{white-space:normal;overflow:visible;text-overflow:clip;
+  -webkit-hyphens:auto;hyphens:auto;overflow-wrap:break-word}
+.lb-bedienzeile--umbruch:focus-visible{background-position:0 calc(100% - var(--lb-zeile) + var(--lb-linie-y))}
+
+/* Cue|Notiz-Raster: eine senkrechte 1-px-Linie in Linienfarbe (NICHT Rot — Rolle 1
+   bleibt die Randlinie links der Rezeptur, siehe entwurf-cue.html §6), Breite der
+   Cue-Spalte je Geraetestufe (72 px W/M, 112 px K — deckungsgleich mit den
+   App-Stufen 1280/860 oben). */
+.lb-cornell{--lb-cue:72px;--lb-cue-gasse:16px;
+  background-image:linear-gradient(var(--line),var(--line));
+  background-repeat:no-repeat;
+  background-position:calc(var(--lb-cue) + var(--lb-cue-gasse)) 0;
+  background-size:1px 100%}
+@media (min-width:860px) and (max-width:1279px){.lb-cornell{--lb-cue-gasse:12px}}
+@media (max-width:859px){.lb-cornell{--lb-cue:112px}}
+
+/* Cue und Eintrag richten sich an ihrer ersten Textzeile aus (Linie 47). Jeder
+   Eintrag behaelt oben seine Luftzeile — ohne sie liefe ein umbrechender Eintrag
+   in den vorigen hinein (gesehen im Entwurf, AP-0202 libarius-gestaltung). */
+.lb-cue-kopf,.lb-cue-zeile,.lb-cue-gruppe{display:grid;
+  grid-template-columns:var(--lb-cue) minmax(0,1fr);
+  column-gap:calc(2 * var(--lb-cue-gasse) + 1px)}
+.lb-cue-zeile,.lb-cue-gruppe{align-items:start}
+
+/* Kopf des Sprungblocks: "Phasen" in der Cue, Rezeptname in der Notiz. */
+.lb-cue-kopf{height:var(--lb-zeile);align-items:baseline;
+  font-size:13px;color:var(--muted)}
+.lb-cue-kopf > *{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Cue: 13-px-Nebentext, Luftzeile oben, bricht mit Silbentrennung um (lang="de"
+   traegt das Dokument bereits). */
+.lb-cue{display:block;min-width:0;min-height:var(--lb-bedien);padding-top:var(--lb-zeile);
+  font-size:13px;line-height:var(--lb-zeile);color:var(--muted);
+  -webkit-hyphens:auto;hyphens:auto;overflow-wrap:break-word;
+  text-underline-offset:5px;text-decoration-thickness:1px}
+/* Als Knopf: Luftzeile ueber padding-top, nicht 0 — sonst zentriert der Knopf
+   seinen Inhalt senkrecht und die Cue steht neben ihrem Eintrag. */
+button.lb-cue{font:inherit;font-size:13px;line-height:var(--lb-zeile);
+  color:var(--muted);background-color:transparent;border:0;border-radius:0;
+  margin:0;padding:var(--lb-zeile) 0 0;text-align:left;cursor:pointer}
+button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)}
+.lb-cue:focus-visible{outline:0;
+  background-image:linear-gradient(var(--ink),var(--ink));
+  background-repeat:no-repeat;
+  background-position:0 calc(100% - var(--lb-zeile) + var(--lb-linie-y));
+  background-size:100% var(--lb-fokus-staerke)}
+/* Die Kategorie bleibt oben stehen, solange ihre Gruppe im Blick ist. */
+.lb-cue-gruppe > .lb-cue{position:sticky;top:0;align-self:start}
+
+/* Notizflaeche: die Rezepte der Gruppe. */
+.lb-cue-notiz{min-width:0;margin:0;padding:0;list-style:none}
+.lb-cue-notiz > li{margin:0}
+.lb-cue-notiz .lb-bedienzeile{width:100%}
+.lb-cue-anzahl > .nm{color:var(--muted)}
+
+/* Sprungmarke: die ganze Zeile ist das Tippziel. Aktiv = die Phase, auf die
+   zuletzt gesprungen wurde (View.sprungPhase). */
+.lb-sprungmarke{color:inherit;text-decoration:none;cursor:pointer}
+.lb-sprungmarke > .lb-bedienzeile{min-width:0;cursor:inherit}
+.lb-sprungmarke:hover .nm{text-decoration:underline;text-decoration-color:var(--muted)}
+.lb-sprungmarke--aktiv .nm,.lb-sprungmarke--aktiv:hover .nm{text-decoration:underline;
+  text-decoration-color:var(--ink)}
+.lb-sprungmarke--neben .nm{color:var(--muted)}
+.lb-sprungmarke:focus-visible{outline:0}
+.lb-sprungmarke:focus-visible > .lb-bedienzeile{
+  background-image:linear-gradient(var(--ink),var(--ink));
+  background-repeat:no-repeat;
+  background-position:0 calc(100% - var(--lb-zeile) + var(--lb-linie-y));
+  background-size:100% var(--lb-fokus-staerke)}
+
 @media print{
   /* AP-0310: Bestandsaufnahme aller Bereiche des Dreispalten-Layouts (AP-0201 §1) und wie sie
      im Druck behandelt werden — Umsetzungsschritt 1. Geprüft gegen den Stand nach AP-0309:
@@ -394,26 +1246,75 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
   details.metablock .metabody{display:block !important;padding:0 0 .5rem}
   details.metablock > summary{padding:.2rem 0;color:#000}
   details.metablock > summary::before{content:""}
+  /* AP-0303 (libarius-gestaltung): der Pfeil sitzt seit R-25 auf ::after statt
+     ::before - dieselbe Druck-Unterdrueckung braucht darum auch dort ein
+     content:"". R-43: Zutatennamen ohne Notizspalte linksbuendig wie R-27. */
+  details.metablock > summary::after{content:""}
+  table.zutaten td:first-child{text-align:left;padding-right:8px}
   /* AP-0313: der Scroll-Container darf im Druck nichts abschneiden, und die Markierung
      «> 20 %» muss ohne Farbe erkennbar bleiben — die Glyphe aus ::after trägt sie. */
   .tabellescroll{overflow:visible}
   table.vergleich td.abw{color:#000;font-weight:700}
+  /* AP-0308 (libarius-gestaltung), R-40: die roten Trenner (Rolle 2) sind auf
+     Papier sinnlos — das Blatt ist bereits Papier. `details.phase{border-bottom:
+     1px solid #ccc}` oben traegt die Trennung zwischen den Phasen bereits grau;
+     fuer die Trenner vor `.metastapel` und zwischen zwei `.card` reicht der
+     Abstand aus margin (Zeile "card{margin:0 0 .6rem}" oben) ohne Ersatzlinie. */
+  .card + .card::before,.metastapel::before,.card + .metastapel::before,
+  details.phase::before{background:none;height:0}
+  /* R-42: Kopf, Zutaten- und Protokollzeilen duerfen nicht mitten im Seitenumbruch
+     zerschnitten werden — im Vorsprint war genau das schon einmal ein Abnahmefehler
+     bei der Naehrwerte-Karte (AP-0306 des Vorsprints). */
+  .rezeptkopf,table.zutaten tr,table.log tr{break-inside:avoid}
+  /* R-41: Korrekturwert (Rolle 3) auf Schwarz statt Rot — Farbe traegt im
+     Schwarzweissdruck ohnehin keine Bedeutung. Klammerform "(Soll 400 g)" aus
+     AP-0201 §3.2, weil die Durchstreichung allein im Druck zu schwach wirkt. */
+  table.zutaten td.menge{color:#000}
+  .korrektur-soll{color:#000}
+  .korrektur-soll s::before{content:"(Soll "}
+  .korrektur-soll s::after{content:")"}
 }
 </style>
 </head>
 <body>
 
+<!-- Symbolsatz aus dem Entwurf (Artboard 1g): 16 px, viewBox 0 0 16 16,
+     Strich 1.2, Graphit, keine Fläche. Kopie in design/_ikonen.svg.html. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="lb-suche" viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="4"/><path d="M9.5 9.5l4 4"/></symbol>
+  <symbol id="lb-import" viewBox="0 0 16 16"><path d="M8 2v8M5 7l3 3 3-3M2.5 11v2.5h11V11"/></symbol>
+  <symbol id="lb-kochmodus" viewBox="0 0 16 16"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3"/></symbol>
+  <symbol id="lb-anmeldung" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="3"/><path d="M2.5 14c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5"/></symbol>
+  <symbol id="lb-schiene" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M6 3.5v9"/></symbol>
+  <!-- AP-0301 (libarius-gestaltung), R-04: Notizen-Symbol ersetzt die Textglyphe
+       "✎" - ein Stift im selben Strichstil wie die uebrigen vier. -->
+  <symbol id="lb-notizen" viewBox="0 0 16 16"><path d="M10.5 2.5l3 3L5 14H2v-3z"/><path d="M9 4l3 3"/></symbol>
+</svg>
+
+<!-- AP-0301 (libarius-gestaltung): Kopfzeile auf Symbole umgestellt (O-17.1).
+     Reihenfolge Suche · Import · Notizen · Kochmodus · Anmeldung (R-06/R-08),
+     Schienenschalter links bleibt davor wie bisher. Jede Funktion nur noch als
+     Symbol mit aria-label/title, kein sichtbarer Text mehr (R-01). "Alle
+     exportieren" und "Andere Datenbank öffnen" wandern hinter das
+     Anmelde-Symbol in ein Menü (R-03) - Konto-Status/Login/Logout steht dort
+     als Textzeile, weil das im Menü keine Kopfzeile mehr crowdet. -->
 <header class="app">
-  <button class="railtoggle noprint" id="btnRailLinks" aria-label="Navigation ein-/ausblenden">☰</button>
+  <button class="railtoggle noprint" id="btnRailLinks" aria-label="Navigation ein-/ausblenden"><svg class="lb-ikone"><use href="#lb-schiene"/></svg></button>
   <h1>libarius</h1>
   <span class="badge" id="modus">Beispieldaten</span>
-  <span class="spacer"></span>
-  <button class="ghost" id="btnImport">Importieren</button>
-  <button class="ghost" id="btnExportAlle">Alle exportieren</button>
-  <button class="ghost" id="btnAltDB">Andere Datenbank öffnen</button>
-  <button class="ghost" id="btnLogin">Anmelden</button>
-  <button class="railtoggle noprint" id="btnRailRechts" aria-label="Notizen/Entwicklung ein-/ausblenden">✎</button>
-  <button class="railtoggle noprint" id="btnVollbild" aria-label="Vollbild umschalten">⤢</button>
+  <span class="kopftitel" id="kopftitel"></span>
+  <button class="railtoggle noprint" id="btnSuche" aria-label="Suche öffnen"><svg class="lb-ikone"><use href="#lb-suche"/></svg></button>
+  <button class="railtoggle noprint" id="btnImport" aria-label="Importieren" title="Importieren"><svg class="lb-ikone"><use href="#lb-import"/></svg></button>
+  <button class="railtoggle noprint" id="btnRailRechts" aria-label="Notizen ein-/ausblenden"><svg class="lb-ikone"><use href="#lb-notizen"/></svg></button>
+  <button class="railtoggle noprint" id="btnVollbild" aria-label="Vollbild umschalten"><svg class="lb-ikone"><use href="#lb-kochmodus"/></svg></button>
+  <div class="lb-kontomenu noprint" id="kontomenu">
+    <button class="railtoggle" id="btnLogin" aria-label="Konto" aria-haspopup="true" aria-expanded="false" title="Nicht angemeldet"><svg class="lb-ikone"><use href="#lb-anmeldung"/></svg></button>
+    <div class="lb-menu" id="kontomenuListe" role="menu" hidden>
+      <button class="ghost" id="btnKonto" role="menuitem">Anmelden</button>
+      <button class="ghost" id="btnAltDB" role="menuitem">Andere Datenbank öffnen</button>
+      <button class="ghost" id="btnExportAlle" role="menuitem">Alle exportieren</button>
+    </div>
+  </div>
 </header>
 
 <div class="scrim noprint" id="scrim" hidden></div>
@@ -436,10 +1337,14 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
         <div class="body">
           <div class="filters">
             <input id="suche" type="search" placeholder="Rezept suchen…" autocomplete="off">
-            <select id="kategorie"><option value="">Alle Kategorien</option></select>
+            <!-- AP-0310 Schritt 2a (Entscheid Gianluca 10.09.2026): Kategorie-Auswahl
+                 gestrichen — Cue-Spalte und Suche uebernehmen ihren Zweck. -->
           </div>
         </div>
         <div class="navliste" id="liste"></div>
+        <!-- AP-0310: Cue-Spalte des Cornell-Schnitts entsteht als Kind von #liste,
+             siehe View.liste() — Markup und Masse aus design/entwurf-cue.html,
+             Bausteine .lb-cornell/.lb-cue-* aus design/libarius.css. -->
       </section>
       <section class="card noprint" id="einkaufslisteCard">
         <h2>Einkaufsliste</h2>
@@ -448,6 +1353,8 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
     </div>
   </aside>
 
+  <div class="lb-randlinie lb-randlinie--links noprint" aria-hidden="true"></div>
+
   <div class="inhalt">
     <div id="meldungen"></div>
     <div id="importbereich"></div>
@@ -455,21 +1362,28 @@ footer.app{max-width:960px;margin:0 auto;padding:0 1rem 3rem;color:var(--muted);
     <div id="rechercheBereich"></div>
   </div>
 
+  <div class="lb-randlinie lb-randlinie--rechts noprint" aria-hidden="true"></div>
+
   <aside class="rail rail--rechts noprint" id="railRechts">
     <div class="railkopf">
-      <div class="railtabs">
-        <button class="railtab" id="tabKochen" data-tab="kochen">Kochen</button>
-        <button class="railtab" id="tabEntwicklung" data-tab="entwicklung">Entwicklung</button>
-      </div>
-      <button class="railspindel" id="btnRailRechtsSpindel" aria-label="Notizen/Entwicklung ein-/ausklappen">‹›</button>
+      <!-- AP-0304 (libarius-gestaltung), O-20/R-09: der Reiter "Entwicklung" entfaellt —
+           B6 ist kein Inhalt dieser Schiene mehr, sie fuehrt nur noch die Notizen (B4).
+           Statisches Etikett statt Reiter, wie "Navigation" in der linken Schiene. -->
+      <span class="lbl">Notizen</span>
+      <button class="railspindel" id="btnRailRechtsSpindel" aria-label="Notizen ein-/ausklappen">‹›</button>
       <button class="railclose" id="btnRailRechtsSchliessen" aria-label="Schliessen">×</button>
     </div>
     <div class="railinhalt">
       <div id="panelKochen"><div class="empty">Kein Rezept gewählt.</div></div>
-      <div id="panelEntwicklung" hidden><div class="empty">Kein Rezept gewählt.</div></div>
     </div>
   </aside>
 </main>
+
+<!-- AP-0304 (libarius-gestaltung), O-20/R-09, Vorlage design/entwurf-rezeptur.html (1d):
+     Entwicklungsmodus (B6) als Overlay ueber der Rezeptur statt Inhalt der rechten Schiene.
+     Ausserhalb von main, damit position:fixed nicht an dessen Grid haengt — wie #scrim. -->
+<div class="lb-schleier noprint" id="entwSchleier" hidden aria-hidden="true"></div>
+<div id="panelEntwicklung" class="noprint" hidden><div class="empty">Kein Rezept gewählt.</div></div>
 
 <footer class="app">
   libarius — UI-Grundgerüst (AP-0301) mit Rechenkern (AP-0303/0304).
@@ -2186,7 +3100,12 @@ const BEISPIEL_REZEPTE = [
 const Store = {
   rohstoffe:[], rezepte:[], rezepteFehlerhaft:[],
   aktuellesRezept:null, faktor:1,
-  suchtext:"", kategorie:"", offenePhasen:new Set(),
+  suchtext:"", offenePhasen:new Set(),
+  // AP-0310: welche Phase in der Cue-Spalte als aktiv markiert ist (Sprungmarke).
+  // 0 = erste Phase, wie Store.offenePhasen bei App.rezeptOeffnen(); Wechsel per Klick
+  // auf eine Sprungmarke (View.sprungPhase). Kein Scroll-Tracking (AP-0310 verlangt
+  // nur "Klick springt und klappt auf" — Aktiv-Folgen-beim-Scrollen ist offener Punkt).
+  phaseAktiv:0,
   // AP-0302: Workbook-Objekte des zuletzt geladenen Bestands, fuer AP-0315-Uebernahme
   // (null bei Beispieldaten — Import bleibt dann im Speicher dieser Sitzung).
   rezepteWorkbook:null, rezepteSheetName:null, rohstoffeWorkbook:null, rohstoffeSheetName:null,
@@ -2212,6 +3131,11 @@ const Store = {
   // nicht geoeffnet (App.entwOeffnen()). Persistiert vollstaendig in localStorage je rezeptId
   // (R3, EntwEntwurf) — Rezepte.xlsx sieht nur "Varianten sichern" und "übernehmen" (R4).
   entw:null,
+  // AP-0304 (libarius-gestaltung), O-20/R-09: sichtbar/versteckt des Entwicklungsmodus-
+  // Overlays (B6) ueber der Rezeptur — ersetzt den vormaligen Reiter in der rechten Schiene.
+  // Rein sitzungslokal, nicht Teil von Store.entw selbst (das bleibt je rezeptId bestehen,
+  // R7); false bei jedem Rezeptwechsel (App.rezeptOeffnen/App.schliessen).
+  entwOverlayOffen:false,
   // AP-0308: g oder % — Anzeige-Umschalter fuer alle Wertespalten gleichzeitig (AP-0204 §4.2:
   // "Umschalter g ⇄ % wie im Zutaten-Editor"), sitzungslokal, kein Feld des Datenmodells.
   entwEinheit:"g",
@@ -2346,18 +3270,13 @@ const View = {
     box.appendChild(d);
   },
 
-  kategorienFuellen(){
-    const sel = el("#kategorie");
-    sel.innerHTML = '<option value="">Alle Kategorien</option>';
-    const kats = [...new Set(Store.rezepte.map(r => r.kategorie).filter(Boolean))].sort();
-    kats.forEach(k => { const o = document.createElement("option"); o.value = k; o.textContent = k; sel.appendChild(o); });
-  },
-
+  // AP-0310 Schritt 2a (Entscheid Gianluca 10.09.2026): View.kategorienFuellen() und die
+  // Filterbedingung auf Store.kategorie sind mit der Kategorie-Auswahl selbst gestrichen —
+  // Cue-Spalte und Suche uebernehmen ihren Zweck.
   gefilterte(){
     const q = Store.suchtext.trim().toLowerCase();
     return Store.rezepte.filter(r =>
-      (!Store.kategorie || r.kategorie === Store.kategorie) &&
-      (!q || (r.name + " " + r.kategorie + " " + (r.unterkategorie||"")).toLowerCase().includes(q))
+      !q || (r.name + " " + r.kategorie + " " + (r.unterkategorie||"")).toLowerCase().includes(q)
     );
   },
 
@@ -2365,11 +3284,20 @@ const View = {
   // O-13 "Rezeptsuche unübersichtlich" bei 80 Rezepten). Waehrend die Suche aktiv ist, stehen
   // alle Treffergruppen offen — unabhaengig vom gemerkten Zustand — sonst braeuchte ein Treffer
   // in einer zugeklappten Gruppe einen dritten Bedienschritt (Abnahmekriterium: max. zwei).
+  // AP-0310: Cue-Spalte des Cornell-Schnitts (O-17.3, O-20/R-13) — Entwurf
+  // design/entwurf-cue.html, Bausteine design/libarius.css Abschnitt "Cue-Spalte".
+  // Die Kategorien ersetzen dabei die fruehere details/summary-Gruppe (AP-0302)
+  // durch das Cue|Notiz-Paar aus zwei Grid-Spalten (.lb-cue-gruppe); Aufklappen
+  // laeuft jetzt ueber Button+aria-expanded statt <details>, weil die geschlossene
+  // Notizspalte im Entwurf durch eine eigene "n Rezepte"-Zeile ersetzt wird, nicht
+  // nur ausgeblendet — das kann <details> alleine nicht abbilden. Zustand bleibt
+  // in NavGruppen (localStorage), unveraendert aus AP-0302.
   liste(){
     const box = el("#liste"); const rs = View.gefilterte();
     const fehlerhaft = Store.rezepteFehlerhaft || [];
     if(!rs.length && !fehlerhaft.length){ box.innerHTML = '<div class="empty">Kein Rezept gefunden</div>'; return; }
     const suchtAktiv = !!Store.suchtext.trim();
+    const rz = Store.aktuellesRezept;
 
     const gruppen = new Map();
     rs.forEach(r => {
@@ -2379,22 +3307,47 @@ const View = {
     });
     const kats = [...gruppen.keys()].sort((a,b) => a.localeCompare(b, "de"));
 
+    // Entwurf §1: der Sprungblock erscheint nur bei offenem Rezept mit mindestens
+    // zwei Phasen — bei einer Phase gibt es nichts zu springen (40 % der Rezepte).
+    // Die Metadaten-Marke bringt die fuenf zugeklappten Metadatenbloecke in den
+    // Blick, ohne sie zu oeffnen (sie stehen kompakt beieinander, Entwurf §1).
+    const aktivIdx = (rz && Store.phaseAktiv != null && Store.phaseAktiv < rz.phasen.length) ? Store.phaseAktiv : 0;
+    const sprungHtml = (rz && rz.phasen.length >= 2) ? `
+      <div class="lb-cue-kopf"><span>Phasen</span><span>${esc(rz.name)}</span></div>
+      ${rz.phasen.map((p, i) => `
+        <a class="lb-cue-zeile lb-sprungmarke${i === aktivIdx ? " lb-sprungmarke--aktiv" : ""}" href="#" data-sprung-phase="${i}">
+          <span class="lb-cue">${i + 1}</span>
+          <span class="lb-bedienzeile lb-bedienzeile--umbruch"><span class="nm">${esc(p.name)}</span></span>
+        </a>`).join("")}
+      <a class="lb-cue-zeile lb-sprungmarke lb-sprungmarke--neben" href="#" data-sprung-metadaten="1">
+        <span class="lb-cue"></span>
+        <span class="lb-bedienzeile lb-bedienzeile--umbruch"><span class="nm">Metadaten</span></span>
+      </a>
+      <div class="lb-luecke"></div>` : "";
+
     const gruppenHtml = kats.map(kat => {
       const items = gruppen.get(kat);
       const offen = suchtAktiv || NavGruppen.offen(kat);
-      const zeilen = items.map(r => `
-        <li><button data-id="${esc(r.id)}">
-          <span class="nm">${esc(r.name)}${Korrekturen.hatOffene(r.id) ? '<span class="punkt" title="Offene Korrekturen">●</span>' : ""}</span>
-          <span class="meta">${r.unterkategorie ? esc(r.unterkategorie) + " · " : ""}${r.portionen} ${esc(r.einheit)}</span>
-        </button></li>`).join("");
-      return `<details class="navgruppe" data-kat="${esc(kat)}"${offen ? " open" : ""}>
-        <summary>${esc(kat)} <span class="anzahl">${items.length}</span></summary>
-        <ul class="recipes">${zeilen}</ul>
-      </details>`;
+      if(offen){
+        const zeilen = items.map(r => `
+          <li><button type="button" class="lb-bedienzeile lb-bedienzeile--umbruch${rz && r.id === rz.id ? " lb-bedienzeile--aktiv" : ""}" data-id="${esc(r.id)}">
+            <span class="nm">${esc(r.name)}${Korrekturen.hatOffene(r.id) ? '<span class="punkt" title="Offene Korrekturen">●</span>' : ""}</span>
+          </button></li>`).join("");
+        return `<div class="lb-cue-gruppe" data-kat="${esc(kat)}">
+          <button type="button" class="lb-cue" aria-expanded="true">${esc(kat)}</button>
+          <ul class="lb-cue-notiz">${zeilen}</ul>
+        </div>`;
+      }
+      return `<div class="lb-cue-gruppe lb-cue-gruppe--zu" data-kat="${esc(kat)}">
+        <button type="button" class="lb-cue" aria-expanded="false">${esc(kat)}</button>
+        <button type="button" class="lb-bedienzeile lb-cue-anzahl"><span class="nm">${items.length} Rezept${items.length === 1 ? "" : "e"}</span></button>
+      </div>`;
     }).join("");
 
     // FR-abgeleitet (Feinkonzept §7): ungültiges JSON blockiert nicht die Liste,
     // die betroffene Zeile wird sichtbar als fehlerhaft markiert statt geöffnet.
+    // Steht ausserhalb von .lb-cornell — die Linie Cue|Notiz gilt nur fuer Kategorien
+    // und Sprungmarken, nicht fuer diese Fehlerliste ohne Cue-Spalte.
     const fehlerHtml = fehlerhaft.length ? `<div class="navgruppe-fehler"><ul class="recipes">
       ${fehlerhaft.map(f => `
         <li class="fehlerzeile">
@@ -2403,16 +3356,45 @@ const View = {
         </li>`).join("")}
       </ul></div>` : "";
 
-    box.innerHTML = gruppenHtml + fehlerHtml;
+    box.innerHTML = `<div class="lb-cornell">${sprungHtml}${gruppenHtml}</div>${fehlerHtml}`;
     box.querySelectorAll("button[data-id]").forEach(b =>
       b.addEventListener("click", () => App.rezeptOeffnen(b.dataset.id)));
-    box.querySelectorAll("details.navgruppe").forEach(d =>
-      d.addEventListener("toggle", () => {
-        // Waehrend der Suche ist "offen" erzwungen (oben) — ein Toggle hier ist dann kein
+    box.querySelectorAll(".lb-cue-gruppe > button.lb-cue").forEach(cue =>
+      cue.addEventListener("click", () => {
+        // Waehrend der Suche ist "offen" erzwungen (oben) — ein Klick hier ist dann kein
         // bewusster Nutzerentscheid und darf den gemerkten Zustand nicht ueberschreiben.
-        if(suchtAktiv) return;
-        NavGruppen.toggle(d.dataset.kat, d.open);
+        if(!suchtAktiv) NavGruppen.toggle(cue.parentElement.dataset.kat, cue.getAttribute("aria-expanded") !== "true");
+        View.liste();
       }));
+    box.querySelectorAll("[data-sprung-phase]").forEach(a =>
+      a.addEventListener("click", e => { e.preventDefault(); View.sprungPhase(Number(a.dataset.sprungPhase)); }));
+    box.querySelectorAll("[data-sprung-metadaten]").forEach(a =>
+      a.addEventListener("click", e => { e.preventDefault(); View.sprungMetadaten(); }));
+  },
+
+  // AP-0310, Umsetzungsschritt 3: Sprungmarke -> Phase. Oeffnet die Phase (wie der
+  // erste Eintrag beim Rezeptwechsel, App.rezeptOeffnen) und bringt sie in den Blick.
+  // Nur die Aktiv-Markierung wird direkt umgesetzt (keine Neuzeichnung von #liste) —
+  // sonst ginge bei bereits offener Phase nichts verloren, aber ein voller Rebuild
+  // waere fuer eine reine Klassenaenderung unnoetig.
+  sprungPhase(i){
+    const rz = Store.aktuellesRezept; if(!rz || !rz.phasen[i]) return;
+    Store.phaseAktiv = i;
+    document.querySelectorAll("#liste .lb-sprungmarke[data-sprung-phase]").forEach(a =>
+      a.classList.toggle("lb-sprungmarke--aktiv", Number(a.dataset.sprungPhase) === i));
+    if(!Store.offenePhasen.has(i)){
+      Store.offenePhasen.add(i);
+      View.rezept();
+    }
+    const ziel = document.querySelector(`#rezeptbereich details.phase[data-i="${i}"]`);
+    if(ziel) ziel.scrollIntoView({behavior:"smooth", block:"start"});
+  },
+
+  // AP-0310: die Metadaten-Marke bringt den Metadatenstapel in den Blick, ohne ihn
+  // zu oeffnen (Entwurf §1: die fuenf zugeklappten Bloecke stehen kompakt beieinander).
+  sprungMetadaten(){
+    const ziel = el("#metadaten");
+    if(ziel) ziel.scrollIntoView({behavior:"smooth", block:"start"});
   },
 
   // AP-0302/B2: Zustände leer/gefüllt aus AP-0201 §1. Wird nach jedem View.rezept() erneut
@@ -2539,12 +3521,12 @@ const View = {
         <td class="num">${View.mengeText(k.sollBeiEingabe, k.einheit, z.rohstoff)}</td>
         <td class="num">${View.mengeText(Calc.korrekturAktuell(k, Store.faktor), k.einheit, z.rohstoff)}</td></tr>`;
     }).join("");
-    return `<div class="msg warn" style="margin-top:.7rem">
+    return `<div class="msg warn">
       <b>${Object.keys(kx.zutaten).length} Korrektur(en) ins Rezept übernehmen?</b>
       Die neue Menge wird die Sollmenge in Rezepte.xlsx — ein Backup wird vorher angelegt.
       Ohne Bestätigung wird nichts geschrieben.
-      <table class="log" style="margin-top:.5rem"><tr><th>Zutat</th><th>Phase</th><th class="num">Bisher</th><th class="num">Neu</th></tr>${zeilen}</table>
-      <div class="actions" style="margin-top:.6rem">
+      <table class="log"><tr><th>Zutat</th><th>Phase</th><th class="num">Bisher</th><th class="num">Neu</th></tr>${zeilen}</table>
+      <div class="actions">
         <button id="btnKorrekturUebernehmenBestaetigen">Übernehmen</button>
         <button class="ghost" id="btnKorrekturUebernehmenAbbrechen">Abbrechen</button>
       </div>
@@ -2731,9 +3713,15 @@ const View = {
     const zGeaendert = diff.zutaten.filter(x => x.delta != null && Math.abs(x.delta) > 0.0001).length;
     const sGeaendert = diff.schritte.filter(x => x.geaendert).length;
     const letzter = (sp.versuche || []).slice().sort((a, b) => (b.datum || "").localeCompare(a.datum || ""))[0];
+    // AP-0304 (libarius-gestaltung), R-30/R-35: Kopf und Fuss bestehen aus festen 56-px-Zeilen
+    // (Bedienzeilen) statt inline verdrahteter min-height — nur so bleibt ihre Gesamthoehe fuer
+    // JEDE Spalte UND die Achse identisch, egal wie lang Diff-Text oder Notiz gerade sind. Die
+    // 28-px-Ausnahme (DESIGN.md Entscheid 1) gilt seit R-35/R-56 nur noch fuer .entw-zelle.
     const kopf = `<div class="entw-kopf">
-      <button type="button" class="ghost entw-v" data-entw-aktiv="${sp.v}" style="min-height:auto;padding:.1rem .35rem">v${sp.v}</button>
-      ${aktiv ? '<span class="entw-badge-aktiv">aktiv</span>' : ""}
+      <div class="entw-kopf-zeile1">
+        <button type="button" class="ghost entw-v" data-entw-aktiv="${sp.v}">v${sp.v}</button>
+        ${aktiv ? '<span class="entw-badge-aktiv">aktiv</span>' : ""}
+      </div>
       <div class="entw-diff">${zGeaendert || sGeaendert
         ? `${zGeaendert} Zutat(en) · ${sGeaendert} Schritt(e) geändert gegenüber ${z.basis === "produktiv" ? "produktiv" : "v" + z.basis}`
         : "unverändert gegenüber " + (z.basis === "produktiv" ? "produktiv" : "v" + z.basis)}</div>
@@ -2756,32 +3744,38 @@ const View = {
     return `<div class="entw-spalte${aktiv ? " entw-aktiv" : ""}${sp.eingeklappt ? " entw-eingeklappt" : ""}">${kopf}${zellen}${fuss}</div>`;
   },
 
+  // AP-0304 (libarius-gestaltung), O-20/R-09, Vorlage design/entwurf-rezeptur.html (1d): der
+  // Kopf des Overlays selbst (Titel, Rezeptname, Schliessen-×) steht VOR beiden Zweigen — er
+  // gehoert zum Rahmen, nicht zum Inhalt. Keine .card mehr: das Overlay selbst ist bereits
+  // Papier mit Raster (Gestaltungsschicht, #panelEntwicklung), eine verschachtelte Karte waere
+  // ein zweiter Rahmen im Rahmen.
   entwKarte(rz){
     const z = View.entwSicherstellen(rz);
-    if(!z){
-      return `<section class="card">
-        <h2>Entwicklung</h2>
-        <div class="body">
-          <div class="hint">Kein Entwicklungsverlauf — dieses Rezept läuft als produktive Rezeptur.</div>
-          <div class="actions noprint" style="margin-top:.6rem">
-            <button class="ghost" id="btnEntwVarianteHinzufuegen">+ Variante</button>
-          </div>
+    const kopf = `<div class="entw-overlay-kopf">
+        <div class="lb-titel">Entwicklungsmodus</div>
+        <div class="entw-overlay-kopf-rechts">
+          <span class="lb-neben">${esc(rz.name)}</span>
+          <button type="button" class="ghost" id="btnEntwSchliessen" aria-label="Entwicklungsmodus schliessen">×</button>
         </div>
-      </section>`;
+      </div>`;
+    if(!z){
+      return `${kopf}
+        <div class="hint">Kein Entwicklungsverlauf — dieses Rezept läuft als produktive Rezeptur.</div>
+        <div class="actions noprint" style="margin-top:.6rem">
+          <button class="ghost" id="btnEntwVarianteHinzufuegen">+ Variante</button>
+        </div>`;
     }
     const basisPhasen = z.basis === "produktiv" ? rz.phasen : ((z.spalten.find(s => s.v === z.basis) || { phasen: rz.phasen }).phasen);
     const zeilen = View.entwZeilenplan(basisPhasen, z.spalten);
     const optionenBasis = ['<option value="produktiv"' + (z.basis === "produktiv" ? " selected" : "") + '>produktiv</option>']
       .concat(z.spalten.map(s => `<option value="${s.v}"${z.basis === s.v ? " selected" : ""}>v${s.v}</option>`)).join("");
 
-    return `<section class="card">
-      <h2>Entwicklung</h2>
-      <div class="body">
+    return `${kopf}
         <div class="entw-abzeichen">Entwicklung · Basis ${z.basis === "produktiv" ? "produktiv" : "v" + z.basis} · ${z.spalten.length} Variante${z.spalten.length===1?"":"n"}</div>
-        ${Store.entwFehler ? '<div class="msg warn">Zwischenspeicher (localStorage) nicht verfügbar — Änderungen bleiben nur für diese Sitzung erhalten.</div>' : ""}
+        ${Store.entwFehler ? '<div class="msg warn"><b>Warnung</b> Zwischenspeicher (localStorage) nicht verfügbar — Änderungen bleiben nur für diese Sitzung erhalten.</div>' : ""}
         <div class="entw-leiste noprint">
           <button class="ghost" id="btnEntwVarianteHinzufuegen">+ Variante</button>
-          <label style="font-size:.78rem;color:var(--muted)">Δ gegen
+          <label>Δ gegen
             <select id="entwBasisWahl">${optionenBasis}</select></label>
           <button class="ghost" id="btnEntwEinheit">${Store.entwEinheit === "%" ? "% → g" : "g → %"}</button>
           <button class="ghost" id="btnEntwZielwerte">Zielwerte</button>
@@ -2790,15 +3784,13 @@ const View = {
         </div>
         <div class="entw-scroll"><div class="entw-tabelle">
           <div class="entw-achse">
-            <div class="entw-kopf" style="min-height:6.6rem"><span style="font-size:.72rem;color:var(--muted)">Basis: ${z.basis === "produktiv" ? "produktive Rezeptur" : "v" + z.basis}</span></div>
+            <div class="entw-kopf"><span class="entw-achse-basis">Basis: ${z.basis === "produktiv" ? "produktive Rezeptur" : "v" + z.basis}</span></div>
             ${View.entwAchseHtml(zeilen)}
-            <div class="entw-fuss" style="min-height:3.6rem">&nbsp;</div>
+            <div class="entw-fuss">&nbsp;</div>
           </div>
           ${z.spalten.map(sp => View.entwSpalteHtml(sp, zeilen, z, rz, basisPhasen)).join("")}
         </div></div>
-        ${View.entwOverlay(rz, z)}
-      </div>
-    </section>`;
+        ${View.entwOverlay(rz, z)}`;
   },
 
   // AP-0204 §5.1 R2: genau EIN Overlay gleichzeitig — alle fuenf Typen teilen sich
@@ -2831,37 +3823,38 @@ const View = {
         <td>${esc(v.erkenntnis || "")}</td></tr>`).join("")}
     </table>` : `<div class="hint">Noch kein Versuch für v${sp.v}.</div>`;
 
+    // AP-0305 (libarius-gestaltung), R-34/R-38: Formular nach .lb-protokoll (Entwurf 1d) —
+    // Etikett und Feld auf einer Zeile statt Etikett ueber dem Feld; keine Inline-Abstaende
+    // mehr. IDs und data-Attribute unveraendert (entwEreignisse haengt daran), die Zahl der
+    // Merkmal-Skala bleibt nextElementSibling des Reglers.
     const feldHtml = feldsatz.felder.map(f => {
       const val = ov.felder[f.key];
-      if(f.typ === "bool") return `<label class="entw-merkmal"><input type="checkbox" data-entw-bew-feld="${esc(f.key)}"${val ? " checked" : ""}> ${esc(f.label)}</label>`;
-      return `<label style="display:block;margin-top:.4rem;font-size:.85rem;color:var(--muted)">${esc(f.label)}${f.einheit ? " (" + esc(f.einheit) + ")" : ""}
-        <input type="${f.typ === "zahl" ? "number" : "text"}" data-entw-bew-feld="${esc(f.key)}" value="${esc(val == null ? "" : val)}" style="width:100%;margin-top:.2rem"></label>`;
+      if(f.typ === "bool") return `<label class="lb-protokoll lb-protokoll--feld"><span class="lbl">${esc(f.label)}</span><input type="checkbox" data-entw-bew-feld="${esc(f.key)}"${val ? " checked" : ""}></label>`;
+      return `<label class="lb-protokoll lb-protokoll--feld"><span class="lbl">${esc(f.label)}${f.einheit ? " (" + esc(f.einheit) + ")" : ""}</span>
+        <input type="${f.typ === "zahl" ? "number" : "text"}" data-entw-bew-feld="${esc(f.key)}" value="${esc(val == null ? "" : val)}"></label>`;
     }).join("");
 
     const merkmaleHtml = merkmalsatz.skalen.map(k => `
-      <div class="entw-merkmal"><label>${esc(k)}</label>
-        <input type="range" min="1" max="5" data-entw-bew-skala="${esc(k)}" value="${ov.merkmale[k] || 3}">
-        <span>${ov.merkmale[k] || 3}</span></div>`).join("")
-      + merkmalsatz.kaesten.map(k => `<label class="entw-merkmal"><input type="checkbox" data-entw-bew-kasten="${esc(k)}"${ov.merkmale[k] ? " checked" : ""}> ${esc(k)}</label>`).join("");
+      <div class="entw-merkmal lb-protokoll lb-protokoll--feld"><label class="lbl">${esc(k)}</label>
+        <input type="range" min="1" max="5" data-entw-bew-skala="${esc(k)}" value="${ov.merkmale[k] || 3}"><span class="entw-skalawert">${ov.merkmale[k] || 3}</span></div>`).join("")
+      + merkmalsatz.kaesten.map(k => `<label class="entw-merkmal lb-protokoll lb-protokoll--feld"><span class="lbl">${esc(k)}</span><input type="checkbox" data-entw-bew-kasten="${esc(k)}"${ov.merkmale[k] ? " checked" : ""}></label>`).join("");
 
     return `<div class="entw-overlay noprint">
-      <h3 style="margin:0 0 .4rem;font-size:.95rem">Versuche v${sp.v}</h3>
+      <div class="entw-b7-kopf"><h3>Versuche v${sp.v}</h3></div>
       ${listeHtml}
-      <div style="border-top:1px solid var(--line);padding-top:.7rem;margin-top:.7rem">
-        <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
-          <label>Datum<input id="entwBewDatum" type="date" value="${esc(ov.datum)}"></label>
-          ${feldsatz.kernSollIst ? `
-          <label>Soll (g)<input id="entwBewSoll" type="number" min="1" step="1" value="${esc(ov.sollG)}"></label>
-          <label>Ist (g)<input id="entwBewIst" type="number" min="1" step="1" value="${esc(ov.istG)}"></label>` : ""}
-          <label>Gesamtnote<select id="entwBewBewertung">${[1,2,3,4,5].map(n => `<option value="${n}"${n === ov.bewertung ? " selected" : ""}>${n} — ${"★".repeat(n)}${"☆".repeat(5-n)}</option>`).join("")}</select></label>
-        </div>
+      <div class="entw-abschnitt">
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Datum</span><input id="entwBewDatum" type="date" value="${esc(ov.datum)}"></label>
+        ${feldsatz.kernSollIst ? `
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Soll (g)</span><input id="entwBewSoll" type="number" min="1" step="1" value="${esc(ov.sollG)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Ist (g)</span><input id="entwBewIst" type="number" min="1" step="1" value="${esc(ov.istG)}"></label>` : ""}
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Gesamtnote</span><select id="entwBewBewertung">${[1,2,3,4,5].map(n => `<option value="${n}"${n === ov.bewertung ? " selected" : ""}>${n} — ${"★".repeat(n)}${"☆".repeat(5-n)}</option>`).join("")}</select></label>
         ${feldHtml}
-        <h4 style="margin:.8rem 0 .3rem;font-size:.8rem;color:var(--muted)">Merkmale (${esc(rz.verfahren || "generisch")})</h4>
+        <h4 class="entw-zwischentitel">Merkmale (${esc(rz.verfahren || "generisch")})</h4>
         ${merkmaleHtml}
-        <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">Erkenntnis
-          <input id="entwBewErkenntnis" type="text" style="width:100%;margin-top:.25rem" value="${esc(ov.erkenntnis)}"
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Erkenntnis</span>
+          <input id="entwBewErkenntnis" type="text" value="${esc(ov.erkenntnis)}"
             placeholder="z. B. Krume offener, Kruste zu blass"></label>
-        <div class="actions noprint" style="margin-top:.7rem">
+        <div class="actions noprint">
           <button id="btnEntwBewertungSpeichern">Versuch speichern</button>
           <button class="ghost" id="btnEntwOverlaySchliessen">Schliessen</button>
         </div>
@@ -2907,7 +3900,8 @@ const View = {
     const zuckerarten = Store.rohstoffe.filter(r => r.suesskraft);
     return `<div class="scrim noprint" data-entw-b7-schliessen></div>
     <div class="entw-overlay entw-overlay-b7 noprint">
-      <h3 style="margin:0 0 .4rem;font-size:.95rem">Zielwerte — bezogen auf v${sp ? sp.v : "—"} (aktiv)</h3>
+      <div class="entw-b7-kopf"><h3>Zielwerte — bezogen auf v${sp ? sp.v : "—"} (aktiv)</h3>
+        <button type="button" class="lb-schliessen" data-entw-b7-schliessen aria-label="Schliessen">×</button></div>
       <table class="log">
         <tr><th>Kennzahl</th><th class="num">Ziel</th><th class="num">Ist</th><th>Ampel</th></tr>
         ${kzZeile("Hydration", ist && ist.hydration, zw.hydration_pct, v=>pct(v,1))}
@@ -2917,21 +3911,23 @@ const View = {
         ${kzZeile("Kosten/Portion", ist && ist.kosten_portion_chf, zw.kosten_portion_chf, v=>chf(v))}
       </table>
       ${!ist ? '<div class="hint">Keine aktive Variante — Ist-Kennzahlen erst mit einer Variante verfügbar.</div>' : ""}
-      <div class="scaler" style="padding-top:.7rem;border-top:1px solid var(--line);margin-top:.7rem">
-        <label>Hydration (%)<input id="zwHydration" type="number" step="0.1" value="${esc(ov.hydration)}"></label>
-        <label>Süsse (%)<input id="zwSuesse" type="number" step="0.1" value="${esc(ov.suesse)}"></label>
-        <label>Fett (%)<input id="zwFett" type="number" step="0.1" value="${esc(ov.fett)}"></label>
-        <label>Salz (%)<input id="zwSalz" type="number" step="0.1" value="${esc(ov.salz)}"></label>
-        <label>Kosten/Portion (CHF)<input id="zwKosten" type="number" step="0.01" value="${esc(ov.kosten)}"></label>
+      <div class="entw-abschnitt">
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Hydration (%)</span><input id="zwHydration" type="number" step="0.1" value="${esc(ov.hydration)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Süsse (%)</span><input id="zwSuesse" type="number" step="0.1" value="${esc(ov.suesse)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Fett (%)</span><input id="zwFett" type="number" step="0.1" value="${esc(ov.fett)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Salz (%)</span><input id="zwSalz" type="number" step="0.1" value="${esc(ov.salz)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Kosten/Portion (CHF)</span><input id="zwKosten" type="number" step="0.01" value="${esc(ov.kosten)}"></label>
       </div>
-      <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">
-        Zuckerart für «Rahmen herleiten» (nur nötig, wenn Süsse-Ziel gesetzt ist)
-        <select id="zwZuckerart" style="width:100%;margin-top:.25rem">
-          <option value="">— keine —</option>
-          ${zuckerarten.map(r => `<option value="${esc(r.id)}"${r.id===ov.zuckerartId?" selected":""}>
-            ${esc(r.name)} (Süsskraft ${r.suesskraft})</option>`).join("")}
-        </select></label>
-      <div class="actions noprint" style="margin-top:.7rem">
+      <div class="entw-abschnitt">
+        <div class="hint">Zuckerart für «Rahmen herleiten» (nur nötig, wenn Süsse-Ziel gesetzt ist)</div>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Zuckerart</span>
+          <select id="zwZuckerart">
+            <option value="">— keine —</option>
+            ${zuckerarten.map(r => `<option value="${esc(r.id)}"${r.id===ov.zuckerartId?" selected":""}>
+              ${esc(r.name)} (Süsskraft ${r.suesskraft})</option>`).join("")}
+          </select></label>
+      </div>
+      <div class="actions noprint">
         <button id="btnEntwZielwerteSpeichern">Zielwerte speichern</button>
         <button class="ghost" id="btnEntwRahmenHerleiten"${sp ? "" : " disabled"}>Rahmen herleiten — neue Variante</button>
         <button class="ghost" id="btnEntwOverlaySchliessen">Schliessen</button>
@@ -2984,8 +3980,9 @@ const View = {
 
     return `<div class="scrim noprint" data-entw-b7-schliessen></div>
     <div class="entw-overlay entw-overlay-b7 noprint">
-      <h3 style="margin:0 0 .4rem;font-size:.95rem">Referenz-Vergleich — v${sp ? sp.v : "—"} (aktiv)</h3>
-      ${refs.length ? `<div>${refs.map(r => `<span class="refchip">${esc(r.name)}
+      <div class="entw-b7-kopf"><h3>Referenz-Vergleich — v${sp ? sp.v : "—"} (aktiv)</h3>
+        <button type="button" class="lb-schliessen" data-entw-b7-schliessen aria-label="Schliessen">×</button></div>
+      ${refs.length ? `<div class="refchips">${refs.map(r => `<span class="refchip">${esc(r.name)}
         <button class="ghost" data-ref-del="${esc(r.id)}" title="Referenz entfernen">✕</button></span>`).join("")}</div>` : ""}
       ${vergleichHtml}
       ${!resolved
@@ -2993,24 +3990,22 @@ const View = {
         : !refs.length
           ? '<div class="hint">Keine Referenz gewählt — bis zu 3 Bestandsrezepte zum Vergleich hinzufügen.</div>'
           : ""}
-      <div style="border-top:1px solid var(--line);padding-top:.7rem;margin-top:.7rem">
-        <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
-          <label>Suche<input id="refSuche" type="search" value="${esc(ov.suchtext || "")}"
-            placeholder="Rezept suchen…" autocomplete="off"></label>
-          <label>Kategorie<select id="refKategorie">
-            <option value="">Alle Kategorien</option>
-            ${kats.map(k => `<option value="${esc(k)}"${k===ov.kategorie?" selected":""}>${esc(k)}</option>`).join("")}
-          </select></label>
-        </div>
+      <div class="entw-abschnitt">
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Suche</span><input id="refSuche" type="search" value="${esc(ov.suchtext || "")}"
+          placeholder="Rezept suchen…" autocomplete="off"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Kategorie</span><select id="refKategorie">
+          <option value="">Alle Kategorien</option>
+          ${kats.map(k => `<option value="${esc(k)}"${k===ov.kategorie?" selected":""}>${esc(k)}</option>`).join("")}
+        </select></label>
         ${voll
           ? '<div class="hint">Drei Referenzen gewählt — für eine weitere zuerst eine entfernen.</div>'
           : treffer.length
             ? `<div class="refliste">${treffer.map(r => `<button data-ref-add="${esc(r.id)}">
-                ${esc(r.name)} <span style="color:var(--muted);font-size:.82rem">· ${esc(r.kategorie)}</span>
+                ${esc(r.name)} <span class="refkat">· ${esc(r.kategorie)}</span>
               </button>`).join("")}</div>`
             : '<div class="hint">Kein Rezept gefunden.</div>'}
       </div>
-      <div class="actions noprint" style="margin-top:.7rem">
+      <div class="actions noprint">
         <button class="ghost" id="btnEntwOverlaySchliessen">Schliessen</button>
       </div>
     </div>`;
@@ -3027,21 +4022,22 @@ const View = {
     if(kandidat){
       const umrechnung = Calc.substitutionsMenge(ov.altMengeG, ov.altSuesskraft, kandidat.suesskraft || 0);
       rechnungHtml = umrechnung.hinweis
-        ? `<div class="hint"><span class="warn-inline" style="margin-left:0">${esc(umrechnung.hinweis)}</span> — neue Menge: ${Calc.runden(umrechnung.menge, ov.altEinheit)}.</div>`
+        ? `<div class="hint"><span class="warn-inline">${esc(umrechnung.hinweis)}</span> — neue Menge: ${Calc.runden(umrechnung.menge, ov.altEinheit)}.</div>`
         : `<div class="hint">Rechnung: ${Calc.runden(ov.altMengeG,"g")} × (${ov.altSuesskraft} ÷ ${kandidat.suesskraft}) = ${Calc.runden(umrechnung.menge,"g")}</div>`;
     }
     return `<div class="scrim noprint" data-entw-b7-schliessen></div>
     <div class="entw-overlay entw-overlay-b7 noprint">
-      <h3 style="margin:0 0 .4rem;font-size:.95rem">Zutat ersetzen — v${ov.v}</h3>
+      <div class="entw-b7-kopf"><h3>Zutat ersetzen — v${ov.v}</h3>
+        <button type="button" class="lb-schliessen" data-entw-b7-schliessen aria-label="Schliessen">×</button></div>
       <div class="hint">Ersatz für <b>${esc(ov.altName)}</b> (${Calc.runden(ov.altMengeG, ov.altEinheit)})</div>
-      <label style="display:block;margin-top:.5rem;font-size:.85rem;color:var(--muted)">Ersatzprodukt
-        <select id="substKandidat" style="width:100%;margin-top:.25rem">
+      <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Ersatzprodukt</span>
+        <select id="substKandidat">
           <option value="">— wählen —</option>
           ${kandidaten.map(r => `<option value="${esc(r.id)}"${r.id===ov.kandidatId?" selected":""}>
             ${esc(r.name)} — Süsskraft ${r.suesskraft ?? "—"} · FODMAP ${r.fodmap ?? "—"} · CHF ${r.kostenProKg ?? "—"}/kg</option>`).join("")}
         </select></label>
       ${rechnungHtml}
-      <div class="actions noprint" style="margin-top:.7rem">
+      <div class="actions noprint">
         <button id="btnEntwSubstUebernehmen"${kandidat?"":" disabled"}>Übernehmen — neue Variante</button>
         <button class="ghost" id="btnEntwOverlaySchliessen">Abbrechen</button>
       </div>
@@ -3049,6 +4045,10 @@ const View = {
   },
 
   entwEreignisse(rz){
+    // AP-0304 (libarius-gestaltung): der Schliessen-Knopf im Overlay-Kopf steht in BEIDEN
+    // Zweigen von entwKarte() (mit und ohne bestehenden Entwicklungsstand) — vor dem fruehen
+    // Rueckgabepunkt unten wiren, sonst bleibt er im leeren Zustand tot.
+    el("#btnEntwSchliessen") && el("#btnEntwSchliessen").addEventListener("click", () => App.entwModusSchliessen());
     el("#btnEntwVarianteHinzufuegen") && el("#btnEntwVarianteHinzufuegen").addEventListener("click", () => App.entwVarianteHinzufuegen());
     const z = Store.entw && Store.entw.rezeptId === rz.id ? Store.entw : null;
     if(!z) return;
@@ -3178,10 +4178,11 @@ const View = {
      neuer Ausklapper an genau EINER Stelle eingetragen wird und der Selbsttest die
      Vollstaendigkeit pruefen kann (Abnahmekriterium 2).
      AP-0310, Umsetzungsschritt 3: geprueft, ob AP-0305/0307/0308/0309 neue <details>-Elemente
-     eingefuehrt haben — nein. Der dritte <details>-Typ im Code, details.navgruppe (B1,
-     Rezeptliste), braucht kein Aufklappen: B1 liegt in .rail--links und druckt ohnehin nie.
-     Der Zutaten-Editor (AP-0305) und alle Entwicklungsmodus-Formulare (AP-0307/0308/0309)
-     verwenden kein <details> — nichts zu ergaenzen. */
+     eingefuehrt haben — nein. Der Zutaten-Editor (AP-0305) und alle Entwicklungsmodus-Formulare
+     (AP-0307/0308/0309) verwenden kein <details> — nichts zu ergaenzen.
+     AP-0310 selbst: die Kategoriegruppen der Rezeptliste (B1, View.liste()) sind seither kein
+     <details> mehr, sondern Button+aria-expanded (Cue-Spalte, .lb-cue-gruppe) — sie brauchten
+     ohnehin kein Aufklappen vor dem Druck: B1 liegt in .rail--links und druckt nie. */
   DRUCK_AUFKLAPPEN: "details.phase, details.metablock",
 
   /* true, solange der Druckpfad die Ausklapper zwangsweise oeffnet. Das Setzen von
@@ -3213,7 +4214,7 @@ const View = {
     const dt = new Date(gespeichert.ts);
     const wann = isNaN(dt) ? gespeichert.ts : dt.toLocaleString("de-CH");
     return `<div class="msg warn noprint">
-      Für dieses Rezept liegt ein nicht gespeicherter Entwurf vom ${esc(wann)} bereit.
+      <b>Warnung</b> Für dieses Rezept liegt ein nicht gespeicherter Entwurf vom ${esc(wann)} bereit.
       <div class="actions" style="margin-top:.5rem">
         <button id="btnEntwurfOeffnen">Entwurf öffnen</button>
         <button class="ghost" id="btnEntwurfVerwerfen">Entwurf verwerfen</button>
@@ -3315,7 +4316,7 @@ const View = {
     const speichernTitel = pruefung.abweisen[0] ? esc(pruefung.abweisen[0].feld + ": " + pruefung.abweisen[0].grund) : "";
     return `
       <datalist id="zutatenvorschlaege">${rohstoffOptionen}</datalist>
-      <div class="noprint" style="padding:0 1rem 1rem">
+      <div class="noprint">
         ${phasenHtml}
         ${fehlerHtml}
         ${warnHtml}
@@ -3330,11 +4331,15 @@ const View = {
 
   rezept(){
     const rz = Store.aktuellesRezept, f = Store.faktor;
+    // Entwurf 2a: die Kopfzeile trägt den Namen des offenen Rezepts.
+    const kopf = el("#kopftitel"); if(kopf) kopf.textContent = rz ? rz.name : "";
     if(!rz){
       el("#rezeptbereich").innerHTML = "";
       el("#panelEntwicklung").innerHTML = '<div class="empty">Kein Rezept gewählt.</div>';
-      el("#tabEntwicklung").textContent = "Entwicklung";
-      el("#tabEntwicklung").title = "";
+      // AP-0304 (libarius-gestaltung): kein offenes Rezept heisst auch kein Overlay.
+      Store.entwOverlayOffen = false;
+      el("#panelEntwicklung").hidden = true;
+      el("#entwSchleier").hidden = true;
       View.einkaufsliste();
       View.notizsection();
       return;
@@ -3438,40 +4443,46 @@ const View = {
     // wenn ein Verfahren zugeordnet ist, dessen Feldsatz (pFeldsatz, oben). Store.protokollEintrag
     // haelt den Formularzustand (App.protokollEintragOeffnen()); null = Formular geschlossen,
     // dann nur der Anstoss-Button. Soll/Ist erscheinen nur, wo pFeldsatz.kernSollIst true ist.
+    // AP-0309, R-51/R-52: Etikett-Feld-Zeilen wie beim Bewertungsformular (AP-0305) nach
+    // .lb-protokoll/.lb-protokoll--feld statt eigener .scaler-Reihe mit Inline-Abstaenden —
+    // dieselbe Klasse, kein fuenftes Vorkommen des Musters inline.
     const pe = Store.protokollEintrag;
     const peFeldInput = f => {
       const val = pe.felder[f.key];
-      if(f.typ === "bool") return `<label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem;color:var(--muted)">
-          <input type="checkbox" id="peFeld_${f.key}" data-feld="${f.key}"${val ? " checked" : ""}> ${esc(f.label)}</label>`;
-      if(f.typ === "liste") return `<label>${esc(f.label)} <span style="font-weight:400">(kommagetrennt)</span>
+      if(f.typ === "bool") return `<label class="lb-protokoll lb-protokoll--feld"><span class="lbl">${esc(f.label)}</span>
+          <input type="checkbox" id="peFeld_${f.key}" data-feld="${f.key}"${val ? " checked" : ""}></label>`;
+      if(f.typ === "liste") return `<label class="lb-protokoll lb-protokoll--feld"><span class="lbl">${esc(f.label)} (kommagetrennt)</span>
           <input id="peFeld_${f.key}" data-feld="${f.key}" type="text" value="${esc(val)}"></label>`;
-      if(f.typ === "zahl") return `<label>${esc(f.label)}${f.einheit ? " (" + esc(f.einheit) + ")" : ""}
+      if(f.typ === "zahl") return `<label class="lb-protokoll lb-protokoll--feld"><span class="lbl">${esc(f.label)}${f.einheit ? " (" + esc(f.einheit) + ")" : ""}</span>
           <input id="peFeld_${f.key}" data-feld="${f.key}" type="number" step="any" value="${esc(val)}"></label>`;
-      return `<label>${esc(f.label)}<input id="peFeld_${f.key}" data-feld="${f.key}" type="text" value="${esc(val)}"></label>`;
+      return `<label class="lb-protokoll lb-protokoll--feld"><span class="lbl">${esc(f.label)}</span><input id="peFeld_${f.key}" data-feld="${f.key}" type="text" value="${esc(val)}"></label>`;
     };
     const protokollForm = pe ? `
-      <div class="noprint" style="border-top:1px solid var(--line);padding-top:.9rem;margin-top:.9rem">
-        <div class="scaler" style="padding-top:0;border-top:0;margin-top:0">
-          <label>Datum<input id="peDatum" type="date" value="${esc(pe.datum)}"></label>
-          ${pFeldsatz.kernSollIst ? `
-          <label>Soll (g)<input id="peSoll" type="number" min="1" step="1" value="${esc(pe.soll)}"></label>
-          <label>Ist (g)<input id="peIst" type="number" min="1" step="1" value="${esc(pe.ist)}"></label>` : ""}
-        </div>
-        ${pFeldsatz.felder.length ? `<div class="scaler" style="padding-top:.4rem;border-top:0;margin-top:.4rem">
-          ${pFeldsatz.felder.map(peFeldInput).join("")}
-        </div>` : ""}
-        <label style="display:block;margin-top:.6rem;font-size:.85rem;color:var(--muted)">Notizen
-          <input id="peNotizen" type="text" style="width:100%;margin-top:.25rem"
-            value="${esc(pe.notizen)}" placeholder="z. B. Kruste zu hell, Ofen 10 °C höher">
-        </label>
-        <div class="actions noprint" style="margin-top:.7rem">
+      <div class="noprint lb-protokollform">
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Datum</span><input id="peDatum" type="date" value="${esc(pe.datum)}"></label>
+        ${pFeldsatz.kernSollIst ? `
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Soll (g)</span><input id="peSoll" type="number" min="1" step="1" value="${esc(pe.soll)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Ist (g)</span><input id="peIst" type="number" min="1" step="1" value="${esc(pe.ist)}"></label>` : ""}
+        ${pFeldsatz.felder.map(peFeldInput).join("")}
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Notizen</span>
+          <input id="peNotizen" type="text" value="${esc(pe.notizen)}" placeholder="z. B. Kruste zu hell, Ofen 10 °C höher"></label>
+        <div class="actions noprint">
           <button id="btnProtokollSpeichern">Eintrag speichern</button>
           <button class="ghost" id="btnProtokollAbbrechen">Abbrechen</button>
         </div>
       </div>` : `
-      <div class="actions noprint" style="margin-top:.9rem">
+      <div class="actions noprint">
         <button class="ghost" id="btnProtokollEintrag">Neuer Eintrag</button>
       </div>`;
+
+    // AP-0304 (libarius-gestaltung), O-20/R-09: der Anstoss fuer das Entwicklungsmodus-Overlay
+    // sitzt jetzt hier statt am vormaligen Reiter der rechten Schiene — Text/Titel tragen
+    // dieselbe Kennzeichnung wie zuvor der Reiter (AP-0308/§6 O4: sichtbar auch bei zu-Overlay).
+    const zEntw = Store.entw && Store.entw.rezeptId === rz.id ? Store.entw : null;
+    const entwLabel = zEntw ? "Entwicklung ●" : "Entwicklung";
+    const entwTitel = zEntw
+      ? `Entwicklung · Basis ${zEntw.basis === "produktiv" ? "produktiv" : "v" + zEntw.basis} · ${zEntw.spalten.length} Variante${zEntw.spalten.length===1?"":"n"}`
+      : "";
 
     el("#rezeptbereich").innerHTML = `
       <section class="card">
@@ -3501,7 +4512,7 @@ const View = {
       <!-- AP-0304 (B5): Metadaten als Ausklapper-Stapel UNTER der Rezeptur, alle zu.
            Die frueheren Karten "Naehrwerte", "Kosten" und "Backprotokoll" sind inhaltlich
            unveraendert hierher gewandert; "Herkunft" und "Hinweise" kommen neu dazu. -->
-      <div class="metastapel">
+      <div class="metastapel" id="metadaten">
         ${metaBlock("naehrwerte", "Nährwerte",
           `${nf(n.proPortion.kcal,0)} kcal / ${esc(rz.einheit)}`, `
           <div class="kpis">
@@ -3554,20 +4565,17 @@ const View = {
       <div class="actions noprint">
         <button class="ghost" id="btnExport">Exportieren</button>
         <button class="ghost" id="btnDruck">Drucken / PDF</button>
+        <button class="ghost" id="btnEntwOeffnen" title="${esc(entwTitel)}">${entwLabel}</button>
         <button class="ghost" id="btnZurueck">Zurück zur Liste</button>
       </div>`;
 
-    // AP-0301: Entwicklung (B6) liegt strukturell in der rechten Schiene (AP-0201 §1),
-    // nicht mehr im Fluss der Mittelspalte — Inhalt/Verhalten von View.entwKarte()
-    // bleibt unverändert, nur das Zielelement wechselt.
+    // AP-0304 (libarius-gestaltung), O-20/R-09: Entwicklung (B6) ist kein Inhalt der rechten
+    // Schiene mehr, sondern ein Overlay ueber der Rezeptur (Vorlage 1d) — Inhalt/Verhalten von
+    // View.entwKarte() bleibt unveraendert, nur Zielelement und Sichtbarkeit wechseln.
     el("#panelEntwicklung").innerHTML = `<div class="entw-inhalt">${View.entwKarte(rz)}</div>`;
-    // AP-0308/§6 O4: "dass man ueberhaupt im Entwicklungsmodus ist" muss auch sichtbar sein,
-    // wenn B6 gerade nicht der aktive Reiter ist — hier am Reiter selbst, nicht nur im Panel.
-    const zEntw = Store.entw && Store.entw.rezeptId === rz.id ? Store.entw : null;
-    el("#tabEntwicklung").textContent = zEntw ? "Entwicklung ●" : "Entwicklung";
-    el("#tabEntwicklung").title = zEntw
-      ? `Entwicklung · Basis ${zEntw.basis === "produktiv" ? "produktiv" : "v" + zEntw.basis} · ${zEntw.spalten.length} Variante${zEntw.spalten.length===1?"":"n"}`
-      : "";
+    el("#panelEntwicklung").hidden = !Store.entwOverlayOffen;
+    el("#entwSchleier").hidden = !Store.entwOverlayOffen;
+    el("#btnEntwOeffnen").addEventListener("click", () => App.entwModusOeffnen());
     View.einkaufsliste();
     View.notizsection();
 
@@ -3679,7 +4687,7 @@ const View = {
             Baeckerprozente fehlen danach meist und müssen von Hand ergänzt werden, bevor die Prüfung
             durchläuft. Bei einer .xlsx-Bestandsdatei erkennt der Import automatisch, was sicher zuordenbar
             ist (AP-0316) — der Rest steht als Meldung da und muss vor «Prüfen» von Hand ergänzt werden.</div>
-          <input type="file" id="importDatei" accept=".json,.xlsx,.xls,application/json" style="margin:.5rem 0">
+          <input type="file" id="importDatei" accept=".json,.xlsx,.xls,application/json">
           <textarea class="importtext" id="importText" placeholder='{"format":"rezept/1","rezepte":[…]} oder Freitext'>${esc(st.text)}</textarea>
           <div class="actions" style="margin-top:.6rem">
             <button id="importFreitext" class="ghost">Freitext umwandeln</button>
@@ -3825,7 +4833,7 @@ const View = {
     if(st.fehler){
       box.innerHTML = `<section class="card" id="rechercheKarte"><h2>Preise aktualisieren</h2>
         <div class="body">
-          <div class="msg err">Anfrage fehlgeschlagen: ${esc(st.fehler)}</div>
+          <div class="msg err"><b>Fehler</b> Anfrage fehlgeschlagen: ${esc(st.fehler)}</div>
           <div class="actions" style="margin-top:.6rem"><button class="ghost" id="rechercheAbbrechen">Schliessen</button></div>
         </div></section>`;
       View.rechercheEreignisse();
@@ -3878,7 +4886,7 @@ const View = {
    (W/M/K) wird nicht gespeichert, sondern bei jedem Aufruf aus der Fensterbreite
    gelesen — Breakpoints exakt wie AP-0201 §2.1: 860 px und 1280 px. */
 const Layout = {
-  state: { links: true, rechts: true, rechtsTab: "kochen", vollbild: false },
+  state: { links: true, rechts: true, vollbild: false },
   // explizit=false: der Zustand kommt aus der Stufen-Vorgabe, nicht von einem bewussten
   // Klick des Geräts — beim Drehen/Skalieren darf er dann pro Stufe neu berechnet werden
   // (§1 Standardzustand). Sobald einmal geklappt/getippt wurde, bleibt die Wahl bestehen,
@@ -3904,7 +4912,6 @@ const Layout = {
     }else{
       // Standardzustand aus AP-0201 §1: bei W beide Schienen offen, bei M/K beide zu.
       Layout.standard();
-      Layout.state.rechtsTab = "kochen";
       Layout.explizit = false;
     }
   },
@@ -3935,10 +4942,9 @@ const Layout = {
     b.dataset.links = Layout.state.links ? "offen" : "zu";
     b.dataset.rechts = Layout.state.rechts ? "offen" : "zu";
     b.classList.toggle("vollbild", Layout.state.vollbild);
-    document.querySelectorAll(".railtab").forEach(t =>
-      t.classList.toggle("aktiv", t.dataset.tab === Layout.state.rechtsTab));
-    el("#panelKochen").hidden = Layout.state.rechtsTab !== "kochen";
-    el("#panelEntwicklung").hidden = Layout.state.rechtsTab !== "entwicklung";
+    // AP-0304 (libarius-gestaltung), O-20/R-09: kein Reiter mehr in der rechten Schiene, sie
+    // fuehrt nur noch #panelKochen (Notizen) — die Sichtbarkeit von #panelEntwicklung folgt
+    // seither Store.entwOverlayOffen statt Layout.state.rechtsTab (View.rezept()).
     const overlayOffen = Layout.stufe() === "k" && (Layout.state.links || Layout.state.rechts);
     el("#scrim").hidden = !overlayOffen;
   },
@@ -3960,11 +4966,6 @@ const Layout = {
   },
   schliessenRechts(){ Layout.state.rechts = false; Layout.speichern(); Layout.anwenden(); },
   toggleRechts(){ Layout.state.rechts ? Layout.schliessenRechts() : Layout.oeffnenRechts(); },
-
-  tabWaehlen(tab){
-    Layout.state.rechtsTab = tab;
-    Layout.oeffnenRechts();
-  },
 
   toggleVollbild(){
     Layout.state.vollbild = !Layout.state.vollbild;
@@ -3988,8 +4989,20 @@ const Layout = {
     el("#btnVollbild").addEventListener("click", Layout.toggleVollbild);
     el("#btnVollbildEnde").addEventListener("click", Layout.toggleVollbild);
     el("#scrim").addEventListener("click", Layout.scrimKlick);
-    document.querySelectorAll(".railtab").forEach(t =>
-      t.addEventListener("click", () => Layout.tabWaehlen(t.dataset.tab)));
+    // AP-0304 (libarius-gestaltung): der Schleier des Entwicklungsmodus-Overlays ist ein
+    // eigenes Element (#entwSchleier, nicht #scrim) — er blendet nur B6 aus, nicht die
+    // Schienen, darum eigener, einmalig verdrahteter Klick-Schliesser statt Layout.scrimKlick.
+    el("#entwSchleier").addEventListener("click", () => App.entwModusSchliessen());
+    // AP-0305 (libarius-gestaltung), R-36: B7 steht fix, das Raster von #panelEntwicklung
+    // scrollt mit seinem Inhalt. Ist B6 um einen Rest gescrollt, rueckt B7 per --lb-versatz
+    // auf die naechste Linie (DESIGN.md «Overlay-Rahmen») — sonst liefen die Linien im
+    // Overlay neben denen darunter. Das Panel-Element bleibt stehen (nur innerHTML wechselt),
+    // darum genuegt ein einmalig verdrahteter Zuhoerer.
+    const panelEntw = el("#panelEntwicklung");
+    panelEntw.addEventListener("scroll", () => {
+      const zeile = parseFloat(getComputedStyle(panelEntw).getPropertyValue("--lb-zeile")) || 28;
+      panelEntw.style.setProperty("--lb-versatz", ((zeile - panelEntw.scrollTop % zeile) % zeile) + "px");
+    }, { passive: true });
     window.addEventListener("resize", Layout.anwenden);
     window.addEventListener("orientationchange", Layout.anwenden);
     Layout.anwenden();
@@ -4855,15 +5868,20 @@ const App = {
     Store.rohstoffe = BEISPIEL_ROHSTOFFE;
     Store.rezepte   = Model.aufloesen(BEISPIEL_REZEPTE, BEISPIEL_ROHSTOFFE);
 
-    View.kategorienFuellen();
     View.liste();
 
     el("#suche").addEventListener("input", e => { Store.suchtext = e.target.value; View.liste(); });
-    el("#kategorie").addEventListener("change", e => { Store.kategorie = e.target.value; View.liste(); });
-    el("#btnLogin").addEventListener("click", App.loginKlick);
-    el("#btnAltDB").addEventListener("click", App.altDBKlick);
+    // AP-0301 (libarius-gestaltung), R-02: Suche-Symbol oeffnet die linke Schiene
+    // (falls zu) und setzt den Fokus ins Suchfeld - kein zweites Suchfeld.
+    el("#btnSuche").addEventListener("click", () => { Layout.oeffnenLinks(); el("#suche").focus(); });
+    // R-03: Export und Datenbankwechsel wandern hinter das Anmelde-Symbol in ein
+    // Menue; #btnLogin selbst oeffnet/schliesst nur noch dieses Menue, #btnKonto
+    // darin loest die eigentliche An-/Abmeldung aus.
+    App.kontomenuInit();
+    el("#btnKonto").addEventListener("click", App.loginKlick);
+    el("#btnAltDB").addEventListener("click", () => { App.kontomenuSchliessen(); App.altDBKlick(); });
     el("#btnImport").addEventListener("click", App.importOeffnen);
-    el("#btnExportAlle").addEventListener("click", App.exportAlle);
+    el("#btnExportAlle").addEventListener("click", () => { App.kontomenuSchliessen(); App.exportAlle(); });
 
     // AP-0306: nach dem Druckdialog die Phasen wieder in den Zustand vor dem Drucken bringen.
     // Einmalig am window registriert (nicht in View.rezept(), das bei jedem Rendern neu
@@ -4909,7 +5927,29 @@ const App = {
     }
   },
 
+  // AP-0301 (libarius-gestaltung), R-03: Menü hinter dem Anmelde-Symbol — mit
+  // der Tastatur bedienbar (Escape, Klick daneben schliesst), kein zweites
+  // Zustandsmodell noetig, das Attribut "hidden" traegt allein den Zustand.
+  kontomenuInit(){
+    el("#btnLogin").addEventListener("click", () => {
+      el("#kontomenuListe").hidden ? App.kontomenuOeffnen() : App.kontomenuSchliessen();
+    });
+    document.addEventListener("click", e => {
+      if(!el("#kontomenu").contains(e.target)) App.kontomenuSchliessen();
+    });
+    document.addEventListener("keydown", e => { if(e.key === "Escape") App.kontomenuSchliessen(); });
+  },
+  kontomenuOeffnen(){
+    el("#kontomenuListe").hidden = false;
+    el("#btnLogin").setAttribute("aria-expanded", "true");
+  },
+  kontomenuSchliessen(){
+    el("#kontomenuListe").hidden = true;
+    el("#btnLogin").setAttribute("aria-expanded", "false");
+  },
+
   async loginKlick(){
+    App.kontomenuSchliessen();
     if(!Data.verfuegbar()){ View.meldung("Konfiguration fehlt — clientId nicht gesetzt.", "err", "Anmeldung nicht möglich"); return; }
     try{
       const konto = await Data.login();
@@ -4920,8 +5960,14 @@ const App = {
   },
 
   async datenLaden(konto){
-    el("#btnLogin").textContent = "Abmelden (" + (konto.username || konto.name || "Konto") + ")";
-    el("#btnLogin").onclick = () => Data.logout();
+    // R-04: Anmeldestatus steht am gefuellten statt leeren Symbol (title traegt
+    // den Namen) statt an wechselndem Text auf dem Kopfzeilen-Knopf; die
+    // Textzeile mit Namen und Abmelden-Aktion lebt jetzt im Konto-Menü.
+    const name = konto.username || konto.name || "Konto";
+    el("#btnLogin").classList.add("angemeldet");
+    el("#btnLogin").title = "Angemeldet als " + name;
+    el("#btnKonto").textContent = "Abmelden (" + name + ")";
+    el("#btnKonto").onclick = () => { App.kontomenuSchliessen(); Data.logout(); };
     try{
       const { rohstoffe, rezepte, fehlerhaft, geladeneAliase, rezWb, rezSheetName, rohWb, rohSheetName } = await loadWorkbooks();
       // Aliase aus dem Blatt «Aliase» (AP-0315) ueberschreiben etwaige veraltete
@@ -4940,7 +5986,6 @@ const App = {
       try{ Store.rohstoffeETag = (await Data.getItemMeta(CONFIG.rohstoffePfad)).eTag; }
       catch(e){ Store.rohstoffeETag = null; }
       el("#modus").textContent = "OneDrive — " + Store.rezepte.length + " Rezepte";
-      View.kategorienFuellen();
       View.liste();
       if(fehlerhaft.length){
         View.meldung(fehlerhaft.length + " Rezept(e) mit ungültigem JSON übersprungen — in der Liste markiert, restliche Rezepte geladen.",
@@ -4974,6 +6019,7 @@ const App = {
     Store.aktuellesRezept = Store.rezepte.find(r => r.id === id) || null;
     Store.faktor = 1;
     Store.offenePhasen = new Set([0]);
+    Store.phaseAktiv = 0;
     // AP-0313: Referenzen gehören zum verglichenen Rezept — beim Wechsel zurücksetzen, sonst
     // stünden im nächsten Rezept die Vergleichsspalten des vorigen.
     Store.referenzIds = [];
@@ -4990,7 +6036,13 @@ const App = {
     // der Entwurf selbst bleibt aber in Entwurf (localStorage), bis er geladen oder verworfen
     // wird (§4.4), genau wie Korrekturen.alle oben.
     Store.zutatenEditor = null;
+    // AP-0304 (libarius-gestaltung), O-20/R-09: das Entwicklungsmodus-Overlay gehoert zum
+    // vorherigen Rezept und muss beim Wechsel zu — Store.entw selbst bleibt (R7 oben).
+    Store.entwOverlayOffen = false;
     View.rezept();
+    // AP-0310: Cue-Spalte (Sprungblock, aktives Rezept in der Notiz) haengt am
+    // offenen Rezept — bei jedem Wechsel neu zeichnen.
+    View.liste();
     window.scrollTo({top:0, behavior:"smooth"});
   },
 
@@ -5005,7 +6057,8 @@ const App = {
     }
   },
 
-  schliessen(){ Store.aktuellesRezept = null; Store.korrekturUebernehmenOffen = false; View.rezept(); },
+  schliessen(){ Store.aktuellesRezept = null; Store.korrekturUebernehmenOffen = false;
+    Store.entwOverlayOffen = false; View.rezept(); View.liste(); },
 
   /* ---------- Korrekturen (AP-0303, B4) -------------------------------------
      Kochkorrekturen wirken sofort und ohne Bestaetigung (AP-0203 §6.2) — nur der letzte
@@ -5623,6 +6676,13 @@ const App = {
     View.rezept();
   },
 
+  // AP-0304 (libarius-gestaltung), O-20/R-09: oeffnet/schliesst das Entwicklungsmodus-Overlay
+  // selbst (B6 als Ganzes über der Rezeptur) — zu unterscheiden von entwOverlaySchliessen()
+  // oben, das nur den EINEN Nebendialog-Slot INNERHALB dieses Overlays raeumt (Bewertung,
+  // Zielwerte, Referenz, Substitution, Uebernehmen).
+  entwModusOeffnen(){ Store.entwOverlayOffen = true; View.rezept(); },
+  entwModusSchliessen(){ Store.entwOverlayOffen = false; View.rezept(); },
+
   /* ---------- Versuchsprotokoll je Variante (AP-0204 §7) ---------------------------
      Nutzt den Feldsatz aus VERFAHREN_KATALOG (Messungen, wie das Verfahrensprotokoll AP-0202/
      AP-0307) und ergaenzt ihn um "merkmale" (Urteile, MERKMALE_KATALOG) — kein zweiter
@@ -6195,7 +7255,6 @@ const App = {
     }
 
     App.importSchliessen();
-    View.kategorienFuellen();
     View.liste();
   },
 

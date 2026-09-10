@@ -5,3 +5,5 @@ Thumbs.db
 *.csv
 Backups/
 node_modules/
+.claude/
+.claude/

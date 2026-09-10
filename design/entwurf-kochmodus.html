@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>libarius — Entwurf Kochmodus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="libarius.css">
+<style>
+  body{margin:0;min-height:100vh}
+  .lb-raster{min-height:100vh;padding-top:calc(2 * var(--lb-zeile))}
+  /* Schliessen sitzt innerhalb des Seitenrandes, nicht bündig in der Ecke (K-5). */
+  .schliessen{position:fixed;top:var(--lb-zeile);right:var(--lb-rand);z-index:20;
+    width:var(--lb-zeile);height:var(--lb-zeile);display:flex;align-items:center;
+    justify-content:center;color:var(--lb-neben);font:inherit;background:none;
+    border:0;cursor:pointer}
+</style>
+</head>
+<body class="lb lb-kochmodus lb-papier">
+
+<button class="schliessen" type="button" aria-label="Kochmodus verlassen">×</button>
+
+<!-- Kochmodus (Entwurf 1e): dasselbe System, Rasterschritt 38 statt 28,
+     Fliesstext 22, Titel 36. Keine Notizspalte, keine Schienen. -->
+<div class="lb-raster lb-raster--nur-mitte" style="--lb-mitte:960px">
+  <div></div>
+  <div class="lb-randlinie"></div>
+  <div class="lb-rezeptur">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;height:var(--lb-bedien)">
+      <h1 class="lb-titel">Sauerteigbrot 2.0</h1>
+      <div class="lb-eintrag--still">1200 g</div>
+    </div>
+
+    <div class="lb-trenner"></div>
+    <div class="lb-phasentitel" style="font-size:var(--lb-text)">Sauerteig anfrischen</div>
+    <div class="lb-zutat lb-zutat--schlicht lb-korrektur"><span class="nm">Sauerteig-Anstellgut</span><span class="menge"><s>120</s> <b>140</b></span><span class="einheit">g</span></div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Roggenmehl 1150</span><span class="menge">60</span><span class="einheit">g</span></div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Wasser, 28 °C</span><span class="menge">60</span><span class="einheit">g</span></div>
+    <div class="lb-luecke"></div>
+    <p class="lb-schritt" style="margin:0;max-width:none">Anstellgut mit Mehl und Wasser glatt rühren. Abgedeckt 8–12 h bei 26 °C reifen lassen, bis sich das Volumen verdoppelt hat.</p>
+
+    <div class="lb-trenner"></div>
+    <div class="lb-phasentitel" style="font-size:var(--lb-text)">Autolyse</div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Weizenmehl 550</span><span class="menge">720</span><span class="einheit">g</span></div>
+    <div class="lb-zutat lb-zutat--schlicht lb-korrektur"><span class="nm">Wasser, 20 °C</span><span class="menge"><s>480</s> <b>510</b></span><span class="einheit">g</span></div>
+    <div class="lb-luecke"></div>
+    <p class="lb-schritt" style="margin:0;max-width:none">Mehl und Wasser nur grob vermischen, keine trockenen Stellen lassen. 45 min abgedeckt ruhen lassen.</p>
+
+    <div class="lb-trenner"></div>
+    <div class="lb-phasentitel" style="font-size:var(--lb-text)">Hauptteig</div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Sauerteig, reif</span><span class="menge">240</span><span class="einheit">g</span></div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Salz</span><span class="menge">18</span><span class="einheit">g</span></div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Wasser, Bassinage</span><span class="menge">30</span><span class="einheit">g</span></div>
+    <div class="lb-luecke"></div>
+    <p class="lb-schritt" style="margin:0;max-width:none">Sauerteig zur Autolyse geben und 5 min von Hand kneten. Salz und Restwasser in zwei Portionen einarbeiten.</p>
+    <p class="lb-schritt" style="margin:0;max-width:none">Stockgare 4 h bei 24 °C, in den ersten 2 h alle 45 min dehnen und falten.</p>
+
+    <div class="lb-trenner"></div>
+    <div class="lb-phasentitel" style="font-size:var(--lb-text)">Stückgare</div>
+    <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Roggenmehl zum Bestäuben</span><span class="menge">10</span><span class="einheit">g</span></div>
+    <div class="lb-luecke"></div>
+    <p class="lb-schritt" style="margin:0;max-width:none">Teig rund wirken und mit Schluss nach oben in den bemehlten Gärkorb legen. 12 h bei 5 °C im Kühlschrank.</p>
+    <p class="lb-schritt" style="margin:0;max-width:none">Bei 250 °C mit Dampf anbacken, nach 15 min Dampf ablassen und bei 220 °C weitere 30 min backen.</p>
+    <div class="lb-luecke"></div>
+  </div>
+  <div></div>
+</div>
+</body>
+</html>

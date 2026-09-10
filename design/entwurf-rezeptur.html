@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>libarius — Entwurf Rezeptur und Entwicklungsmodus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="libarius.css">
+<style>
+  body{margin:0;min-height:100vh}
+  .abstand{height:var(--lb-zeile)}
+  .lb-raster{min-height:calc(100vh - 2 * var(--lb-zeile))}
+  .schalterleiste{position:fixed;right:var(--lb-rand);bottom:var(--lb-zeile);z-index:20;
+    font-size:var(--lb-klein);color:var(--lb-neben);background:var(--lb-papier);
+    padding:0 12px;border:1px solid var(--lb-linie)}
+  .schalterleiste button{font:inherit;color:var(--lb-graphit);background:none;border:0;
+    padding:0 6px;cursor:pointer;height:var(--lb-zeile)}
+</style>
+</head>
+<body class="lb lb-papier">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="lb-suche" viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="4"/><path d="M9.5 9.5l4 4"/></symbol>
+  <symbol id="lb-import" viewBox="0 0 16 16"><path d="M8 2v8M5 7l3 3 3-3M2.5 11v2.5h11V11"/></symbol>
+  <symbol id="lb-kochmodus" viewBox="0 0 16 16"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3"/></symbol>
+  <symbol id="lb-anmeldung" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="3"/><path d="M2.5 14c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5"/></symbol>
+  <symbol id="lb-schiene" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M6 3.5v9"/></symbol>
+</svg>
+
+<header class="lb-kopf">
+  <span class="marke"><svg class="lb-ikone"><use href="#lb-schiene"/></svg></span>
+  <span class="titel">Sauerteigbrot 2.0</span>
+  <span class="werkzeuge">
+    <svg class="lb-ikone"><use href="#lb-suche"/></svg>
+    <svg class="lb-ikone"><use href="#lb-import"/></svg>
+    <svg class="lb-ikone"><use href="#lb-kochmodus"/></svg>
+    <svg class="lb-ikone"><use href="#lb-anmeldung"/></svg>
+  </span>
+</header>
+<div class="abstand"></div>
+
+<!-- Rezeptur im Detail (Entwurf 1c), auf der Seite mittig: die Randlinie steht
+     links und rechts gleich weit vom Blattrand — im Entwurf 248 zu 280 px (K-3). -->
+<div class="lb-raster lb-raster--nur-mitte">
+  <div></div>
+  <div class="lb-randlinie"></div>
+  <div class="lb-rezeptur">
+    <div class="lb-rezeptkopf">
+      <h1 class="lb-titel">Sauerteigbrot 2.0</h1>
+      <div class="rechts">
+        <div class="lb-skalierung"><div class="lb-neben">Skalierung</div><div class="wert">1200 g</div></div>
+        <div class="notizkopf">Notizen</div>
+      </div>
+    </div>
+    <div class="lb-neben">Backen · 4 Phasen · Teigeinlage 1200 g · Stockgare 4 h, Stückgare 12 h kalt</div>
+
+    <div class="lb-trenner"></div>
+    <div class="lb-phasentitel">Sauerteig anfrischen</div>
+    <div class="lb-zutat lb-korrektur"><span class="nm">Sauerteig-Anstellgut</span><span class="menge"><s>120</s> <b>140</b></span><span class="einheit">g</span><span class="notiz"></span></div>
+    <div class="lb-zutat"><span class="nm">Roggenmehl 1150</span><span class="menge">60</span><span class="einheit">g</span><span class="notiz">Bio-Roggen, Mühle Maisprach</span></div>
+    <div class="lb-zutat"><span class="nm">Wasser, 28 °C</span><span class="menge">60</span><span class="einheit">g</span><span class="notiz"></span></div>
+    <div class="lb-luecke"></div>
+    <p class="lb-schritt" style="margin:0">Anstellgut mit Mehl und Wasser glatt rühren. Abgedeckt 8–12 h bei 26 °C reifen lassen, bis sich das Volumen verdoppelt hat.</p>
+
+    <div class="lb-trenner"></div>
+    <div class="lb-phasentitel">Autolyse</div>
+    <div class="lb-zutat"><span class="nm">Weizenmehl 550</span><span class="menge">720</span><span class="einheit">g</span><span class="notiz"></span></div>
+    <div class="lb-zutat lb-korrektur"><span class="nm">Wasser, 20 °C</span><span class="menge"><s>480</s> <b>510</b></span><span class="einheit">g</span><span class="notiz">Bei 510 g sehr weich, gut bemehlen</span></div>
+    <div class="lb-luecke"></div>
+    <p class="lb-schritt" style="margin:0">Mehl und Wasser nur grob vermischen, keine trockenen Stellen lassen. 45 min abgedeckt ruhen lassen.</p>
+
+    <div class="lb-trenner"></div>
+    <div class="lb-phasentitel">Hauptteig</div>
+    <div class="lb-zutat"><span class="nm">Sauerteig, reif</span><span class="menge">240</span><span class="einheit">g</span><span class="notiz">Fenstertest vor Zugabe</span></div>
+    <div class="lb-zutat"><span class="nm">Salz</span><span class="menge">18</span><span class="einheit">g</span><span class="notiz">Meersalz fein</span></div>
+    <div class="lb-zutat"><span class="nm">Wasser, Bassinage</span><span class="menge">30</span><span class="einheit">g</span><span class="notiz"></span></div>
+    <div class="lb-luecke"></div>
+    <p class="lb-schritt" style="margin:0">Sauerteig zur Autolyse geben und 5 min von Hand kneten. Salz und Restwasser in zwei Portionen einarbeiten.</p>
+    <p class="lb-schritt" style="margin:0">Stockgare 4 h bei 24 °C, in den ersten 2 h alle 45 min dehnen und falten.</p>
+
+    <div class="lb-trenner"></div>
+    <div class="lb-phasentitel">Stückgare</div>
+    <div class="lb-zutat"><span class="nm">Roggenmehl zum Bestäuben</span><span class="menge">10</span><span class="einheit">g</span><span class="notiz"></span></div>
+    <div class="lb-luecke"></div>
+    <p class="lb-schritt" style="margin:0">Teig rund wirken und mit Schluss nach oben in den bemehlten Gärkorb legen. 12 h bei 5 °C im Kühlschrank.</p>
+    <p class="lb-schritt" style="margin:0">Bei 250 °C mit Dampf anbacken, nach 15 min Dampf ablassen und bei 220 °C weitere 30 min backen.</p>
+
+    <div class="lb-trenner"></div>
+    <div class="lb-meta"><span class="nm">Nährwerte</span><span class="zus">238 kcal · 47 g KH · 8 g Eiweiss pro 100 g</span><span class="pfeil">›</span></div>
+    <div class="lb-meta"><span class="nm">Kosten</span><span class="zus">CHF 2.40 pro Laib · CHF 0.20 pro 100 g</span><span class="pfeil">›</span></div>
+    <div class="lb-meta"><span class="nm">Verfahren</span><span class="zus">Autolyse, direkte Führung, kalte Stückgare</span><span class="pfeil">›</span></div>
+    <div class="lb-meta"><span class="nm">Herkunft</span><span class="zus">Eigene Entwicklung, Basis V1 vom 12.03.2026</span><span class="pfeil">›</span></div>
+  </div>
+  <div></div>
+</div>
+
+<!-- Entwicklungsmodus (Entwurf 1d): Overlay ueber der Rezeptur, Schleier
+     Graphit 10 %. Unten bleibt eine Rasterzeile Luft statt bündig 0 (K-4). -->
+<div class="lb-schleier" id="schleier" hidden></div>
+<div class="lb-overlay lb-papier" id="overlay" hidden>
+  <div style="display:flex;justify-content:space-between;align-items:flex-end;height:var(--lb-bedien)">
+    <div class="lb-titel">Entwicklungsmodus</div>
+    <div class="lb-neben">Sauerteigbrot 2.0 · Versuch 3 · 09.09.2026</div>
+  </div>
+
+  <div class="lb-vergleich lb-vergleich--kopf"><span class="nm">Zutat</span><span class="basis">Basis</span><span class="neu">V3 mehr Wasser</span></div>
+  <div class="lb-trenner"></div>
+  <div class="lb-vergleich"><span class="nm">Sauerteig-Anstellgut</span><span class="basis">120 g</span><span class="neu abweichung">140 g</span></div>
+  <div class="lb-vergleich"><span class="nm">Roggenmehl 1150</span><span class="basis">60 g</span><span class="neu">60 g</span></div>
+  <div class="lb-vergleich"><span class="nm">Wasser, 28 °C</span><span class="basis">60 g</span><span class="neu">60 g</span></div>
+  <div class="lb-vergleich"><span class="nm">Weizenmehl 550</span><span class="basis">720 g</span><span class="neu">720 g</span></div>
+  <div class="lb-vergleich"><span class="nm">Wasser, 20 °C</span><span class="basis">480 g</span><span class="neu abweichung">510 g</span></div>
+  <div class="lb-vergleich"><span class="nm">Sauerteig, reif</span><span class="basis">240 g</span><span class="neu">240 g</span></div>
+  <div class="lb-vergleich"><span class="nm">Salz</span><span class="basis">18 g</span><span class="neu">18 g</span></div>
+  <div class="lb-vergleich"><span class="nm">Wasser, Bassinage</span><span class="basis">30 g</span><span class="neu abweichung">50 g</span></div>
+  <div class="lb-vergleich"><span class="nm lb-eintrag--still">Stockgare</span><span class="basis">4 h · 24 °C</span><span class="neu abweichung">4 h 30 · 24 °C</span></div>
+  <div class="lb-vergleich"><span class="nm lb-eintrag--still">Teigausbeute</span><span class="basis">TA 168</span><span class="neu abweichung">TA 174</span></div>
+  <div class="lb-trenner"></div>
+
+  <div class="lb-phasentitel">Versuchsprotokoll</div>
+  <div class="lb-protokoll"><span class="lbl">Datum</span><span class="wert">09.09.2026</span></div>
+  <div class="lb-protokoll"><span class="lbl">Teigtemperatur</span><span class="wert">25.5 °C nach dem Kneten</span></div>
+  <div class="lb-protokoll"><span class="lbl">Stockgare</span><span class="wert">4 h 30 bei 24 °C, 4× gefaltet</span></div>
+  <div class="lb-protokoll"><span class="lbl">Stückgare</span><span class="wert">12 h bei 5 °C</span></div>
+  <div class="lb-protokoll"><span class="lbl">Ofen</span><span class="wert">250 °C fallend auf 220 °C, 45 min</span></div>
+  <div class="lb-protokoll"><span class="lbl">Bewertung</span><span class="wert">4 / 5</span></div>
+  <div class="lb-protokoll"><span class="lbl">Bemerkung</span><span class="wert">Krume offener als Basis, Kruste dünner. Teig beim Wirken klebrig.</span></div>
+  <div class="lb-protokoll"><span class="lbl">Nächster Versuch</span><span class="wert"></span></div>
+</div>
+
+<div class="schalterleiste">
+  Ansicht
+  <button type="button" id="btnEntw">Entwicklungsmodus ein / aus</button>
+</div>
+
+<script>
+// Nur fuer den Entwurf: Overlay ein- und ausblenden.
+var schleier = document.getElementById('schleier');
+var overlay = document.getElementById('overlay');
+function um() { var zu = overlay.hidden; overlay.hidden = !zu; schleier.hidden = !zu; }
+document.getElementById('btnEntw').addEventListener('click', um);
+schleier.addEventListener('click', um);
+</script>
+</body>
+</html>

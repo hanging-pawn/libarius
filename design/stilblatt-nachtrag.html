@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>libarius — Stilblatt-Nachtrag</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="libarius.css">
+<style>
+  /* Nur fuer diese Referenzseite. Die Bausteine selbst stehen in libarius.css,
+     Abschnitt «Nachtrag 10.09.2026». Jede Hoehe hier ist ein Vielfaches von 28;
+     die Pruefung unten auf der Seite rechnet das nach. */
+  body{margin:0}
+  .blatt{padding:var(--lb-zeile) var(--lb-rand) calc(2 * var(--lb-zeile));max-width:1360px}
+  .blatt p,.blatt h1,.blatt h2,.blatt ul,.blatt pre{margin:0;padding:0}
+  .blatt ul{list-style:none}
+  .blatt a{color:var(--lb-graphit);text-underline-offset:5px;text-decoration-thickness:1px}
+  .spalten{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+    column-gap:48px;align-items:start}
+  .spalten4{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+    column-gap:32px;align-items:start}
+  .schmal{width:240px}
+  .mittel{width:340px}
+  .zeile{display:flex;align-items:baseline;height:var(--lb-zeile);gap:0 16px;min-width:0}
+  .zeile > .k{width:260px;flex:none;color:var(--lb-neben);font-size:var(--lb-klein)}
+  .zeile > .v{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .liste > li{min-height:var(--lb-zeile)}
+  .liste > li::before{content:"–";color:var(--lb-neben);display:inline-block;width:20px}
+  .fett{font-weight:500}
+
+  /* Zustaende: sechs Spalten, eine Zeile je Baustein */
+  .quer{overflow-x:auto}
+  .zustaende{display:grid;grid-template-columns:136px repeat(6,minmax(150px,1fr));
+    column-gap:24px;align-items:start;min-width:1100px}
+  .platzhalter56{height:var(--lb-bedien);padding-top:var(--lb-zeile);color:var(--lb-neben)}
+  /* absichtlich falsch gezeichnet: so setzt die App den Text heute (mittig) */
+  .heute-mittig{display:flex;align-items:center;height:var(--lb-bedien)}
+
+  /* Skizzen */
+  .skizze-mitte{display:flex}
+  .skizze-mitte > .lb-randlinie{margin-right:var(--lb-gasse)}
+  .skizze-mitte > .inhalt{flex:1;min-width:0}
+  .skizze-kopf{display:flex;justify-content:space-between;align-items:baseline;
+    height:var(--lb-bedien);padding-top:var(--lb-zeile)}
+
+  /* Overlay-Ausschnitt: statisch gezeichnet statt fixed */
+  .ausschnitt{position:relative;overflow:hidden;height:calc(18 * var(--lb-zeile));
+    max-width:1280px}
+  .ausschnitt .lb-schleier,.ausschnitt .lb-overlay-rahmen{position:absolute}
+  .ausschnitt .lb-overlay-rahmen{top:var(--lb-bedien);height:calc(15 * var(--lb-zeile));
+    left:312px;right:40px;overflow:hidden}
+  .ausschnitt .seite-kopf{display:flex;align-items:baseline;gap:32px;height:var(--lb-bedien);
+    padding:var(--lb-zeile) var(--lb-rand) 0;font-size:var(--lb-klein);color:var(--lb-neben)}
+  .ausschnitt .seite-kopf .mitte{flex:1;text-align:center}
+  .ausschnitt .seite-raster{display:flex;padding:0 var(--lb-rand);height:calc(16 * var(--lb-zeile))}
+  .ausschnitt .seite-raster > .schiene{width:240px;flex:none}
+  .ausschnitt .seite-raster > .lb-randlinie{margin:0 var(--lb-gasse)}
+  .ausschnitt .seite-raster > .rezeptur{flex:1;min-width:0}
+  .md{white-space:pre-wrap;font:13px/28px ui-monospace,SFMono-Regular,Menlo,monospace;
+    color:var(--lb-graphit);max-width:980px}
+  #pruefung b{font-weight:500}
+</style>
+</head>
+<body class="lb lb-papier">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="lb-suche" viewBox="0 0 16 16"><circle cx="6.5" cy="6.5" r="4"/><path d="M9.5 9.5l4 4"/></symbol>
+  <symbol id="lb-import" viewBox="0 0 16 16"><path d="M8 2v8M5 7l3 3 3-3M2.5 11v2.5h11V11"/></symbol>
+  <symbol id="lb-kochmodus" viewBox="0 0 16 16"><path d="M2 5V2h3M11 2h3v3M14 11v3h-3M5 14H2v-3"/></symbol>
+  <symbol id="lb-anmeldung" viewBox="0 0 16 16"><circle cx="8" cy="5.5" r="3"/><path d="M2.5 14c0-3 2.5-4.5 5.5-4.5s5.5 1.5 5.5 4.5"/></symbol>
+  <symbol id="lb-schiene" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M6 3.5v9"/></symbol>
+</svg>
+
+<main class="blatt">
+
+  <h1 class="lb-titel">Stilblatt-Nachtrag</h1>
+  <p class="lb-neben">Marker, Zustände, Meldungen, Overlay-Rahmen · Nachtrag zu Artboard 1g · 10.09.2026 · AP-0201 (libarius-gestaltung), Entscheid O-20: R-44, R-45, K-21</p>
+  <p class="lb-neben"><a href="stilblatt.html">Stilblatt</a> · <a href="index.html">Übersicht</a> · Bausteine in <a href="libarius.css">libarius.css</a>, Abschnitt «Nachtrag 10.09.2026» · Regeln in Worten: DESIGN.md</p>
+  <p id="pruefung" class="lb-neben">Prüfung läuft …</p>
+
+  <!-- ============================================================ 1 Bestand -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">1 Was das Stilblatt schon trägt</h2>
+  <p class="lb-neben">Nicht doppelt gezeichnet. Dieser Nachtrag ergänzt nur, wofür Artboard 1g keine Vorlage hat.</p>
+  <div class="zeile"><span class="k">Stilblatt 1g, gezeichnet</span><span class="v">Farben · Typografie · rote Linie in drei Rollen · Listeneintrag normal/aktiv/leer · Zutatentabelle mit und ohne Korrektur · Symbole</span></div>
+  <div class="zeile"><span class="k"></span><span class="v">Suchfeld leer/mit Eingabe · Kästchen offen/abgehakt · Schalter aus/an · Skalierung · Kategorie-Auswahl · Rasternachweis</span></div>
+  <div class="zeile"><span class="k">nur in libarius.css, ohne Zeichnung</span><span class="v">.lb-schleier · .lb-overlay (Entwurf 1d, ohne Randlinie) · .lb-vergleich · .lb-protokoll</span></div>
+  <div class="zeile"><span class="k">fehlte — hier gezeichnet</span><span class="v fett">Textmarker · Hover · Fokus · Fehler · ladend · Meldungen · Overlay-Rahmen mit Randlinie</span></div>
+
+  <!-- ========================================================== 2 Textmarker -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">2 Textmarker</h2>
+  <p class="lb-neben">Wie von Hand mit dem Leuchtstift gezogen: unruhige Kanten, leichte Schräge nach rechts oben, durchscheinend, Ansatz dunkler. Text bleibt Graphit, die Rasterlinie scheint durch. Jede Zeile ein eigener Strich.</p>
+  <div class="lb-luecke"></div>
+
+  <div class="spalten">
+    <div>
+      <p class="fett">Gelb · Warnung</p>
+      <p class="lb-neben">Pigment #f9d73a · Deckkraft 55 %</p>
+      <p class="lb-neben">über einem Wort</p>
+      <p>Teig vor dem Formen <mark class="lb-marker lb-marker--gelb">20 min</mark> entspannen lassen.</p>
+      <p class="lb-neben">über einer ganzen Zeile</p>
+      <p><mark class="lb-marker lb-marker--gelb">Warnung · Entwurf liegt nur im Browser</mark></p>
+      <p class="lb-neben">über einen Zeilenumbruch · 240 px, Schiene auf Stufe M</p>
+      <p class="schmal"><mark class="lb-marker lb-marker--gelb">Warnung · Der Entwurf von gestern liegt nur in diesem Browser und ist nicht gespeichert.</mark></p>
+    </div>
+    <div>
+      <p class="fett">Grün · Erfolg</p>
+      <p class="lb-neben">Pigment #8fd46a · Deckkraft 45 %</p>
+      <p class="lb-neben">über einem Wort</p>
+      <p>Backup <mark class="lb-marker lb-marker--gruen">angelegt</mark> unter /Backups.</p>
+      <p class="lb-neben">über einer ganzen Zeile</p>
+      <p><mark class="lb-marker lb-marker--gruen">Gespeichert · Rezepte.xlsx aktualisiert</mark></p>
+      <p class="lb-neben">über einen Zeilenumbruch · 240 px</p>
+      <p class="schmal"><mark class="lb-marker lb-marker--gruen">Gespeichert · Drei Korrekturen sind als Variante V4 in Rezepte.xlsx übernommen.</mark></p>
+    </div>
+    <div>
+      <p class="fett">Rot · Fehler</p>
+      <p class="lb-neben">Pigment #f37a82 · Deckkraft 38 % · hell, rosé</p>
+      <p class="lb-neben">über einem Wort</p>
+      <p>Die Zelle <mark class="lb-marker lb-marker--rot">Phasen (JSON)</mark> ist leer.</p>
+      <p class="lb-neben">über einer ganzen Zeile</p>
+      <p><mark class="lb-marker lb-marker--rot">Fehler · Rezepte.xlsx ist gesperrt</mark></p>
+      <p class="lb-neben">über einen Zeilenumbruch · 240 px</p>
+      <p class="schmal"><mark class="lb-marker lb-marker--rot">Fehler · Rezepte.xlsx konnte nicht gelesen werden, die Datei ist in Excel geöffnet.</mark></p>
+    </div>
+  </div>
+
+  <div class="lb-luecke"></div>
+  <p class="fett">Marker-Rot ist nicht Linienrot</p>
+  <p class="lb-neben">Die drei roten Rollen bleiben Linie und Korrekturwert. Der Marker ist ein eigenes Mittel — keine vierte Rolle.</p>
+  <div class="spalten4">
+    <div>
+      <div class="skizze-mitte" style="height:var(--lb-bedien)"><div class="lb-randlinie"></div><div class="inhalt">Rolle 1 · Randlinie<div class="lb-neben">#a63a2b, 1.5 px, senkrecht</div></div></div>
+    </div>
+    <div>
+      <div class="lb-trenner"></div>
+      <p>Rolle 2 · Trenner <span class="lb-neben">#a63a2b, 1.5 px</span></p>
+    </div>
+    <div>
+      <p class="lb-korrektur"><b>510 g</b> <s>480 g</s></p>
+      <p>Rolle 3 · Korrekturwert <span class="lb-neben">Text</span></p>
+    </div>
+    <div>
+      <p><mark class="lb-marker lb-marker--rot">Fehler · gesperrt</mark></p>
+      <p>Marker · eigenes Pigment <span class="lb-neben">#f37a82, 38 %</span></p>
+    </div>
+  </div>
+
+  <div class="lb-luecke"></div>
+  <div class="spalten">
+    <div>
+      <p class="fett">Gilt für</p>
+      <ul class="liste">
+        <li>Meldungen: Kennung und Kernsatz</li>
+        <li>nie den ganzen Meldungstext — sonst markiert er nichts</li>
+      </ul>
+    </div>
+    <div>
+      <p class="fett">Gilt nicht für</p>
+      <ul class="liste">
+        <li>Korrekturen (Rolle 3 bleibt rot)</li>
+        <li>Hover, Fokus, aktiv, Feldfehler</li>
+        <li>Überschriften, Abweichungen im Vergleich (Graphit + ▲)</li>
+        <li>eigene Notizen — neue Funktion, Backlog (O-20)</li>
+      </ul>
+    </div>
+    <div>
+      <p class="fett">Form in Zahlen</p>
+      <div class="zeile"><span class="k" style="width:140px">Deckung</span><span class="v">Mittel- und Oberlängen, ~15 von 28 px</span></div>
+      <div class="zeile"><span class="k" style="width:140px">Schräge</span><span class="v">steigt ~2 px über die Strichlänge</span></div>
+      <div class="zeile"><span class="k" style="width:140px">Überstand</span><span class="v">0.25 em je Seite</span></div>
+      <div class="zeile"><span class="k" style="width:140px">Ansatz</span><span class="v">8 px, links, dunkler</span></div>
+    </div>
+  </div>
+
+  <!-- ========================================================== 3 Zustaende -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">3 Zustände</h2>
+  <p class="lb-neben">Lesart: gerade Linie = da · Wellenlinie = falsch · Punktlinie = kommt noch · doppelt starke Linie = hier bist du. Hover ändert die Schrift, Fokus die Linie. Kein Rot, keine Fläche, keine Höhenänderung.</p>
+  <div class="lb-luecke"></div>
+
+  <div class="quer">
+    <div class="zustaende">
+      <div></div>
+      <p class="lb-neben">Ruhe</p>
+      <p class="lb-neben">aktiv · Bestand</p>
+      <p class="lb-neben">Hover</p>
+      <p class="lb-neben">Fokus · Tastatur</p>
+      <p class="lb-neben">Fehler</p>
+      <p class="lb-neben">ladend</p>
+
+      <p class="lb-neben">Anklickbare Zeile<br>56 px</p>
+      <div class="lb-bedienzeile"><span class="nm">Focaccia</span><span class="zusatz">Backen</span></div>
+      <div class="lb-bedienzeile lb-bedienzeile--aktiv"><span class="nm">Sauerteigbrot 2.0</span><span class="zusatz">Backen</span></div>
+      <div class="lb-bedienzeile lb-bedienzeile--hover"><span class="nm">Brioche</span><span class="zusatz">Backen</span></div>
+      <div class="lb-bedienzeile lb-bedienzeile--fokus"><span class="nm">Pizzateig Neapel</span><span class="zusatz">Teige</span></div>
+      <div class="lb-bedienzeile lb-bedienzeile--fehler"><span class="nm">Panettone</span><span class="lb-grund">! nicht lesbar</span></div>
+      <div class="lb-bedienzeile lb-bedienzeile--ladend"><span class="nm"><span class="lb-skelett lb-ladend" style="--lb-skelett-breite:72%"></span></span></div>
+
+      <div></div>
+      <p class="lb-neben">Text auf Linie 47</p>
+      <p class="lb-neben">Unterstreichung Graphit</p>
+      <p class="lb-neben">Unterstreichung Nebentext</p>
+      <p class="lb-neben">Graphitlinie 2 px, volle Breite</p>
+      <p class="lb-neben">Wellenlinie, Grund mit «!»</p>
+      <p class="lb-neben">Punktlinie, pulsiert</p>
+
+      <div class="lb-luecke"></div><div></div><div></div><div></div><div></div><div></div><div></div>
+
+      <p class="lb-neben">Eingabefeld<br>56 px</p>
+      <div class="lb-feld lb-feld--leer"><span class="lb-etikett">Suche</span>Rezepte durchsuchen</div>
+      <p class="platzhalter56">—</p>
+      <div class="lb-feld lb-feld--leer lb-feld--hover"><span class="lb-etikett">Suche</span>Rezepte durchsuchen</div>
+      <div class="lb-feld lb-feld--fokus"><span class="lb-etikett">Suche</span>Bri<span class="lb-einfuegemarke"></span></div>
+      <div class="lb-feld lb-feld--fehler"><span class="lb-etikett">Menge<span class="lb-grund">! Zahl erwartet</span></span>vierhundert</div>
+      <div class="lb-feld lb-feld--leer lb-feld--ladend"><span class="lb-etikett">Rohstoff</span><span class="lb-ladend">…</span></div>
+
+      <div></div>
+      <p class="lb-neben">Linie 1 px, Etikett oben</p>
+      <p class="lb-neben">entfällt</p>
+      <p class="lb-neben">Etikett und Platzhalter dunkler</p>
+      <p class="lb-neben">Linie 2 px, Einfügemarke</p>
+      <p class="lb-neben">Wellenlinie, Grund in der Etikettzeile</p>
+      <p class="lb-neben">Punktlinie, Wert «…»</p>
+    </div>
+  </div>
+
+  <div class="lb-luecke"></div>
+  <p class="fett">Wo der Text in einer 56-px-Zeile steht</p>
+  <div class="spalten">
+    <div>
+      <div class="heute-mittig frei"><span>Sauerteigbrot hell</span></div>
+      <p class="lb-neben">App heute: mittig, Grundlinie bei 33 — zwischen den Linien. Gemessen 10.09.2026 bei 1440 px an Rezeptliste, Einkaufsliste, Phasen- und Metablock-Zeilen.</p>
+    </div>
+    <div>
+      <div class="lb-bedienzeile"><span class="nm">Sauerteigbrot hell</span></div>
+      <p class="lb-neben">Nachtrag: untere Linie, Grundlinie bei 47 — wie beim Feld und bei der Skalierung.</p>
+    </div>
+  </div>
+
+  <!-- =========================================================== 4 Meldungen -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">4 Meldungen</h2>
+  <p class="lb-neben">Kennungszeile mit Marker, Text auf den Linien, Aktionen als 56-px-Zeile, danach eine Zeile Abstand. Keine Randlinie, keine Fläche, kein Rahmen. Jede Art darf an jeder Stelle stehen — die Stelle folgt dem Bereich, nicht der Art.</p>
+  <div class="lb-luecke"></div>
+
+  <div class="spalten">
+    <div>
+      <p class="fett">Erfolg</p>
+      <p class="lb-neben">Stelle: global, #meldungen oben in der Mittelspalte, hinter der Randlinie</p>
+      <div class="lb-luecke"></div>
+      <div class="skizze-mitte">
+        <div class="lb-randlinie"></div>
+        <div class="inhalt">
+          <div class="lb-meldung lb-meldung--erfolg">
+            <p class="kennung"><mark class="lb-marker"><b>Gespeichert</b> · Phasen nach Rezepte.xlsx geschrieben</mark></p>
+            <p class="text">Backup liegt unter /Backups.</p>
+          </div>
+          <h3 class="lb-titel">Sauerteigbrot 2.0</h3>
+          <p class="lb-neben">Backen · 4 Phasen · 1200 g</p>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <p class="fett">Warnung</p>
+      <p class="lb-neben">Stelle: im Bereich, direkt über dem Formular, das sie betrifft</p>
+      <div class="lb-luecke"></div>
+      <div class="mittel">
+        <div class="lb-meldung lb-meldung--warnung">
+          <p class="kennung"><mark class="lb-marker"><b>Warnung</b> · Ungespeicherter Entwurf vom 09.09.2026</mark></p>
+          <p class="text">Drei Änderungen im Zutaten-Editor liegen nur in diesem Browser.</p>
+          <div class="aktionen">
+            <button type="button" class="lb-bedienzeile"><span class="nm">Weiterbearbeiten</span></button>
+            <button type="button" class="lb-bedienzeile"><span class="nm">Verwerfen</span></button>
+          </div>
+        </div>
+        <div class="lb-feld"><span class="lb-etikett">Zutat</span>Weizenmehl 550</div>
+        <div class="lb-feld"><span class="lb-etikett">Menge</span>720 g</div>
+      </div>
+    </div>
+
+    <div>
+      <p class="fett">Fehler</p>
+      <p class="lb-neben">Stelle: in der Schiene des Bereichs, über dessen Inhalt (AP-0201 §1, Zustand «fehler»)</p>
+      <div class="lb-luecke"></div>
+      <div class="schmal">
+        <div class="skizze-kopf"><span class="lb-neben">Navigation</span><span>×</span></div>
+        <div class="lb-meldung lb-meldung--fehler">
+          <p class="kennung"><mark class="lb-marker"><b>Fehler</b> · Rezepte.xlsx konnte nicht gelesen werden</mark></p>
+          <p class="text">Die Datei ist in Excel geöffnet. Schliessen, dann neu laden.</p>
+          <div class="aktionen"><button type="button" class="lb-bedienzeile"><span class="nm">Neu laden</span></button></div>
+        </div>
+        <div class="lb-feld lb-feld--leer"><span class="lb-etikett">Suche</span>Rezepte durchsuchen</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====================================================== 5 Overlay-Rahmen -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">5 Overlay-Rahmen</h2>
+  <p class="lb-neben">Papier mit eigenem Raster, Randlinie links (Rolle 1), Schleier dahinter. Kein roter Rahmen rundum (R-37), kein Schatten. Oberkante auf der Rasterlinie, Höhe in ganzen Zeilen, unten eine Zeile Luft.</p>
+  <div class="lb-luecke"></div>
+
+  <div class="ausschnitt lb-papier">
+    <div class="seite-kopf"><svg class="lb-ikone"><use href="#lb-schiene"/></svg><span class="mitte">Sauerteigbrot 2.0</span><svg class="lb-ikone"><use href="#lb-suche"/></svg><svg class="lb-ikone"><use href="#lb-import"/></svg><svg class="lb-ikone"><use href="#lb-kochmodus"/></svg><svg class="lb-ikone"><use href="#lb-anmeldung"/></svg></div>
+    <div class="seite-raster">
+      <div class="schiene">
+        <div class="lb-feld lb-feld--leer"><span class="lb-etikett">Suche</span>Rezepte durchsuchen</div>
+        <div class="lb-bedienzeile lb-bedienzeile--aktiv"><span class="nm">Sauerteigbrot 2.0</span></div>
+        <div class="lb-bedienzeile"><span class="nm">Focaccia</span></div>
+        <div class="lb-bedienzeile"><span class="nm">Brioche</span></div>
+      </div>
+      <div class="lb-randlinie"></div>
+      <div class="rezeptur">
+        <div class="lb-titel">Sauerteigbrot 2.0</div>
+        <div class="lb-neben">Backen · 4 Phasen · 1200 g</div>
+        <div class="lb-trenner"></div>
+        <div class="lb-phasentitel">Autolyse</div>
+        <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Weizenmehl 550</span><span class="menge">720</span><span class="einheit">g</span></div>
+        <div class="lb-zutat lb-zutat--schlicht"><span class="nm">Wasser, 20 °C</span><span class="menge">480</span><span class="einheit">g</span></div>
+      </div>
+    </div>
+    <div class="lb-schleier"></div>
+    <div class="lb-overlay-rahmen lb-overlay-rahmen--mitte">
+      <div class="kopf"><span class="lb-phasentitel">Entwicklungsmodus</span><button type="button" class="lb-schliessen" aria-label="Schliessen">×</button></div>
+      <div class="lb-neben">Sauerteigbrot 2.0 · Versuch 3 · 09.09.2026</div>
+      <div class="lb-trenner"></div>
+      <div class="lb-vergleich lb-vergleich--kopf"><span class="nm">Zutat</span><span class="basis">Basis</span><span class="neu">V3 mehr Wasser</span></div>
+      <div class="lb-vergleich"><span class="nm">Weizenmehl 550</span><span class="basis">720 g</span><span class="neu">720 g</span></div>
+      <div class="lb-vergleich"><span class="nm">Wasser, 20 °C</span><span class="basis">480 g</span><span class="neu">510 g ▲</span></div>
+      <div class="lb-vergleich"><span class="nm">Salz</span><span class="basis">18 g</span><span class="neu">18 g</span></div>
+      <div class="lb-trenner"></div>
+      <div class="lb-phasentitel">Versuchsprotokoll</div>
+      <div class="lb-protokoll"><span class="lbl">Teigtemperatur</span><span class="wert">25.5 °C nach dem Kneten</span></div>
+      <div class="lb-protokoll"><span class="lbl">Bewertung</span><span class="wert">4 / 5</span></div>
+    </div>
+  </div>
+
+  <div class="lb-luecke"></div>
+  <div class="spalten">
+    <div>
+      <p class="fett">Masse im Ausschnitt</p>
+      <div class="zeile"><span class="k" style="width:96px">Oberkante</span><span class="v">56 = 2 × 28</span></div>
+      <div class="zeile"><span class="k" style="width:96px">Höhe</span><span class="v">420 = 15 × 28, 28 Luft (K-4)</span></div>
+      <div class="zeile"><span class="k" style="width:96px">Kopf</span><span class="v">56, × innen (K-5)</span></div>
+      <div class="zeile"><span class="k" style="width:96px">Randlinie</span><span class="v">1.5 Rot, auf der der Rezeptur</span></div>
+      <div class="zeile"><span class="k" style="width:96px">Gasse innen</span><span class="v">32 nach der Randlinie</span></div>
+      <div class="zeile"><span class="k" style="width:96px">Schleier</span><span class="v">Graphit 10 %, über allem</span></div>
+    </div>
+    <div>
+      <p class="fett">Liniengleich beim Scrollen</p>
+      <p class="text">Ein fixes Overlay liegt am Fenster, das Papier scrollt. Ist die Seite um einen Rest gescrollt, rückt die Oberkante um <b class="fett">--lb-versatz</b> auf die nächste Linie. Sonst stehen die Linien im Overlay neben denen der Seite.</p>
+      <div class="aktionen" style="display:flex;column-gap:32px">
+        <button type="button" class="lb-bedienzeile" id="btnLive"><span class="nm">640 px live öffnen</span></button>
+      </div>
+      <p class="lb-neben" id="liveStand">Seite vorher um einen krummen Betrag scrollen, dann öffnen und scrollen.</p>
+    </div>
+    <div>
+      <p class="fett">Zwei Lagen</p>
+      <ul class="liste">
+        <li>--mitte: über der Rezeptur, Randlinie auf deren Randlinie; Breite legt AP-0304 fest</li>
+        <li>--b7: Nebenansicht, 640 px zentriert</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- =================================================================== 6 Masse -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">6 Höhen gegen den Rasterschritt 28</h2>
+  <div class="zeile"><span class="k">Anklickbare Zeile, alle Zustände</span><span class="v">56 = 2 × 28</span></div>
+  <div class="zeile"><span class="k">Eingabefeld, alle Zustände</span><span class="v">56 = 2 × 28 · Fehlergrund in der Etikettzeile, kein Zuwachs</span></div>
+  <div class="zeile"><span class="k">Meldung</span><span class="v">28 × (Kennungszeilen + Textzeilen) + 56 Aktionen + 28 Abstand</span></div>
+  <div class="zeile"><span class="k">Overlay-Rahmen</span><span class="v">Oberkante 56 + Versatz · Höhe abgerundet auf 28 · Kopf 56 · Luft unten ≥ 28</span></div>
+  <div class="zeile"><span class="k">Textmarker</span><span class="v">keine eigene Höhe — liegt in der Zeile, ändert sie nicht</span></div>
+  <div class="zeile"><span class="k">Skelettzeile</span><span class="v">28, inline-block mit fester Höhe</span></div>
+
+  <!-- =============================================================== 7 Bausteine -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">7 CSS-Bausteine</h2>
+  <p class="lb-neben">In libarius.css, Abschnitt «Nachtrag 10.09.2026». Modifier --hover und --fokus zeichnen fest; die Anwendung nimmt :hover, :focus-visible, :focus-within.</p>
+  <div class="zeile"><span class="k">--lb-marker-gelb / -gruen / -rot</span><span class="v">Pigmente zur Dokumentation · Striche als --lb-marker-strich-* und --lb-marker-ansatz-*</span></div>
+  <div class="zeile"><span class="k">--lb-fokus-staerke · --lb-versatz · --lb-welle</span><span class="v">Fokuslinie 2 px · Scroll-Rest fürs Overlay · Wellenlinie Graphit</span></div>
+  <div class="zeile"><span class="k">.lb-marker (--gelb, --gruen, --rot)</span><span class="v">Textmarker auf &lt;mark&gt;</span></div>
+  <div class="zeile"><span class="k">.lb-bedienzeile</span><span class="v">anklickbare Zeile 56, Kinder .nm .zusatz .lb-grund</span></div>
+  <div class="zeile"><span class="k">  --aktiv --hover --fokus --fehler --ladend</span><span class="v">Zustände der Zeile</span></div>
+  <div class="zeile"><span class="k">.lb-feld + .lb-etikett</span><span class="v">Feld mit Etikett in der oberen Zeile</span></div>
+  <div class="zeile"><span class="k">  .lb-feld--hover --fokus --fehler --ladend</span><span class="v">Zustände des Feldes · .lb-einfuegemarke</span></div>
+  <div class="zeile"><span class="k">.lb-grund</span><span class="v">Fehlergrund 13 px Graphit mit «!»</span></div>
+  <div class="zeile"><span class="k">.lb-skelett · .lb-ladend</span><span class="v">Punktlinie an der Stelle des Textes · Pulsieren über die Deckkraft</span></div>
+  <div class="zeile"><span class="k">.lb-meldung (--erfolg, --warnung, --fehler)</span><span class="v">Kinder .kennung .text .aktionen · setzt die Markerfarbe</span></div>
+  <div class="zeile"><span class="k">.lb-overlay-rahmen (--mitte, --b7)</span><span class="v">Kinder .kopf · .lb-schliessen · dazu .lb-schleier aus dem Bestand</span></div>
+
+  <!-- ============================================================ 8 DESIGN.md -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">8 Abschnitt für DESIGN.md</h2>
+  <p class="lb-neben">Eingetragen in kochen/DESIGN.md am 10.09.2026 — massgeblich ist DESIGN.md.</p>
+  <div class="lb-luecke"></div>
+<pre class="md">## Marker, Zustände, Meldungen, Overlays
+
+Nachtrag 10.09.2026 zu Artboard 1g (AP-0201 libarius-gestaltung; O-20: R-44, R-45, K-21).
+Gezeichnet in `design/stilblatt-nachtrag.html`, Bausteine am Ende von `design/libarius.css`.
+
+**Lesart**: gerade Linie = da · Wellenlinie = falsch · Punktlinie = kommt noch ·
+doppelt starke Linie = hier bist du. Hover ändert die Schrift, Fokus die Linie.
+Kein Zustand nutzt Rot, keiner ändert eine Höhe.
+
+### Textmarker
+
+Eigenes Mittel neben den drei roten Rollen — keine vierte Rolle. Er sieht aus, als
+hätte jemand mit dem Leuchtstift markiert.
+
+| Marke | Pigment | Deckkraft | Art |
+|---|---|---|---|
+| `--lb-marker-gelb` | `#f9d73a` | 55 % | Warnung |
+| `--lb-marker-gruen` | `#8fd46a` | 45 % | Erfolg |
+| `--lb-marker-rot` | `#f37a82` | 38 % | Fehler |
+
+- **Marker-Rot ist nicht Linienrot**: hell und rosé. `--lb-rot` (#a63a2b) bleibt Linie und Korrekturwert.
+- **Form**: deckt Mittel- und Oberlängen (~15 von 28 px), nicht die ganze Rasterzeile; steigt nach
+  rechts um ~2 px; obere und untere Kante unruhig, Rand leicht satter als die Fläche; Ansatz links
+  8 px dunkler, dort setzt der Stift auf; steht 0.25 em über den Text hinaus.
+- **Durchscheinend**: Text bleibt Graphit, die Rasterlinie scheint durch.
+- **Umbruch**: jede Textzeile ist ein eigener Strich mit eigenem Ansatz (`box-decoration-break:clone`),
+  nie ein Rechteck über mehrere Zeilen.
+- **Element** `&lt;mark&gt;`. Die Art steht als Wort im markierten Text («Gespeichert», «Warnung», «Fehler»);
+  die Farbe allein trägt keine Bedeutung.
+- **Gilt für** Meldungen: Kennung und Kernsatz, nie den ganzen Meldungstext.
+- **Gilt nicht für** Korrekturen (Rolle 3), Hover, Fokus, aktiv, Feldfehler, Überschriften,
+  Abweichungen im Vergleich (Graphit + ▲) und den Druck (Meldungen sind `noprint`).
+  Eigene Notizen markieren ist neue Funktion mit eigenem Datenfeld (Backlog, O-20).
+
+### Zustände
+
+| Zustand | Anklickbare Zeile, 56 px | Eingabefeld, 56 px |
+|---|---|---|
+| Ruhe | Text auf der unteren Linie (47) | Etikett 13 Nebentext oben, Wert unten, Graphitlinie 1 px bei 47 |
+| aktiv | Unterstreichung Graphit 1 px, Versatz 5 (Bestand) | — |
+| Hover | Unterstreichung **Nebentext** 1 px, Versatz 5 | Etikett und Platzhalter dunkler, Linie bleibt |
+| Fokus (`:focus-visible`) | Graphitlinie 2 px bei 47, volle Zeilenbreite | Graphitlinie 2 px, Etikett Graphit, Einfügemarke |
+| Fehler | Wellenlinie Graphit unter dem Namen, Grund 13 px mit «!» | Wellenlinie Graphit statt gerader Linie, Grund 13 px mit «!» rechts in der Etikettzeile |
+| ladend | Punktlinie Nebentext an der Stelle des Textes, pulsiert 1.6 s | Punktlinie Graphit statt gerader Linie, Wert «…» |
+
+- Text einer anklickbaren 56-px-Zeile steht auf der **unteren** Linie, wie beim Feld; die obere
+  Zeile bleibt Luft oder trägt das Etikett.
+- Ein Fehlergrund steht in einer Zeile, die es schon gibt — ein Fehler verschiebt nichts.
+- Pulsieren nur über die Deckkraft; bei `prefers-reduced-motion` steht es still.
+- Knöpfe verhalten sich wie anklickbare Zeilen.
+
+### Meldungen
+
+Kennungszeile mit Marker («Art · Kernsatz»), darunter Text 15 Graphit auf den Linien, bei Bedarf
+Aktionen als 56-px-Zeile, danach eine Zeile Abstand. Keine Randlinie, keine Fläche, kein Rahmen.
+
+| Stelle | Wo | Beispiel |
+|---|---|---|
+| global | `#meldungen`, oben in der Mittelspalte hinter der Randlinie | Gespeichert · Phasen nach Rezepte.xlsx geschrieben |
+| Formular | im Bereich, direkt über dem Formular, das sie betrifft | Warnung · Ungespeicherter Entwurf vom 09.09.2026 |
+| Bereich | in der Schiene des Bereichs, über dessen Inhalt (AP-0201 §1, Zustand «fehler») | Fehler · Rezepte.xlsx konnte nicht gelesen werden |
+
+Jede Art darf an jeder Stelle stehen; die Stelle folgt dem Bereich, nicht der Art.
+
+### Overlay-Rahmen
+
+- Papier mit eigenem Linienraster, **Randlinie links** (Rolle 1), Schleier Graphit 10 % dahinter.
+  Kein Rahmen rundum, kein Schatten, keine Rundung (R-37).
+- **Oberkante** auf einer Rasterlinie, 56 px unter dem Fensterrand. Ist die Seite um einen Rest
+  gescrollt, rückt sie auf die nächste Linie (`--lb-versatz`, beim Scrollen gesetzt) — sonst stehen
+  die Linien im Overlay neben denen der Seite.
+- **Höhe** auf ganze Rasterzeilen abgerundet, unten mindestens eine Zeile Luft (K-4).
+- **Kopf** 56 px: Titel 17 Medium auf der Linie, Schliessen × rechts innerhalb des Rahmens (K-5).
+- **Innen** 32 px Gasse nach der Randlinie; das Raster scrollt mit dem Inhalt.
+- Zwei Lagen: `--mitte` mit der Randlinie auf der Randlinie der Rezeptur (Breite legt AP-0304 fest),
+  `--b7` 640 px zentriert.</pre>
+
+</main>
+
+<!-- Live-Overlay: fixed, wie in der Anwendung -->
+<div class="lb-schleier" id="liveSchleier" hidden></div>
+<div class="lb-overlay-rahmen lb-overlay-rahmen--b7" id="liveOverlay" hidden>
+  <div class="kopf"><span class="lb-phasentitel">Nebenansicht · 640 px</span><button type="button" class="lb-schliessen" id="liveZu" aria-label="Schliessen">×</button></div>
+  <p class="lb-neben" id="liveMessung" style="margin:0">—</p>
+  <div class="lb-trenner"></div>
+  <div class="lb-protokoll"><span class="lbl">Zielwert Hydration</span><span class="wert">68–72 %</span></div>
+  <div class="lb-protokoll"><span class="lbl">Ist</span><span class="wert">70.8 %</span></div>
+  <div class="lb-protokoll"><span class="lbl">Bemerkung</span><span class="wert">Linien im Overlay und auf der Seite müssen deckungsgleich laufen — auch nach krummem Scrollen.</span></div>
+</div>
+
+<script>
+// Nur fuer die Referenzseite: Rasterpruefung, Rotpruefung, Live-Overlay.
+(function () {
+  var Z = 28;
+
+  // --lb-versatz: Rest bis zur naechsten Rasterlinie, damit ein fixes Overlay
+  // liniengleich zum scrollenden Papier bleibt.
+  function versatz() {
+    var v = (Z - (window.scrollY % Z)) % Z;
+    document.documentElement.style.setProperty('--lb-versatz', v + 'px');
+    return v;
+  }
+
+  function nahe(a, b) { return Math.abs(a - b) < 0.05; }
+  function rest(x) { return ((x % Z) + Z) % Z; }
+  function name(el) {
+    return el.tagName.toLowerCase() + (el.className && typeof el.className === 'string'
+      ? '.' + el.className.trim().split(/\s+/).join('.') : '');
+  }
+
+  function rasterPruefung() {
+    var geprueft = 0, fehler = [];
+    document.querySelectorAll('.blatt *').forEach(function (el) {
+      if (el.closest('svg') || el.closest('.frei')) return;
+      var cs = getComputedStyle(el);
+      if (cs.display === 'inline' || cs.display === 'none' || cs.display === 'contents') return;
+      var r = el.getBoundingClientRect();
+      if (!r.height) return;
+      geprueft++;
+      if (!nahe(rest(r.height), 0) && !nahe(rest(r.height), Z)) {
+        fehler.push(name(el) + ' Höhe ' + r.height.toFixed(2)); return;
+      }
+      var p = el.parentElement ? getComputedStyle(el.parentElement) : null;
+      var grundlinie = p && p.display.indexOf('flex') >= 0 && p.alignItems === 'baseline';
+      if (grundlinie || cs.display === 'inline-block') return;
+      var top = r.top + window.scrollY;
+      if (!nahe(rest(top), 0) && !nahe(rest(top), Z)) fehler.push(name(el) + ' Oberkante ' + top.toFixed(2));
+    });
+    return { geprueft: geprueft, fehler: fehler };
+  }
+
+  // Rot als Flaeche: Hintergrundfarbe --lb-rot mit beiden Seiten > 2 px, oder
+  // ein roter Verlauf, dessen Ebene in beiden Richtungen breiter als 2 px ist.
+  function ebenen(s) {
+    var out = [], tiefe = 0, start = 0;
+    for (var i = 0; i < s.length; i++) {
+      if (s[i] === '(') tiefe++; else if (s[i] === ')') tiefe--;
+      else if (s[i] === ',' && tiefe === 0) { out.push(s.slice(start, i).trim()); start = i + 1; }
+    }
+    out.push(s.slice(start).trim());
+    return out;
+  }
+  function rotPruefung() {
+    var ROT = '166, 58, 43', flaechen = [], linien = 0;
+    document.querySelectorAll('body *').forEach(function (el) {
+      if (el.closest('svg')) return;
+      var cs = getComputedStyle(el), r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      if (cs.backgroundColor.indexOf(ROT) >= 0) {
+        if (r.width > 2 && r.height > 2) flaechen.push(name(el)); else linien++;
+      }
+      if (cs.backgroundImage.indexOf(ROT) < 0) return;
+      var bilder = ebenen(cs.backgroundImage), groessen = ebenen(cs.backgroundSize);
+      bilder.forEach(function (b, i) {
+        if (b.indexOf(ROT) < 0) return;
+        var g = (groessen[i % groessen.length] || 'auto').split(/\s+/);
+        var px = function (t, ganz) { return t.indexOf('%') >= 0 ? ganz * parseFloat(t) / 100 : (parseFloat(t) || ganz); };
+        var w = px(g[0], r.width), h = px(g[1] || g[0], r.height);
+        if (w > 2 && h > 2) flaechen.push(name(el)); else linien++;
+      });
+    });
+    return { flaechen: flaechen, linien: linien };
+  }
+
+  function bericht() {
+    var rp = rasterPruefung(), rot = rotPruefung();
+    var el = document.getElementById('pruefung');
+    el.innerHTML = 'Rasterprüfung: <b>' + rp.geprueft + '</b> Blöcke, ' +
+      (rp.fehler.length ? '<b>' + rp.fehler.length + ' ausserhalb</b>: ' + rp.fehler.slice(0, 6).join(' · ')
+                        : '<b>alle</b> Höhen und Oberkanten auf 28') +
+      ' · Rot als Fläche: <b>' + rot.flaechen.length + '</b>' +
+      (rot.flaechen.length ? ' (' + rot.flaechen.join(', ') + ')' : '') +
+      ' · Rot als Linie: ' + rot.linien;
+    window.lbPruefung = { raster: rp, rot: rot };
+  }
+
+  // Live-Overlay
+  var ov = document.getElementById('liveOverlay'), sch = document.getElementById('liveSchleier');
+  var stand = document.getElementById('liveMessung');
+  function messen() {
+    var v = versatz();
+    if (ov.hidden) return;
+    var r = ov.getBoundingClientRect(), oben = r.top + window.scrollY, kante = rest(oben);
+    var gleich = nahe(kante, 0) || nahe(kante, Z);
+    stand.textContent = 'Scroll ' + window.scrollY.toFixed(1) + ' · Versatz ' + v.toFixed(1) +
+      ' · Oberkante im Papier ' + oben.toFixed(1) + ' · Höhe ' + r.height + ' = ' +
+      (r.height / Z) + ' × 28 · ' + (gleich ? 'liniengleich' : 'NICHT liniengleich');
+  }
+  function auf() { ov.hidden = false; sch.hidden = false; messen(); }
+  function zu() { ov.hidden = true; sch.hidden = true; }
+  document.getElementById('btnLive').addEventListener('click', auf);
+  document.getElementById('liveZu').addEventListener('click', zu);
+  sch.addEventListener('click', zu);
+  window.addEventListener('scroll', messen, { passive: true });
+  window.addEventListener('resize', messen);
+  versatz();
+
+  // setTimeout statt requestAnimationFrame: laeuft auch in einem Tab im Hintergrund.
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(function () {
+    setTimeout(bericht, 0);
+  });
+})();
+</script>
+</body>
+</html>
