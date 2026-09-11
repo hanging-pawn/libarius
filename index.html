@@ -14,7 +14,11 @@
   --gruen:#3f7d4e; --gelb:#b8860b; --rot:#a63a2b;
   --radius:10px; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 14px rgba(0,0,0,.04);
 }
-@media (prefers-color-scheme:dark){
+/* AP-0313 (libarius-gestaltung), B-4: vorerst deaktiviert, Entscheid Gianluca 10.09.2026,
+   Backlog (kochen/DESIGN.md). Bedingung wirkungslos geschaltet (dark UND light kann nie
+   beides zutreffen) statt geloescht — die Marken bleiben stehen, falls der Dunkelmodus
+   spaeter reaktiviert wird. */
+@media (prefers-color-scheme:dark) and (prefers-color-scheme:light){
   :root{--bg:#1a1816;--panel:#232019;--line:#3a342c;--ink:#ece6df;--muted:#a2988e;
         --accent:#d98b62;--accent-soft:#332721;--shadow:0 1px 2px rgba(0,0,0,.3);}
 }
@@ -656,7 +660,12 @@ table.zutaten{margin:0}
 table.zutaten{border-collapse:collapse;border-spacing:0}
 table.zutaten td{padding:0;height:var(--lb-zeile);line-height:var(--lb-zeile);
   border-bottom:0;vertical-align:top}
-table.zutaten td:first-child{text-align:right;padding-right:16px}
+/* AP-0312 (libarius-gestaltung), R-29: Entscheid am Geraet (AP-0402/AP-0403) —
+   linksbuendig wie Kochmodus (R-27) und Druck (R-43), damit sich dasselbe Rezept in
+   allen drei Ansichten gleich liest. padding-right bleibt: der Abstand zur Mengenspalte
+   entsteht rechtsbuendig aus den 16 px, linksbuendig ist er nicht mehr noetig, aber ein
+   langer Name klebt ohne ihn an der Menge. */
+table.zutaten td:first-child{text-align:left;padding-right:16px}
 table.zutaten td.menge{width:96px;font-weight:400}
 table.zutaten td.pct{width:64px;font-size:13px;padding-right:16px}
 /* Kleinere Schriftgrade in einer 28-px-Zeile (FODMAP-Punkt, Warnung, durchgestrichene
@@ -830,8 +839,48 @@ footer.app{max-width:none;padding:0 var(--lb-rand) var(--lb-zeile);font-size:13p
 .entw-overlay-kopf-rechts{display:flex;align-items:flex-end;gap:var(--lb-gasse)}
 .entw-overlay-kopf-rechts .lb-neben{font-size:13px;color:var(--muted);
   padding-bottom:var(--lb-linie-y);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#btnEntwSchliessen{flex:none;padding:var(--lb-zeile) 0 0;font-size:17px;color:var(--muted)}
-#btnEntwSchliessen:hover{color:var(--rot)}
+#btnEntwSchliessen,#btnRezeplisteSchliessen{flex:none;padding:var(--lb-zeile) 0 0;font-size:17px;color:var(--muted)}
+#btnEntwSchliessen:hover,#btnRezeplisteSchliessen:hover{color:var(--rot)}
+
+/* -------------------------- Rezeptliste als Blendover ueber der linken Schiene (B-1) --
+   AP-0314 (libarius-gestaltung), AP-0204 §6: dieselbe Machart wie #panelEntwicklung oben
+   (Papier mit Rot-Raster, Randlinie links, Schleier statt Rahmen, R-37).
+   Geometrie (§6.3): Kind von #railLinks (position:sticky bei W/M, position:fixed bei K —
+   beide sind gueltige Containing Blocks fuer position:absolute), NICHT viewport-fixiert —
+   main#hauptraster zentriert seine Spuren (justify-content:center, Zeile ~481) statt sie am
+   Seitenrand zu kleben, sobald der Inhalt schmaler als die verfuegbare Breite ist (z. B. die
+   rechte Schiene zu). Ein Kind der Schiene erbt ihre tatsaechliche Position automatisch —
+   Breite 100 % (= Schienenbreite, bei W wie M) plus eine Gasse erreicht exakt die Randlinie
+   der Rezeptur, ohne deren Position selbst nachzurechnen. */
+#rezeplisteSchleier{position:fixed;inset:0;background:rgba(42,39,36,.10);z-index:10}
+#rezeplisteSchleier[hidden]{display:none}
+#rezeplisteBlendover{position:absolute;z-index:11;box-sizing:border-box;
+  top:0;left:0;
+  width:calc(100% + var(--lb-gasse));
+  height:calc(100vh - var(--lb-bedien) - var(--lb-zeile));
+  overflow:auto;overscroll-behavior:contain;
+  padding:0 0 0 calc(var(--lb-rot-staerke) + var(--lb-gasse));
+  background-color:var(--bg);
+  background-image:linear-gradient(var(--rot),var(--rot)),
+    repeating-linear-gradient(to bottom,
+      transparent 0 var(--lb-linie-y),
+      var(--line) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+      transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile));
+  background-repeat:no-repeat,repeat;
+  background-size:var(--lb-rot-staerke) 100%,100% 100%;
+  background-position:0 0,0 0;
+  background-attachment:local,local}
+#rezeplisteBlendover[hidden]{display:none}
+#rezeplisteBlendover .entw-overlay-kopf{padding-right:var(--lb-gasse)}
+#rezeplisteInhalt{padding-right:var(--lb-gasse);padding-bottom:var(--lb-zeile)}
+@media (max-width:859px){
+  /* AP-0204 §6.3/§8, Stufe K: "eine Regel, alle Stufen" — das Blendover uebernimmt die
+     Geometrie der Schienen-Overlays (volle Hoehe, linke Kante 0, keine zusaetzliche Gasse:
+     die rechte Randlinie entfaellt auf Stufe K ohnehin) und liegt ueber der geoeffneten
+     Schiene (z-index 11 > .rail z-index 10). #railLinks selbst ist hier position:fixed
+     (Grundregel, Zeile ~79) — ebenfalls ein gueltiger Containing Block. */
+  #rezeplisteBlendover{width:100%;height:100%;padding-top:var(--lb-bedien)}
+}
 
 .entw-abzeichen{border:0;border-radius:0;padding:0;font-size:13px;
   height:var(--lb-zeile);line-height:var(--lb-zeile);margin:0;display:block}
@@ -896,10 +945,114 @@ footer.app{max-width:none;padding:0 var(--lb-rand) var(--lb-zeile);font-size:13p
 .entw-delta{font-size:13px}
 .entw-wert.entw-geaendert{font-weight:500}
 .entw-merkmal label{font-size:15px}
+
+/* ============================================================================
+   AP-0315 (libarius-gestaltung): Entwicklungsmodus rechts vom Rezept (AP-0205).
+   Die Entwicklungszelle wird nie positioniert, sie wird eingehaengt (§3.1) — Zutaten- UND
+   Schrittzeilen sind bei offener Entwicklung KEINE <table>/<ol> mehr, sondern ein CSS-Grid
+   mit demselben Spaltenraster wie Kopf/Fuss (entwGridTemplate, View.rezept()): Name (flex) ·
+   Bäckerprozent 64 · Menge 96 · je offener Variante 126 px (DESIGN.md "Zutatenzeile", §1.2).
+   Ein einziges gemeinsames Raster ist die einzige Garantie fuer 0 px Versatz — getrennte
+   Berechnungen liefen bei R-30 schon einmal auseinander. */
+/* -4px Sicherheitsspanne: die zugeklappte rechte Schienenspindel (.railkopf, Etikett +
+   Knopf auf 41.6 px) ragt bereits ohne Entwicklung minimal über ihre eigene Spur hinaus
+   (Bestandsfehler, nicht Teil dieses AP) — bei 1fr statt der sonst content-basierten
+   Rezeptur-Spur bleibt sonst kein Zentrierungs-Rest mehr, der das auffängt. */
+body.entw-offen main#hauptraster{grid-template-columns:auto auto minmax(0,calc(1fr - 4px)) auto auto}
+body.entw-offen .inhalt{max-width:none}
+.entw-zutaten-grid{display:grid;column-gap:0;row-gap:0}
+/* AP-0315-Nacharbeit (§3.2/§4.3): Basismenge-Kopfzelle — eigene Rasterzeile im selben
+   entwGridTemplate wie Zutaten-/Schritt-/Kopf-/Fusszeile, darum keine eigene Hoehe noetig:
+   .entw-zeile-name/-pct/-menge und .entw-zelle bringen ihre 28 px bereits mit.
+   flex:0 0 100% wie .rezeptkopf .sub (Zeile ~551): .rezeptkopf ist ein Flex-Container ohne
+   Stretch — ohne eigene Flex-Basis waere diese Zeile nur so breit wie ihr Inhalt (672 statt
+   760 px gemessen) und die Spalten liefen gegenueber Kopf-/Zutaten-/Fusszeile auseinander. */
+.entw-basiszeile{display:grid;column-gap:0;row-gap:0;margin-top:var(--lb-zeile);flex:0 0 100%}
+.entw-zeile-name,.entw-zeile-pct,.entw-zeile-menge{
+  height:var(--lb-zeile);line-height:var(--lb-zeile);vertical-align:top;font-size:15px}
+/* AP-0316: eine Zeile, gekuerzt — voller Name im title-Attribut (Entscheid Gianluca:
+   28-px-Zeile bleibt starr, siehe DESIGN.md "Entscheide vom 09.09.2026" Nr. 1). Vorher
+   overflow-wrap:break-word ohne Hoehenbegrenzung: ein umbrechender Name ragte optisch aus
+   der 28-px-Grid-Zeile in die naechste (Grid-Item mit fester Hoehe waechst nicht mit, anders
+   als eine <table>-Zeile). */
+.entw-zeile-name{padding-right:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entw-zeile-pct{text-align:right;color:var(--muted);font-size:13px;padding-right:16px;
+  font-variant-numeric:tabular-nums}
+.entw-zeile-menge{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;
+  font-weight:400;color:var(--rot)}
+.entw-zeile-menge:not(:has(.korrektur-soll)){color:var(--ink)}
+/* Eingehaengte neue Zutat (§4.2): kursiv mit "+", existiert nur, solange die Entwicklung
+   offen ist — nicht Teil von rz.phasen. */
+.entw-neu{font-style:italic}
+.entw-neu::after{content:" +";color:var(--muted);font-style:normal}
+/* Wertespalte: dieselbe Breite wie frueher .entw-spalte (AP-0308, 126 px), jetzt Grid-Item
+   statt eigene Tabellenspur. entw-zelle bleibt die 28-px-Ausnahme von der 56-px-Regel
+   (DESIGN.md Entscheid 1, Zeile ~860) — unveraendert, nur der Elternbehaelter ist neu. */
+.entw-td{min-width:0}
+.entw-zelle{height:var(--lb-zeile);min-height:var(--lb-zeile)}
+/* Arbeitsschritt (§3.2): Grid statt <ol>, Text spannt Name+Prozent+Menge (drei Spuren),
+   Wert auf der ERSTEN Textzeile (align-self:start) — nicht mittig, nicht unten (§3.3). */
+.entw-schritte{display:grid;column-gap:0;row-gap:0;padding-left:0}
+.entw-schritt-text{grid-column:span 3;font-size:15px;line-height:var(--lb-zeile);
+  padding:0 16px 0 0;overflow-wrap:break-word}
+.entw-schritte .entw-td{align-self:start}
+/* Phasen-Summary (§3.3): "n ≠" je Spalte in derselben 56-px-Zeile wie der Phasentitel. */
+details.phase > summary{justify-content:flex-start}
+details.phase > summary .nm{flex:1;min-width:0}
+.entw-summary{display:flex;gap:12px;margin-left:auto;flex:none}
+.entw-phase-zaehler{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;
+  min-width:18px;text-align:right}
+
+/* Rahmen (Leiste + Kopfreihe), sticky ueber der Rezeptur (§3.4): Leiste bleibt immer 56 px
+   (R-35/R-56), die Kopfreihe hat zwei Gestalten — voll 224 px an ihrem Platz im Textfluss,
+   geschrumpft 56 px (nur v-Nummer + Δ), sobald der Rahmen klebt (Layout.entwKopfKlebenPruefen,
+   AP-0315-Nacharbeit). Fuss (nach den Metadaten) ist NICHT sticky, normaler Fluss. */
+.sticky-entw{position:sticky;top:var(--lb-bedien);z-index:3;background:var(--bg);
+  padding-top:var(--lb-zeile)}
+.entw-rahmen-leiste{display:flex;flex-wrap:wrap;column-gap:var(--lb-gasse);row-gap:0;
+  align-items:center;min-height:var(--lb-bedien)}
+.entw-rahmen-leiste .entw-abzeichen{border:0;padding:0;margin:0;font-size:13px;
+  color:var(--muted);height:var(--lb-bedien);display:flex;align-items:center}
+.entw-fehler-hinweis{font-size:13px;color:var(--muted)}
+.entw-kopf-reihe,.entw-fuss-reihe{display:grid;column-gap:0;row-gap:0;
+  border-top:1px solid var(--line)}
+.entw-fuss-reihe{border-top:0;border-bottom:1px solid var(--line);margin-top:var(--lb-zeile)}
+/* Geschrumpfte Gestalt: .entw-kopf wird selbst zur einzeiligen 56-px-Flexzeile aus
+   v-Nummer/Aktiv-Merker + Δ, Notiz und Kopfknoepfe verschwinden (bleiben im Store/DOM
+   unveraendert, nur unsichtbar — kein Datenverlust). */
+.entw-rahmen--geklebt .entw-kopf{height:var(--lb-bedien);display:flex;align-items:center;
+  gap:8px;padding:0 8px;overflow:hidden}
+.entw-rahmen--geklebt .entw-kopf-zeile1{height:auto;flex:none}
+.entw-rahmen--geklebt .entw-kopf .entw-diff{height:auto;line-height:1.3;margin:0;flex:1;
+  min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.entw-rahmen--geklebt .entw-kopf input[type=text],
+.entw-rahmen--geklebt .entw-kopf-knoepfe{display:none}
+
+/* AP-0205 §6: das Rezept bleibt lesbar/navigierbar, aber nicht rechnend, waehrend die
+   Entwicklung laeuft — Skalierung siehe View.rezept() (.scaler wird zum Nebentext). */
+.entw-gesperrt-hinweis{color:var(--muted);font-size:13px;padding:var(--lb-zeile) 0 0}
 /* R-39: der Drehhinweis (K-Stufe, Zeile ~95) ist selbst eine Bedienzeile, keine
    Textkarte mit rem-Innenabstand. */
 #panelEntwicklung::after{padding:0;height:var(--lb-bedien);display:flex;
   align-items:center;font-size:13px}
+
+/* -------------------------- Import-/Recherche-Dialog als Blendover (B-2) ---
+   AP-0313 (libarius-gestaltung): der Import war ein Ansichtswechsel im
+   Mittelbereich (verdraengte #rezeptbereich statt es zu ueberlagern). Dieselbe
+   Machart wie #panelEntwicklung (AP-0304, oben): eigener Schleier,
+   position:fixed, ausserhalb von main#hauptraster, Oberkante auf einer
+   Rasterlinie. Kein Papier-Rot-Raster — der Import ist kein Entwurfsblatt,
+   nur ein Dialog. #rechercheBereich teilt sich die Schaltlogik (Schritt 7,
+   AP-0313) und bekommt darum dieselbe Behandlung, keine dritte Variante. */
+#importSchleier,#rechercheSchleier{position:fixed;inset:0;background:rgba(42,39,36,.10);z-index:13}
+#importSchleier[hidden],#rechercheSchleier[hidden]{display:none}
+#importbereich,#rechercheBereich{position:fixed;z-index:14;box-sizing:border-box;
+  top:var(--lb-bedien);left:var(--lb-rand);right:var(--lb-rand);
+  height:calc(100vh - var(--lb-bedien) - var(--lb-zeile));
+  overflow:auto;overscroll-behavior:contain;
+  padding:0 var(--lb-gasse);background-color:var(--bg)}
+#importbereich:empty,#rechercheBereich:empty{display:none}
+#importbereich[hidden],#rechercheBereich[hidden]{display:none}
 
 /* ---------------------------- Nebenansicht B7 und Bewertungsformular -------
    AP-0305 (libarius-gestaltung), R-34, R-36 bis R-39. Form wie der Overlay-
@@ -1012,8 +1165,9 @@ body.vollbild table.zutaten td.menge{font-size:22px;width:200px}
 body.vollbild table.zutaten td.pct{width:96px;font-size:17px}
 /* AP-0303 (libarius-gestaltung), R-27: ohne Notizspalte (K-9) hat der rechts-
    buendige Name im Kochmodus nichts, wogegen er ausrichtet - DESIGN.md
-   "Zutatenzeile" verlangt links, nur hier und im Druck (R-43), nicht in der
-   Hauptansicht (R-29 bleibt offen bis AP-0401). */
+   "Zutatenzeile" verlangt links. AP-0312: R-29 ist entschieden (linksbuendig,
+   AP-0402/AP-0403) — alle drei Ansichten richten jetzt gleich aus, diese Regel
+   bleibt trotzdem stehen (eigener Wert padding-right:8px statt 16px). */
 body.vollbild table.zutaten td:first-child{text-align:left;padding-right:8px}
 body.vollbild details.phase > summary{font-size:22px}
 /* AP-0306 (libarius-gestaltung), K-17/O-20: "nur das Rezept, nichts sonst" (Entwurf
@@ -1081,6 +1235,11 @@ body.vollbild ol.schritte li{max-width:none}
     padding:var(--lb-bedien) var(--lb-rand) var(--lb-zeile);
     background:var(--bg);border-radius:0}
   table.zutaten td:first-child{text-align:left;padding-right:8px}
+  /* AP-0314, AP-0204 §8: #kopftitel wird auf Stufe K zur Bedienzeile — ein Tippen
+     oeffnet die Schiene mit den Tabs (sonst kostet der Wechsel zwei Griffe statt einem). */
+  header.app .kopftitel{cursor:pointer}
+  header.app .kopftitel:hover{text-decoration:underline;text-decoration-color:var(--muted);
+    text-underline-offset:3px}
 }
 
 /* ============================================================================
@@ -1191,6 +1350,30 @@ button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)
   background-position:0 calc(100% - var(--lb-zeile) + var(--lb-linie-y));
   background-size:100% var(--lb-fokus-staerke)}
 
+/* ============================================================================
+   AP-0314 (libarius-gestaltung): Tabschiene fuer mehrere offene Rezepte (AP-0204 §4).
+   Ein Tab ist eine .lb-cue-zeile (dasselbe Cue|Eintrag-Raster wie die Rezeptliste, §4.1:
+   "kein neuer Baustein") mit einer zusaetzlichen ×-Spalte. Cue-Spur traegt den
+   Skalierungsfaktor, wenn er nicht 1 ist; bei Faktor 1 bleibt sie leer (§4.2). */
+.lb-tab-cue{font-variant-numeric:tabular-nums}
+.lb-tab-eintrag{display:flex;align-items:stretch;min-width:0}
+.lb-tab-eintrag .lb-bedienzeile{flex:1;min-width:0}
+/* Tippziel des ×: 28 breit, 56 hoch (§4.1) — dauerhaft sichtbar, nicht erst bei Hover
+   (auf dem iPad gibt es kein Hover, §4.2). */
+.lb-tab-schliessen{flex:none;width:var(--lb-zeile);height:var(--lb-bedien);
+  min-width:var(--lb-zeile);min-height:var(--lb-bedien);
+  background:transparent;border:0;padding:0;color:var(--muted);font-size:13px;cursor:pointer}
+.lb-tab-schliessen:hover{color:var(--rot)}
+/* Aktiv: doppelt starke Graphitlinie ueber die volle Zeilenbreite ("hier bist du", §4.3) —
+   keine Farbflaeche, derselbe Zustand wie :focus-visible auf .lb-bedienzeile. */
+.lb-tab--aktiv .lb-tab-eintrag .lb-bedienzeile{
+  background-image:linear-gradient(var(--ink),var(--ink));
+  background-repeat:no-repeat;background-position:0 var(--lb-bedien-y);
+  background-size:100% var(--lb-fokus-staerke)}
+/* Einkaufsliste (§7): Kartentitel traegt den Namen des aktiven Rezepts als Nebentext,
+   damit sichtbar ist, wessen Liste dort steht. */
+#einkaufslisteCard .lb-neben{font-size:13px;color:var(--muted);font-weight:400;margin-left:8px}
+
 @media print{
   /* AP-0310: Bestandsaufnahme aller Bereiche des Dreispalten-Layouts (AP-0201 §1) und wie sie
      im Druck behandelt werden — Umsetzungsschritt 1. Geprüft gegen den Stand nach AP-0309:
@@ -1212,7 +1395,10 @@ button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)
      Browser (Dokumentation), nicht nur angenommen. */
   /* AP-0306: #importbereich/#rechercheBereich sind eigene Top-Level-Container (nicht Teil von
      #rezeptbereich) — ohne diese beiden bliebe ein offener Import- oder Recherche-Dialog mit
-     allen Eingabefeldern/Buttons im PDF sichtbar (Abnahmekriterium 1). */
+     allen Eingabefeldern/Buttons im PDF sichtbar (Abnahmekriterium 1).
+     AP-0313: beide sind seither Blendover ausserhalb von main (wie #panelEntwicklung), nicht
+     mehr Kinder von .inhalt — auf Screen ueberlagern sie #rezeptbereich statt es zu verdraengen.
+     Fuer den Druck aendert sich nichts: der Id-Selektor unten greift unabhaengig vom DOM-Ort. */
   header.app,.filters,.scaler,.actions,#meldungen,#importbereich,#rechercheBereich,footer.app,.noprint,
   .rail,.railtoggle,.railtab,.scrim,#btnVollbildEnde{display:none !important}
   body{background:#fff;color:#000;font-size:11pt}
@@ -1325,31 +1511,44 @@ button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)
      B4 (Notizsection) wird erst in AP-0303 befüllt — Bereich hier bereits vorhanden,
      leer mit Kurztext (Zustand "leer" aus AP-0201 §1). -->
 <main id="hauptraster">
+  <!-- AP-0314 (libarius-gestaltung), AP-0204 §4.4: Schiene von oben — Kopf · Suchfeld ·
+       "Rezept öffnen" · Tabs · Sprungblock des aktiven Tabs · Einkaufsliste. Die Rezeptliste
+       (Kategorien, Cue-Spalte) verlaesst die Schiene und wird Blendover (§6, Markup unten
+       bei #panelEntwicklung) — das Rezept bleibt dabei sichtbar. -->
   <aside class="rail rail--links noprint" id="railLinks">
     <div class="railkopf">
       <button class="railspindel" id="btnRailLinksSpindel" aria-label="Navigation ein-/ausklappen">‹›</button>
-      <span class="lbl">Navigation</span>
+      <span class="lbl">Offene Rezepte</span>
       <button class="railclose" id="btnRailLinksSchliessen" aria-label="Schliessen">×</button>
     </div>
     <div class="railinhalt">
-      <section class="card noprint" id="listeCard">
-        <h2>Rezepte</h2>
-        <div class="body">
-          <div class="filters">
-            <input id="suche" type="search" placeholder="Rezept suchen…" autocomplete="off">
-            <!-- AP-0310 Schritt 2a (Entscheid Gianluca 10.09.2026): Kategorie-Auswahl
-                 gestrichen — Cue-Spalte und Suche uebernehmen ihren Zweck. -->
-          </div>
-        </div>
-        <div class="navliste" id="liste"></div>
-        <!-- AP-0310: Cue-Spalte des Cornell-Schnitts entsteht als Kind von #liste,
-             siehe View.liste() — Markup und Masse aus design/entwurf-cue.html,
-             Bausteine .lb-cornell/.lb-cue-* aus design/libarius.css. -->
-      </section>
+      <div class="filters">
+        <input id="suche" type="search" placeholder="Rezept suchen…" autocomplete="off">
+      </div>
+      <button type="button" class="lb-bedienzeile" id="btnRezeptOeffnen"><span class="nm">Rezept öffnen…</span></button>
+      <!-- AP-0204 §4: Tabschiene, siehe View.tabs() -->
+      <div id="railTabs"></div>
+      <!-- AP-0204 §4.4: Sprungblock des aktiven Tabs, siehe View.sprungblock() -->
+      <div id="sprungblock"></div>
       <section class="card noprint" id="einkaufslisteCard">
-        <h2>Einkaufsliste</h2>
+        <h2>Einkaufsliste<span class="lb-neben" id="einkaufslisteName"></span></h2>
         <div id="einkaufslisteInhalt"><div class="empty">Kein Rezept gewählt.</div></div>
       </section>
+    </div>
+    <!-- AP-0314 (libarius-gestaltung), AP-0204 §6: Rezeptliste als Blendover ueber der
+         Schiene — als Kind von #railLinks positioniert (nicht viewport-fixiert), damit die
+         Geometrie der tatsaechlichen Schienenbreite folgt, auch wenn das Grid seine Spuren
+         zentriert (main#hauptraster, justify-content:center) statt am Seitenrand zu kleben.
+         Machart wie #panelEntwicklung: eigener Schleier, Papier mit Rot-Raster (§6.2). -->
+    <div class="lb-schleier noprint" id="rezeplisteSchleier" hidden aria-hidden="true"></div>
+    <div id="rezeplisteBlendover" class="noprint" hidden>
+      <div class="entw-overlay-kopf">
+        <span class="lb-titel">Rezepte</span>
+        <div class="entw-overlay-kopf-rechts">
+          <button id="btnRezeplisteSchliessen" aria-label="Schliessen">×</button>
+        </div>
+      </div>
+      <div id="rezeplisteInhalt"></div>
     </div>
   </aside>
 
@@ -1357,9 +1556,7 @@ button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)
 
   <div class="inhalt">
     <div id="meldungen"></div>
-    <div id="importbereich"></div>
     <div id="rezeptbereich"></div>
-    <div id="rechercheBereich"></div>
   </div>
 
   <div class="lb-randlinie lb-randlinie--rechts noprint" aria-hidden="true"></div>
@@ -1384,6 +1581,13 @@ button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)
      Ausserhalb von main, damit position:fixed nicht an dessen Grid haengt — wie #scrim. -->
 <div class="lb-schleier noprint" id="entwSchleier" hidden aria-hidden="true"></div>
 <div id="panelEntwicklung" class="noprint" hidden><div class="empty">Kein Rezept gewählt.</div></div>
+
+<!-- AP-0313 (libarius-gestaltung), B-2: Import- und Recherche-Dialog als eigene Blendover,
+     ausserhalb von main aus demselben Grund wie #panelEntwicklung/#entwSchleier oben. -->
+<div class="lb-schleier noprint" id="importSchleier" hidden aria-hidden="true"></div>
+<div id="importbereich" class="noprint" hidden></div>
+<div class="lb-schleier noprint" id="rechercheSchleier" hidden aria-hidden="true"></div>
+<div id="rechercheBereich" class="noprint" hidden></div>
 
 <footer class="app">
   libarius — UI-Grundgerüst (AP-0301) mit Rechenkern (AP-0303/0304).
@@ -2846,10 +3050,14 @@ const EntwModell = {
   hydrieren(entwicklung){
     if(!entwicklung) return null;
     const versuche = entwicklung.versuche || [];
+    // AP-0315-Nacharbeit (§3.2/§4.3): basisMengeG je Variante — fehlt es (Bestand vor
+    // diesem Feld), bleibt es null, View.entwZelle/App.entwZutatFeld fallen dann auf
+    // rz.basisMengeG zurueck (kein Migrationsschritt noetig).
     const spalten = (entwicklung.versionen || []).map(v => ({
       v: v.v, datum: v.datum, notiz: v.notiz || "",
       herkunft: v.herkunft || "produktiv",
       eingeklappt: !!v.eingeklappt,
+      basisMengeG: v.basisMengeG != null ? v.basisMengeG : null,
       phasen: v.phasen,
       versuche: versuche.filter(x => x.version === v.v)
     }));
@@ -2867,10 +3075,15 @@ const EntwModell = {
   dehydrieren(zustand){
     return {
       status: zustand.status, zielwerte: zustand.zielwerte || {}, aktivV: zustand.aktivV,
-      versionen: zustand.spalten.map(s => ({
-        v: s.v, datum: s.datum, notiz: s.notiz, herkunft: s.herkunft, eingeklappt: s.eingeklappt,
-        phasen: Import.phasenExport(s.phasen)
-      })),
+      // basisMengeG nur schreiben, wenn gesetzt (AP0308-3 verlangt Verlustfreiheit fuer
+      // Bestand ohne dieses Feld — eine immer vorhandene, aber leere/null Eigenschaft waere
+      // bereits ein Verlust: das Feld existierte im Original schlicht nicht).
+      versionen: zustand.spalten.map(s => {
+        const v = { v: s.v, datum: s.datum, notiz: s.notiz, herkunft: s.herkunft,
+          eingeklappt: s.eingeklappt, phasen: Import.phasenExport(s.phasen) };
+        if(s.basisMengeG != null) v.basisMengeG = s.basisMengeG;
+        return v;
+      }),
       versuche: zustand.spalten.flatMap(s => (s.versuche || []).map(x => ({ ...x, version: s.v })))
     };
   }
@@ -3099,13 +3312,17 @@ const BEISPIEL_REZEPTE = [
 /* ---------- Store ------------------------------------------------------- */
 const Store = {
   rohstoffe:[], rezepte:[], rezepteFehlerhaft:[],
-  aktuellesRezept:null, faktor:1,
-  suchtext:"", offenePhasen:new Set(),
-  // AP-0310: welche Phase in der Cue-Spalte als aktiv markiert ist (Sprungmarke).
-  // 0 = erste Phase, wie Store.offenePhasen bei App.rezeptOeffnen(); Wechsel per Klick
-  // auf eine Sprungmarke (View.sprungPhase). Kein Scroll-Tracking (AP-0310 verlangt
-  // nur "Klick springt und klappt auf" — Aktiv-Folgen-beim-Scrollen ist offener Punkt).
-  phaseAktiv:0,
+  // AP-0314 (libarius-gestaltung): mehrere gleichzeitig offene Rezepte statt eines einzelnen
+  // (AP-0204 §1/§2, Befund B-1). Store.offene ist eine geordnete Liste von Tab-Zustaenden
+  // ({ rezeptId, faktor, offenePhasen, phaseAktiv, referenzIds, korrekturUebernehmenOffen,
+  // zutatenEditor, protokollEintrag, entw, entwOverlayOffen, scrollY }), Store.aktivIdx zeigt
+  // auf den aktiven Tab (-1 = kein Tab offen). aktuellesRezept sowie die neun tab-gebundenen
+  // Felder werden weiter unten per tabFeld()/Object.defineProperty auf Store.offene[aktivIdx]
+  // durchgereicht (AP-0204 §1.1) — dadurch bleiben die rund sechzig bestehenden Lese- UND fast
+  // alle Schreibstellen im Code unveraendert; nur App.rezeptOeffnen/App.schliessen (jetzt
+  // "Tab oeffnen/wechseln/schliessen") greifen direkt auf Store.offene zu.
+  offene:[], aktivIdx:-1,
+  suchtext:"",
   // AP-0302: Workbook-Objekte des zuletzt geladenen Bestands, fuer AP-0315-Uebernahme
   // (null bei Beispieldaten — Import bleibt dann im Speicher dieser Sitzung).
   rezepteWorkbook:null, rezepteSheetName:null, rohstoffeWorkbook:null, rohstoffeSheetName:null,
@@ -3115,52 +3332,76 @@ const Store = {
   // AP-0318: gleiches Prinzip fuer Rohstoffe.xlsx — Basis fuer die Konflikterkennung vor
   // jedem Schreiben aus dem Recherche-Dialog (App.rechercheUebernehmen()).
   rohstoffeETag:null,
-  // AP-0307: Zustand des Verfahrensprotokoll-Eingabeformulars, null = geschlossen
-  // (App.protokollEintragOeffnen()).
-  protokollEintrag:null,
   // AP-0315: Zustand des Import-Dialogs, ein Objekt pro Durchlauf (App.importOeffnen()).
   import:null,
   // AP-0318: Zustand des Recherche-Dialogs ("Preise aktualisieren"), ein Objekt pro Durchlauf
   // (App.rechercheOeffnen()); null = Dialog geschlossen.
   recherche:null,
-  // AP-0308: Zustand des Entwicklungsmodus nach AP-0204 §5 — ersetzt Store.devForm ERSATZLOS
-  // (R1): beliebig viele Spalten (Varianten) sind gleichzeitig offen UND bearbeitbar, kein
-  // Formularwechsel schliesst mehr etwas. { rezeptId, basis, aktivV, spalten:[Spalte...],
-  // overlay } — overlay ist der EINZIGE verbleibende modale Slot (R2, fuenf Inhalte:
-  // bewertung/zielwerte/referenz/substitution/uebernehmen). null = fuer das aktuelle Rezept
-  // nicht geoeffnet (App.entwOeffnen()). Persistiert vollstaendig in localStorage je rezeptId
-  // (R3, EntwEntwurf) — Rezepte.xlsx sieht nur "Varianten sichern" und "übernehmen" (R4).
-  entw:null,
-  // AP-0304 (libarius-gestaltung), O-20/R-09: sichtbar/versteckt des Entwicklungsmodus-
-  // Overlays (B6) ueber der Rezeptur — ersetzt den vormaligen Reiter in der rechten Schiene.
-  // Rein sitzungslokal, nicht Teil von Store.entw selbst (das bleibt je rezeptId bestehen,
-  // R7); false bei jedem Rezeptwechsel (App.rezeptOeffnen/App.schliessen).
-  entwOverlayOffen:false,
   // AP-0308: g oder % — Anzeige-Umschalter fuer alle Wertespalten gleichzeitig (AP-0204 §4.2:
   // "Umschalter g ⇄ % wie im Zutaten-Editor"), sitzungslokal, kein Feld des Datenmodells.
   entwEinheit:"g",
   // AP-0308/§5.2 R8: localStorage fuer den Entwicklungsmodus-Entwurf nicht verfuegbar/voll —
   // einmalige Warnkachel IN DER SCHIENE (nicht global), Bereich arbeitet sitzungslokal weiter.
   entwFehler:false,
-  // AP-0313: IDs der bis zu 3 gewaehlten Referenzrezepte. Bewusst nur sitzungslokal — der
-  // Vergleich ist eine Ansicht, kein Rezeptinhalt; nichts davon wird nach Rezepte.xlsx
-  // geschrieben (Spez. AP-0203 §5 verlangt keine Persistenz).
-  referenzIds:[],
   // AP-0302/B2: Haken der Einkaufsliste, { [rezeptId]: Set<nameKey> } — rein sitzungslokal
   // (AP-0201 §3.5: "kein neuer Datenbestand, nichts wird nach Rezepte.xlsx geschrieben"),
   // kein localStorage. Je rezeptId gehalten statt global, damit ein Zwischenwechsel auf ein
   // anderes Rezept (z. B. beim Kochen eines Menüs) die Haken nicht verwirft — gleiches Prinzip
   // wie korrekturen[rezeptId] in §3.4, nur ohne dessen Persistenz.
-  einkaufslisteAbgehakt:{},
-  // AP-0303: Zustand des Bestaetigungsdialogs "Ins Rezept übernehmen" (B4) — analog zu
-  // Store.protokollEintrag/Store.devForm, aber ohne eigene Formularfelder (reine Vorschau +
-  // Bestaetigen/Abbrechen); false = geschlossen.
-  korrekturUebernehmenOffen:false,
-  // AP-0305: Zustand des Zutaten-Editors, null = geschlossen (App.zutatenEditorOeffnen()).
-  // { rezeptId, phasen (Entwurf, tiefe Kopie von rz.phasen), vorschauBestaetigt, pruefung,
-  //   konflikt } — konflikt != null waehrend des Dialogs aus AP-0203 §4.
-  zutatenEditor:null
+  einkaufslisteAbgehakt:{}
 };
+
+// AP-0314 (libarius-gestaltung), AP-0204 §1.1: je ein Getter/Setter, der auf das Feld
+// des AKTIVEN Tabs (Store.offene[Store.aktivIdx]) durchreicht. Ohne aktiven Tab liefert
+// der Getter den Ausgangswert (typischerweise "kein Rezept/keine Auswahl"); der Setter tut
+// dann nichts — es gibt keinen Tab, dessen Zustand er halten koennte.
+function tabFeld(name, ausgang){
+  Object.defineProperty(Store, name, {
+    enumerable:true, configurable:true,
+    get(){ const t = Store.offene[Store.aktivIdx]; return t ? t[name] : (typeof ausgang === "function" ? ausgang() : ausgang); },
+    set(wert){ const t = Store.offene[Store.aktivIdx]; if(t) t[name] = wert; }
+  });
+}
+tabFeld("faktor", 1);
+tabFeld("offenePhasen", () => new Set());
+// AP-0310: welche Phase in der Cue-Spalte als aktiv markiert ist (Sprungmarke), je Tab —
+// 0 = erste Phase, wie beim Oeffnen (App.rezeptOeffnen); Wechsel per Klick auf eine
+// Sprungmarke (View.sprungPhase).
+tabFeld("phaseAktiv", 0);
+// AP-0313: IDs der bis zu 3 gewaehlten Referenzrezepte, je Tab (AP-0204 §1.1) — bewusst nur
+// sitzungslokal, nichts davon wird nach Rezepte.xlsx geschrieben.
+tabFeld("referenzIds", () => []);
+// AP-0303: Zustand des Bestaetigungsdialogs "Ins Rezept übernehmen" (B4), je Tab.
+tabFeld("korrekturUebernehmenOffen", false);
+// AP-0305: Zustand des Zutaten-Editors, je Tab; null = geschlossen (App.zutatenEditorOeffnen()).
+// { rezeptId, phasen (Entwurf, tiefe Kopie von rz.phasen), vorschauBestaetigt, pruefung,
+//   konflikt } — konflikt != null waehrend des Dialogs aus AP-0203 §4.
+tabFeld("zutatenEditor", null);
+// AP-0307: Zustand des Verfahrensprotokoll-Eingabeformulars, je Tab; null = geschlossen
+// (App.protokollEintragOeffnen()).
+tabFeld("protokollEintrag", null);
+// AP-0308: Zustand des Entwicklungsmodus nach AP-0204 §5, je Tab (AP-0204 §1.1: "die
+// Entwicklung haengt am Tab") — beliebig viele Spalten (Varianten) sind gleichzeitig offen
+// UND bearbeitbar. { rezeptId, basis, aktivV, spalten:[Spalte...], overlay } — overlay ist
+// der EINZIGE verbleibende modale Slot (R2). null = fuer das aktuelle Rezept nicht geoeffnet
+// (App.entwOeffnen()). Persistiert vollstaendig in localStorage je rezeptId (R3, EntwEntwurf).
+tabFeld("entw", null);
+// AP-0304/AP-0314: sichtbar/versteckt des Entwicklungsmodus-Overlays (B6), je Tab — false bei
+// jedem neu geoeffneten Tab.
+tabFeld("entwOverlayOffen", false);
+
+// AP-0314, AP-0204 §1.1: aktuellesRezept bleibt bestehen — als GETTER auf den aktiven Tab
+// (rz.id wird bei jedem Zugriff frisch gegen Store.rezepte aufgeloest, nicht als Objektkopie
+// gehalten: eine gemerkte rezeptId, die im geladenen Bestand fehlt — Import, andere Datenbank —
+// faellt so von selbst still weg, §2.5). Kein Setter mehr: geoeffnet/gewechselt/geschlossen wird
+// ausschliesslich ueber App.rezeptOeffnen/App.tabWechseln/App.schliessen (Store.offene).
+Object.defineProperty(Store, "aktuellesRezept", {
+  enumerable:true, configurable:true,
+  get(){
+    const t = Store.offene[Store.aktivIdx];
+    return t ? (Store.rezepte.find(r => r.id === t.rezeptId) || null) : null;
+  }
+});
 
 /* ---------- Korrekturen: Kochkorrekturen je Rezept (B4, AP-0201 §3) --------------
    Eine Korrektur ist NIE ein Schreibpfad nach Rezepte.xlsx — nur die ausdrueckliche
@@ -3292,8 +3533,76 @@ const View = {
   // Notizspalte im Entwurf durch eine eigene "n Rezepte"-Zeile ersetzt wird, nicht
   // nur ausgeblendet — das kann <details> alleine nicht abbilden. Zustand bleibt
   // in NavGruppen (localStorage), unveraendert aus AP-0302.
+  // AP-0314 (libarius-gestaltung), AP-0204 §9: Orchestrator — haelt die rund fuenfzehn
+  // bestehenden Aufrufstellen von View.liste() unveraendert, zeichnet aber neu getrennt:
+  // Tabschiene, Sprungblock des aktiven Tabs (beide bleiben in der Schiene) und die
+  // Rezeptliste (Kategorien mit Cue-Spalte, wandert ins Blendover, §6).
   liste(){
-    const box = el("#liste"); const rs = View.gefilterte();
+    View.tabs();
+    View.sprungblock();
+    View.blendoverListe();
+  },
+
+  // AP-0204 §4: die Tabschiene — ein Eintrag je Store.offene, Cue-Spur traegt den
+  // Skalierungsfaktor (nur wenn ≠ 1), aktiv = doppelt starke Graphitlinie (§4.3).
+  tabs(){
+    const box = el("#railTabs");
+    if(!box) return;
+    if(!Store.offene.length){ box.innerHTML = ""; return; }
+    box.innerHTML = `<div class="lb-cornell">${Store.offene.map((t, i) => {
+      const rz = Store.rezepte.find(r => r.id === t.rezeptId);
+      if(!rz) return "";
+      const aktiv = i === Store.aktivIdx;
+      return `<div class="lb-cue-zeile lb-tab${aktiv ? " lb-tab--aktiv" : ""}" data-idx="${i}">
+        <span class="lb-cue lb-tab-cue">${t.faktor !== 1 ? "×" + t.faktor : ""}</span>
+        <div class="lb-tab-eintrag">
+          <button type="button" class="lb-bedienzeile lb-bedienzeile--umbruch" data-tab-oeffnen="${i}">
+            <span class="nm">${esc(rz.name)}${Korrekturen.hatOffene(rz.id) ? '<span class="punkt" title="Offene Korrekturen">●</span>' : ""}</span>
+          </button>
+          <button type="button" class="lb-tab-schliessen" data-tab-schliessen="${i}" aria-label="Rezept schliessen" title="Schliessen">×</button>
+        </div>
+      </div>`;
+    }).join("")}</div>`;
+    box.querySelectorAll("[data-tab-oeffnen]").forEach(b =>
+      b.addEventListener("click", () => App.tabWechseln(Number(b.dataset.tabOeffnen))));
+    box.querySelectorAll("[data-tab-schliessen]").forEach(b =>
+      b.addEventListener("click", e => { e.stopPropagation(); App.tabSchliessen(Number(b.dataset.tabSchliessen)); }));
+  },
+
+  // AP-0204 §4.4: der Sprungblock (Phasen + Metadaten-Marke) des AKTIVEN Tabs — wandert
+  // unter die Tabs, weil er zum aktiven Rezept gehoert, nicht zur Auswahl (Cue-Spalte
+  // aus AP-0310, unveraendert uebernommen).
+  sprungblock(){
+    const box = el("#sprungblock");
+    if(!box) return;
+    const rz = Store.aktuellesRezept;
+    if(!rz || rz.phasen.length < 2){ box.innerHTML = ""; return; }
+    const aktivIdx = (Store.phaseAktiv != null && Store.phaseAktiv < rz.phasen.length) ? Store.phaseAktiv : 0;
+    box.innerHTML = `<div class="lb-luecke"></div><div class="lb-cornell">
+      <div class="lb-cue-kopf"><span>Phasen</span><span>${esc(rz.name)}</span></div>
+      ${rz.phasen.map((p, i) => `
+        <a class="lb-cue-zeile lb-sprungmarke${i === aktivIdx ? " lb-sprungmarke--aktiv" : ""}" href="#" data-sprung-phase="${i}">
+          <span class="lb-cue">${i + 1}</span>
+          <span class="lb-bedienzeile lb-bedienzeile--umbruch"><span class="nm">${esc(p.name)}</span></span>
+        </a>`).join("")}
+      <a class="lb-cue-zeile lb-sprungmarke lb-sprungmarke--neben" href="#" data-sprung-metadaten="1">
+        <span class="lb-cue"></span>
+        <span class="lb-bedienzeile lb-bedienzeile--umbruch"><span class="nm">Metadaten</span></span>
+      </a>
+    </div>`;
+    box.querySelectorAll("[data-sprung-phase]").forEach(a =>
+      a.addEventListener("click", e => { e.preventDefault(); View.sprungPhase(Number(a.dataset.sprungPhase)); }));
+    box.querySelectorAll("[data-sprung-metadaten]").forEach(a =>
+      a.addEventListener("click", e => { e.preventDefault(); View.sprungMetadaten(); }));
+  },
+
+  // AP-0204 §6: die Rezeptliste (Kategoriegruppen mit Cue-Spalte, AP-0310 unveraendert
+  // uebernommen) — jetzt Inhalt des Blendovers statt der Schiene. §6.5: bereits offene
+  // Rezepte tragen eine Unterstreichung, das aktive die doppelt starke Linie wie sein Tab.
+  blendoverListe(){
+    const box = el("#rezeplisteInhalt");
+    if(!box) return;
+    const rs = View.gefilterte();
     const fehlerhaft = Store.rezepteFehlerhaft || [];
     if(!rs.length && !fehlerhaft.length){ box.innerHTML = '<div class="empty">Kein Rezept gefunden</div>'; return; }
     const suchtAktiv = !!Store.suchtext.trim();
@@ -3307,32 +3616,18 @@ const View = {
     });
     const kats = [...gruppen.keys()].sort((a,b) => a.localeCompare(b, "de"));
 
-    // Entwurf §1: der Sprungblock erscheint nur bei offenem Rezept mit mindestens
-    // zwei Phasen — bei einer Phase gibt es nichts zu springen (40 % der Rezepte).
-    // Die Metadaten-Marke bringt die fuenf zugeklappten Metadatenbloecke in den
-    // Blick, ohne sie zu oeffnen (sie stehen kompakt beieinander, Entwurf §1).
-    const aktivIdx = (rz && Store.phaseAktiv != null && Store.phaseAktiv < rz.phasen.length) ? Store.phaseAktiv : 0;
-    const sprungHtml = (rz && rz.phasen.length >= 2) ? `
-      <div class="lb-cue-kopf"><span>Phasen</span><span>${esc(rz.name)}</span></div>
-      ${rz.phasen.map((p, i) => `
-        <a class="lb-cue-zeile lb-sprungmarke${i === aktivIdx ? " lb-sprungmarke--aktiv" : ""}" href="#" data-sprung-phase="${i}">
-          <span class="lb-cue">${i + 1}</span>
-          <span class="lb-bedienzeile lb-bedienzeile--umbruch"><span class="nm">${esc(p.name)}</span></span>
-        </a>`).join("")}
-      <a class="lb-cue-zeile lb-sprungmarke lb-sprungmarke--neben" href="#" data-sprung-metadaten="1">
-        <span class="lb-cue"></span>
-        <span class="lb-bedienzeile lb-bedienzeile--umbruch"><span class="nm">Metadaten</span></span>
-      </a>
-      <div class="lb-luecke"></div>` : "";
-
     const gruppenHtml = kats.map(kat => {
       const items = gruppen.get(kat);
       const offen = suchtAktiv || NavGruppen.offen(kat);
       if(offen){
-        const zeilen = items.map(r => `
-          <li><button type="button" class="lb-bedienzeile lb-bedienzeile--umbruch${rz && r.id === rz.id ? " lb-bedienzeile--aktiv" : ""}" data-id="${esc(r.id)}">
+        const zeilen = items.map(r => {
+          const istOffen = Store.offene.some(t => t.rezeptId === r.id);
+          const istAktiv = !!(rz && r.id === rz.id);
+          const klasse = istAktiv ? " lb-bedienzeile--aktiv lb-tab--aktiv" : (istOffen ? " lb-bedienzeile--aktiv" : "");
+          return `
+          <li><button type="button" class="lb-bedienzeile lb-bedienzeile--umbruch${klasse}" data-id="${esc(r.id)}">
             <span class="nm">${esc(r.name)}${Korrekturen.hatOffene(r.id) ? '<span class="punkt" title="Offene Korrekturen">●</span>' : ""}</span>
-          </button></li>`).join("");
+          </button></li>`;}).join("");
         return `<div class="lb-cue-gruppe" data-kat="${esc(kat)}">
           <button type="button" class="lb-cue" aria-expanded="true">${esc(kat)}</button>
           <ul class="lb-cue-notiz">${zeilen}</ul>
@@ -3356,7 +3651,7 @@ const View = {
         </li>`).join("")}
       </ul></div>` : "";
 
-    box.innerHTML = `<div class="lb-cornell">${sprungHtml}${gruppenHtml}</div>${fehlerHtml}`;
+    box.innerHTML = `<div class="lb-cornell">${gruppenHtml}</div>${fehlerHtml}`;
     box.querySelectorAll("button[data-id]").forEach(b =>
       b.addEventListener("click", () => App.rezeptOeffnen(b.dataset.id)));
     box.querySelectorAll(".lb-cue-gruppe > button.lb-cue").forEach(cue =>
@@ -3364,23 +3659,19 @@ const View = {
         // Waehrend der Suche ist "offen" erzwungen (oben) — ein Klick hier ist dann kein
         // bewusster Nutzerentscheid und darf den gemerkten Zustand nicht ueberschreiben.
         if(!suchtAktiv) NavGruppen.toggle(cue.parentElement.dataset.kat, cue.getAttribute("aria-expanded") !== "true");
-        View.liste();
+        View.blendoverListe();
       }));
-    box.querySelectorAll("[data-sprung-phase]").forEach(a =>
-      a.addEventListener("click", e => { e.preventDefault(); View.sprungPhase(Number(a.dataset.sprungPhase)); }));
-    box.querySelectorAll("[data-sprung-metadaten]").forEach(a =>
-      a.addEventListener("click", e => { e.preventDefault(); View.sprungMetadaten(); }));
   },
 
   // AP-0310, Umsetzungsschritt 3: Sprungmarke -> Phase. Oeffnet die Phase (wie der
   // erste Eintrag beim Rezeptwechsel, App.rezeptOeffnen) und bringt sie in den Blick.
-  // Nur die Aktiv-Markierung wird direkt umgesetzt (keine Neuzeichnung von #liste) —
+  // Nur die Aktiv-Markierung wird direkt umgesetzt (keine Neuzeichnung von #sprungblock) —
   // sonst ginge bei bereits offener Phase nichts verloren, aber ein voller Rebuild
   // waere fuer eine reine Klassenaenderung unnoetig.
   sprungPhase(i){
     const rz = Store.aktuellesRezept; if(!rz || !rz.phasen[i]) return;
     Store.phaseAktiv = i;
-    document.querySelectorAll("#liste .lb-sprungmarke[data-sprung-phase]").forEach(a =>
+    document.querySelectorAll("#sprungblock .lb-sprungmarke[data-sprung-phase]").forEach(a =>
       a.classList.toggle("lb-sprungmarke--aktiv", Number(a.dataset.sprungPhase) === i));
     if(!Store.offenePhasen.has(i)){
       Store.offenePhasen.add(i);
@@ -3402,6 +3693,9 @@ const View = {
   einkaufsliste(){
     const box = el("#einkaufslisteInhalt");
     const rz = Store.aktuellesRezept;
+    // AP-0314, AP-0204 §7: die Liste folgt dem aktiven Tab — der Kartentitel traegt seinen
+    // Namen als Nebentext, damit sichtbar ist, wessen Liste dort steht.
+    el("#einkaufslisteName").textContent = rz ? rz.name : "";
     if(!rz){ box.innerHTML = '<div class="empty">Kein Rezept gewählt.</div>'; return; }
     // AP-0303 Abnahmekriterium 1: die Korrektur wirkt hier genauso wie in der Zutatenzeile.
     const kx = Korrekturen.get(rz.id);
@@ -3436,6 +3730,12 @@ const View = {
     const box = el("#panelKochen");
     const rz = Store.aktuellesRezept;
     if(!rz){ box.innerHTML = '<div class="empty">Kein Rezept gewählt.</div>'; return; }
+    // AP-0315, AP-0205 §6: Kochkorrekturen sind waehrend der Entwicklung stillgelegt — sie
+    // verschieben genau die Zahlen, gegen die Varianten gerechnet werden.
+    if(Store.entwOverlayOffen){
+      box.innerHTML = '<div class="empty">Kochkorrekturen sind während der Entwicklung gesperrt.</div>';
+      return;
+    }
     const kx = Korrekturen.get(rz.id);
     const anzahl = Object.keys(kx.zutaten).length;
 
@@ -3547,7 +3847,10 @@ const View = {
   // fuer GENAU diese Zutat (Aufrufer loest ihn ueber "<phasenIdx>/<zutatIdx>" auf) — die
   // korrigierte Menge ersetzt die Sollmenge an ihrer Stelle, die alte Sollmenge steht
   // durchgestrichen daneben, und das Bäckerprozent rechnet mit der korrigierten Menge.
-  zutatenzeile(z, rz, faktor, korrektur){
+  // AP-0315: die drei Zellinhalte einer Zutatenzeile, herausgeloest aus zutatenzeile() —
+  // sowohl die normale <table>-Zeile als auch die Entwicklungs-Grid-Zeile (entwZutatZeileGrid)
+  // brauchen genau dieselbe Rechnung, nur verschieden verpackt (<td> vs. <div>).
+  zutatenzeileTeile(z, rz, faktor, korrektur){
     const g = Calc.mengeG(z, rz.basisMengeG, faktor);
     const unbekannt = z.rohstoff ? "" : '<span class="warn-inline">unbekannter Rohstoff</span>';
     // AP-0314/§6: FODMAP-Ampel je Zutat, in Normal- UND Entwicklungsmodus sichtbar (beide
@@ -3569,9 +3872,29 @@ const View = {
       menge = View.mengeText(g, z.einheit, z.rohstoff);
       pct = z.prozent * 100;
     }
-    return `<tr><td>${esc(z.name)}${unbekannt}${fodmapHtml}</td>
-      <td class="pct">${pct.toFixed(1)} %</td>
-      <td class="menge">${menge}</td></tr>`;
+    return { nameHtml: `${esc(z.name)}${unbekannt}${fodmapHtml}`, pctText: pct.toFixed(1) + " %", mengeHtml: menge };
+  },
+
+  // AP-0315 (libarius-gestaltung): entwZellenHtml (optional) haengt fertig gerenderte
+  // <td class="entw-td"> je offener Variante an — dieselbe <tr>, dieselbe Zeile (AP-0205 §3.1).
+  zutatenzeile(z, rz, faktor, korrektur, entwZellenHtml){
+    const t = View.zutatenzeileTeile(z, rz, faktor, korrektur);
+    return `<tr><td>${t.nameHtml}</td>
+      <td class="pct">${t.pctText}</td>
+      <td class="menge">${t.mengeHtml}</td>${entwZellenHtml || ""}</tr>`;
+  },
+
+  // AP-0315, AP-0205 §3.1: dieselbe Zutatenzeile als Grid-Zeile (statt <tr>) — braucht die
+  // Entwicklungs-Grid-Zutatentabelle (entwGridTemplate), damit Zutaten-, Schritt- und
+  // Kopf/Fuss-Zeilen exakt dieselben Spaltengrenzen teilen (AP-0205 §3: "nie positioniert,
+  // immer eingehaengt" gilt nur, wenn alle Zeilen im selben Raster liegen).
+  entwZutatZeileGrid(z, rz, faktor, korrektur, entwZellenHtml){
+    const t = View.zutatenzeileTeile(z, rz, faktor, korrektur);
+    // AP-0316: title traegt den vollen Namen als Tooltip, da die Zelle bei Ueberlaenge
+    // sichtbar gekuerzt wird (text-overflow:ellipsis, siehe CSS .entw-zeile-name).
+    return `<div class="entw-zeile-name" title="${esc(z.name)}">${t.nameHtml}</div>
+      <div class="entw-zeile-pct">${t.pctText}</div>
+      <div class="entw-zeile-menge">${t.mengeHtml}</div>${entwZellenHtml || ""}`;
   },
 
   // AP-0312/AP-0314, Nebenansicht AP-0309: Versionen (entwicklung.versionen[].phasen /
@@ -3664,13 +3987,39 @@ const View = {
   // Eine Zelle einer Wertespalte. basisPhasen liefert den Vergleichswert fuer Δ und
   // "geaendert" (O2) — bezogen auf Store.entw.basis (O5), nicht zwingend auf die produktive
   // Rezeptur. Gramm/Prozent folgt Store.entwEinheit (Umschalter "wie im Zutaten-Editor").
+  // AP-0315: reine Ja/Nein-Fassung derselben Delta-Logik wie entwZelle — fuer die
+  // Phasen-Summary (§3.3, "n ≠"), die nur zaehlt statt einzelne Werte zu zeichnen.
+  entwGeaendert(sp, r, basisPhasen){
+    const ph = sp.phasen[r.pi];
+    if(r.typ === "zutat"){
+      const zu = ph && ph.zutaten[r.zi];
+      if(!zu) return !!r.basis;
+      if(!r.basis) return true;
+      const g = zu.prozent, basisG = r.basis.prozent;
+      return Math.abs(g - basisG) > 0.0001;
+    }
+    if(r.typ === "schritt"){
+      const bp = basisPhasen[r.pi];
+      const sc = ph && ph.schritte[r.si];
+      const basisText = bp && bp.schritte[r.si] ? bp.schritte[r.si].text : "";
+      return (sc ? (sc.text || "") : "") !== basisText;
+    }
+    return false;
+  },
+
   entwZelle(sp, r, rz, basisPhasen){
     if(r.typ === "phase") return `<div class="entw-zelle entw-phase">&nbsp;</div>`;
     const ph = sp.phasen[r.pi];
     if(r.typ === "zutat"){
       const zu = ph && ph.zutaten[r.zi];
       if(!zu) return `<div class="entw-zelle entw-wert" style="color:var(--muted)">–</div>`;
-      const g = Calc.mengeG(zu, rz.basisMengeG, 1);
+      // AP-0315-Nacharbeit (§3.2/§4.3): diese Spalte rechnet mit ihrer eigenen Basismenge,
+      // wenn gesetzt (Kopf-Zelle "Basismenge") — sonst mit der produktiven, wie zuvor. Der
+      // Vergleichswert basisG bleibt bewusst an der PRODUKTIVEN Basismenge verankert: Δ zeigt
+      // damit, was dieses Gramm in dieser Variante gegenüber der produktiven Rezeptur wirklich
+      // ausmacht — Prozent- UND Chargengrössen-Änderung zusammen.
+      const basisMenge = sp.basisMengeG != null ? sp.basisMengeG : rz.basisMengeG;
+      const g = Calc.mengeG(zu, basisMenge, 1);
       const basisZu = r.basis;
       const basisG = basisZu ? Calc.mengeG(basisZu, rz.basisMengeG, 1) : null;
       const deltaG = basisG != null ? g - basisG : null;
@@ -3703,6 +4052,86 @@ const View = {
       return `<div class="entw-zelle"><input type="text" data-entw-schritt-feld="${sp.v}|${r.pi}|${r.si}" value="${esc(sc.text || "")}"></div>`;
     return `<div class="entw-zelle entw-schritt-zelle" data-entw-schritt-oeffnen="${sp.v}|${r.pi}|${r.si}"
       title="${esc(sc.text || "")}">${geaendert ? "✎" : "—"}</div>`;
+  },
+
+  /* ---------- AP-0315: Spaltenkopf/-fuss als eigenstaendiger "Rahmen" (AP-0205 §3.4) --------
+     Ersetzt fuer die Hauptansicht den achse-basierten Verbund aus entwSpalteHtml (unten, bleibt
+     stehen — AP-0205 §8/§9: nichts loeschen, nur wirkungslos schalten): Kopf sitzt jetzt sticky
+     UEBER der Rezeptur, Fuss NACH den Metadaten — beide im selben Raster (entwGridTemplate) wie
+     die eingehaengten Zellen, damit v-Nummer/Notiz/Bewerten-Knopf lotrecht ueber ihrer Spalte
+     stehen. Zwei Gestalten nach §3.4 (AP-0315-Nacharbeit): dasselbe Markup schrumpft beim
+     Kleben per CSS-Klasse ".entw-rahmen--geklebt" von 224 auf 56 px, keine zweite Fassung
+     noetig — Layout.entwKopfKlebenPruefen() erkennt "klebt" ueber die Sticky-Oberkante. */
+  entwSpaltenkopf(sp, z, rz){
+    const aktiv = sp.v === z.aktivV;
+    const diff = Calc.entwDiff({ phasen: rz.phasen }, { phasen: sp.phasen });
+    const zGeaendert = diff.zutaten.filter(x => x.delta != null && Math.abs(x.delta) > 0.0001).length;
+    const sGeaendert = diff.schritte.filter(x => x.geaendert).length;
+    return `<div class="entw-kopf">
+      <div class="entw-kopf-zeile1">
+        <button type="button" class="ghost entw-v" data-entw-aktiv="${sp.v}">v${sp.v}</button>
+        ${aktiv ? '<span class="entw-badge-aktiv">aktiv</span>' : ""}
+      </div>
+      <div class="entw-diff">${zGeaendert || sGeaendert
+        ? `${zGeaendert} Zutat(en) · ${sGeaendert} Schritt(e) geändert gegenüber produktiv`
+        : "unverändert gegenüber produktiv"}</div>
+      <input type="text" data-entw-notiz="${sp.v}" value="${esc(sp.notiz || "")}" placeholder="Notiz…">
+      <div class="entw-kopf-knoepfe noprint">
+        <button class="ghost" data-entw-abzweigen="${sp.v}" title="Neue Variante als Kopie dieser Spalte">+ Var.</button>
+        <button class="ghost" data-entw-einklappen="${sp.v}">◀</button>
+      </div>
+    </div>`;
+  },
+  entwSpaltenfuss(sp){
+    const letzter = (sp.versuche || []).slice().sort((a, b) => (b.datum || "").localeCompare(a.datum || ""))[0];
+    return `<div class="entw-fuss noprint">
+      <div class="entw-letzter" data-entw-bewerten="${sp.v}">${letzter
+        ? "Letzter Versuch " + esc(letzter.datum) + " · " + "●".repeat(letzter.bewertung || 0) + "○".repeat(5 - (letzter.bewertung || 0))
+        : "noch kein Versuch"}</div>
+      <div class="actions">
+        <button class="ghost" data-entw-bewerten="${sp.v}">Bewerten</button>
+        <button data-entw-uebernehmen="${sp.v}">Übernehmen</button>
+      </div>
+    </div>`;
+  },
+
+  // AP-0315: Rahmen (Leiste + Kopfreihe), sticky ueber der Rezeptur. z==null (keine Entwicklung
+  // fuer dieses Rezept) zeigt nur den Anstoss "+ Variante" — dieselbe Fallback-Zeile wie zuvor
+  // in entwKarte(). entwGridTemplate/entwSpaltenOffen kommen aus View.rezept() (einmal
+  // berechnet, von Zutaten-, Schritt- UND Kopf/Fuss-Zeilen geteilt, AP-0205 §3.2).
+  entwRahmenKopf(rz, z, entwGridTemplate, entwSpaltenOffen){
+    if(!z){
+      return `<div class="entw-rahmen-leiste noprint">
+        <span class="entw-abzeichen">Entwicklung</span>
+        <button class="ghost" id="btnEntwVarianteHinzufuegen">+ Variante</button>
+        <button class="ghost" id="btnEntwSchliessen">Entwicklung schliessen</button>
+      </div>`;
+    }
+    const eingeklappt = z.spalten.filter(sp => sp.eingeklappt);
+    return `<div class="entw-rahmen sticky-entw">
+      <div class="entw-rahmen-leiste noprint">
+        <span class="entw-abzeichen">Entwicklung · ${z.spalten.length} Variante${z.spalten.length===1?"":"n"}</span>
+        ${Store.entwFehler ? '<span class="entw-fehler-hinweis">Zwischenspeicher nicht verfügbar — nur diese Sitzung</span>' : ""}
+        <button class="ghost" id="btnEntwVarianteHinzufuegen">+ Variante</button>
+        <button class="ghost" id="btnEntwEinheit">${Store.entwEinheit === "%" ? "% → g" : "g → %"}</button>
+        <button class="ghost" id="btnEntwZielwerte">Zielwerte</button>
+        <button class="ghost" id="btnEntwReferenz">Referenz-Vergleich</button>
+        <button class="ghost" id="btnEntwVariantenSichern">Varianten sichern</button>
+        ${eingeklappt.length ? eingeklappt.map(sp => `<button class="ghost" data-entw-einklappen="${sp.v}" title="v${sp.v} wieder anzeigen">▶ v${sp.v}</button>`).join("") : ""}
+        <button class="ghost" id="btnEntwSchliessen">Entwicklung schliessen</button>
+      </div>
+      <div class="entw-kopf-reihe" style="grid-template-columns:${entwGridTemplate}">
+        <div></div><div></div><div></div>
+        ${entwSpaltenOffen.map(sp => View.entwSpaltenkopf(sp, z, rz)).join("")}
+      </div>
+    </div>`;
+  },
+  entwRahmenFuss(z, entwGridTemplate, entwSpaltenOffen){
+    if(!z || !entwSpaltenOffen.length) return "";
+    return `<div class="entw-fuss-reihe" style="grid-template-columns:${entwGridTemplate}">
+      <div></div><div></div><div></div>
+      ${entwSpaltenOffen.map(sp => View.entwSpaltenfuss(sp)).join("")}
+    </div>`;
   },
 
   // AP-0204 §6 O1/O2/O3: Spaltenkopf und -fuss sind DAUERHAFTE Anzeigen, kein Dialog. Δ-Zeile
@@ -4081,6 +4510,9 @@ const View = {
         const [v, pi, zi] = inp.dataset.entwZutat.split("|").map(Number);
         App.entwZutatFeld(v, pi, zi, e.target.value);
       }));
+    // AP-0315-Nacharbeit: Basismenge-Kopfzelle, "change" wie bei den Zutatenwerten.
+    document.querySelectorAll("[data-entw-basismenge]").forEach(inp =>
+      inp.addEventListener("change", e => App.entwBasisMengeFeld(Number(inp.dataset.entwBasismenge), e.target.value)));
     document.querySelectorAll("[data-entw-schritt-oeffnen]").forEach(zellenEl =>
       zellenEl.addEventListener("click", () => {
         const [v, pi, si] = zellenEl.dataset.entwSchrittOeffnen.split("|").map(Number);
@@ -4333,6 +4765,9 @@ const View = {
     const rz = Store.aktuellesRezept, f = Store.faktor;
     // Entwurf 2a: die Kopfzeile trägt den Namen des offenen Rezepts.
     const kopf = el("#kopftitel"); if(kopf) kopf.textContent = rz ? rz.name : "";
+    // AP-0314: die Cue-Spur des aktiven Tabs zeigt den Skalierungsfaktor (§4.2) — jede
+    // Neuzeichnung der Rezeptur (auch App.skalieren) zieht die Tabschiene mit nach.
+    View.tabs();
     if(!rz){
       el("#rezeptbereich").innerHTML = "";
       el("#panelEntwicklung").innerHTML = '<div class="empty">Kein Rezept gewählt.</div>';
@@ -4340,6 +4775,7 @@ const View = {
       Store.entwOverlayOffen = false;
       el("#panelEntwicklung").hidden = true;
       el("#entwSchleier").hidden = true;
+      document.body.classList.remove("entw-offen");
       View.einkaufsliste();
       View.notizsection();
       return;
@@ -4356,14 +4792,66 @@ const View = {
     const n = Calc.naehrwerte(rz, f);
     const fd = Calc.fodmapGesamt(Calc.zutatenFlach(rz));
 
+    // AP-0315 (libarius-gestaltung), AP-0205 §3.1: "die Entwicklungszelle wird nie
+    // positioniert, sie wird EINGEHAENGT" — eine zusaetzliche Zelle in derselben Zeile des
+    // Rezepts, fuer jede offene (nicht eingeklappte) Variante. Kein separates .entw-achse
+    // mehr (§2.3/§4.1): das Rezept ist die Achse, darum ist der Zeilenplan hier IMMER an
+    // rz.phasen verankert (nicht an der waehlbaren "Δ gegen"-Vergleichsbasis aus AP-0308) —
+    // sonst koennte die eingehaengte Zeilenzahl von der echten Rezeptzeile abweichen.
+    document.body.classList.toggle("entw-offen", Store.entwOverlayOffen);
+    const zEntw = Store.entwOverlayOffen ? View.entwSicherstellen(rz) : null;
+    const entwSpaltenOffen = zEntw ? zEntw.spalten.filter(sp => !sp.eingeklappt) : [];
+    const entwZeilenAlle = zEntw ? View.entwZeilenplan(rz.phasen, zEntw.spalten) : [];
+    // AP-0205 §3.2/§3.4: EIN Rastermass fuer Zutaten-, Schritt- UND Kopf/Fuss-Zeilen — nur
+    // dieselben Spaltengrenzen ueberall garantieren die geforderten 0 px Versatz. Name/Prozent/
+    // Menge uebernehmen die Masse aus DESIGN.md ("Zutatenzeile": Menge 96, Bäckerprozent 64).
+    // AP-0315-Nacharbeit (§1.2): 260 statt 200 px Namens-Mindestbreite — zusammen mit
+    // Bäckerprozent (64) und Menge (96) ergibt das die im Konzept genannten 420 px
+    // Mindestbreite der Rezeptur ("traegt ... ~35 Zeichen"); darunter greift jetzt
+    // Layout.entwSpaltenAutoEinklappen() statt weiter zu schrumpfen.
+    const entwGridSpalten = `repeat(${entwSpaltenOffen.length},126px)`;
+    const entwGridTemplate = `minmax(260px,1fr) 64px 96px ${entwGridSpalten}`;
+    const entwZellenHtmlGrid = r => entwSpaltenOffen.map(sp => `<div class="entw-td">${View.entwZelle(sp, r, rz, rz.phasen)}</div>`).join("");
+
     const phasen = rz.phasen.map((p, i) => {
       const offen = Store.offenePhasen.has(i) ? " open" : "";
-      const zt = p.zutaten.length
-        ? `<table class="zutaten">${p.zutaten.map((z, j) => View.zutatenzeile(z, rz, f, kx.zutaten[i + "/" + j])).join("")}</table>` : "";
-      const sc = p.schritte.length
-        ? `<ol class="schritte">${p.schritte.map(s => `<li>${esc(s.text)}</li>`).join("")}</ol>` : "";
+      let zt;
+      if(zEntw){
+        const zeilenPi = entwZeilenAlle.filter(r => r.typ === "zutat" && r.pi === i);
+        zt = zeilenPi.length ? `<div class="entw-zutaten-grid" style="grid-template-columns:${entwGridTemplate}">${zeilenPi.map(r => {
+          if(r.basis) return View.entwZutatZeileGrid(p.zutaten[r.zi], rz, f, kx.zutaten[i + "/" + r.zi], entwZellenHtmlGrid(r));
+          // AP-0205 §4.2: neue Zutat einer Variante wird als zusaetzliche Rezeptzeile
+          // eingehaengt — kursiv mit "+", Menge im Rezept "—"; verschwindet mit der
+          // Entwicklung wieder (nur hier gerendert, nicht Teil von rz.phasen).
+          const neuName = View.entwZeileNeuName(r, zEntw.spalten);
+          return `<div class="entw-zeile-name"><span class="entw-neu">${esc(neuName)}</span></div>
+            <div class="entw-zeile-pct">—</div><div class="entw-zeile-menge">—</div>${entwZellenHtmlGrid(r)}`;
+        }).join("")}</div>` : "";
+      }else{
+        zt = p.zutaten.length
+          ? `<table class="zutaten">${p.zutaten.map((z, j) => View.zutatenzeile(z, rz, f, kx.zutaten[i + "/" + j])).join("")}</table>` : "";
+      }
+      let sc;
+      if(zEntw){
+        const zeilenSi = entwZeilenAlle.filter(r => r.typ === "schritt" && r.pi === i);
+        sc = zeilenSi.length ? `<div class="entw-schritte" style="grid-template-columns:${entwGridTemplate}">
+          ${zeilenSi.map(r => {
+            const basisSchritt = p.schritte[r.si];
+            return `<div class="entw-schritt-text">${r.si + 1}. ${basisSchritt ? esc(basisSchritt.text) : '<span class="entw-neu">(neuer Schritt)</span>'}</div>${entwZellenHtmlGrid(r)}`;
+          }).join("")}
+        </div>` : "";
+      }else{
+        sc = p.schritte.length
+          ? `<ol class="schritte">${p.schritte.map(s => `<li>${esc(s.text)}</li>`).join("")}</ol>` : "";
+      }
+      // AP-0205 §3.3: die Phasen-Summary traegt je Spalte die Zahl der geaenderten Werte —
+      // damit man beim Zuklappen nicht ins Leere sieht.
+      const entwSummary = (zEntw && entwSpaltenOffen.length) ? `<span class="entw-summary">${entwSpaltenOffen.map(sp => {
+        const anzahl = entwZeilenAlle.filter(r => r.pi === i && r.typ !== "phase" && View.entwGeaendert(sp, r, rz.phasen)).length;
+        return `<span class="entw-phase-zaehler" title="v${sp.v}">${anzahl || "="}</span>`;
+      }).join("")}</span>` : "";
       return `<details class="phase" data-i="${i}"${offen}>
-                <summary>${esc(p.name)}</summary>
+                <summary><span class="nm">${esc(p.name)}</span>${entwSummary}</summary>
                 <div class="phasebody">${zt}${sc}</div>
               </details>`;
     }).join("");
@@ -4478,10 +4966,10 @@ const View = {
     // AP-0304 (libarius-gestaltung), O-20/R-09: der Anstoss fuer das Entwicklungsmodus-Overlay
     // sitzt jetzt hier statt am vormaligen Reiter der rechten Schiene — Text/Titel tragen
     // dieselbe Kennzeichnung wie zuvor der Reiter (AP-0308/§6 O4: sichtbar auch bei zu-Overlay).
-    const zEntw = Store.entw && Store.entw.rezeptId === rz.id ? Store.entw : null;
-    const entwLabel = zEntw ? "Entwicklung ●" : "Entwicklung";
-    const entwTitel = zEntw
-      ? `Entwicklung · Basis ${zEntw.basis === "produktiv" ? "produktiv" : "v" + zEntw.basis} · ${zEntw.spalten.length} Variante${zEntw.spalten.length===1?"":"n"}`
+    const zEntwVorhanden = Store.entw && Store.entw.rezeptId === rz.id ? Store.entw : null;
+    const entwLabel = zEntwVorhanden ? "Entwicklung ●" : "Entwicklung";
+    const entwTitel = zEntwVorhanden
+      ? `Entwicklung · Basis ${zEntwVorhanden.basis === "produktiv" ? "produktiv" : "v" + zEntwVorhanden.basis} · ${zEntwVorhanden.spalten.length} Variante${zEntwVorhanden.spalten.length===1?"":"n"}`
       : "";
 
     el("#rezeptbereich").innerHTML = `
@@ -4494,18 +4982,38 @@ const View = {
           <div class="sub">${esc(rz.kategorie)} · ${rz.phasen.length} Phase${rz.phasen.length === 1 ? "" : "n"}
             · ${Math.round(rz.portionen*f)} ${esc(rz.einheit)}
             · ${Calc.runden(rz.sollgewichtG*f)}</div>
-          <div class="scaler noprint">
+          ${zEntw
+            // AP-0205 §6: waehrend der Entwicklung ist die Skalierung stillgelegt (sie
+            // verschiebt genau die Zahlen, gegen die Varianten gerechnet werden) — der Faktor
+            // bleibt als Nebentext ablesbar, ohne Eingabefeld (dasselbe Mittel wie K-17).
+            ? `<div class="scaler noprint"><span class="lb-neben">Skalierung ×${nf(f,2)} — gesperrt während der Entwicklung</span></div>
+            ${entwSpaltenOffen.length ? `
+            <!-- AP-0315-Nacharbeit (§3.2/§4.3): Basismenge ist das einzige Kopffeld, das je
+                 Variante eine eigene Zelle bekommt — dieselbe Spaltenschablone wie Zutaten-/
+                 Schritt-/Kopf-/Fusszeile (entwGridTemplate), fuer 0 px Versatz. -->
+            <div class="entw-basiszeile" style="grid-template-columns:${entwGridTemplate}">
+              <div class="entw-zeile-name">Basismenge (g)</div>
+              <div class="entw-zeile-pct"></div>
+              <div class="entw-zeile-menge"></div>
+              ${entwSpaltenOffen.map(sp => `<div class="entw-zelle"><input type="number" min="1" step="10"
+                data-entw-basismenge="${sp.v}"
+                value="${Math.round(sp.basisMengeG != null ? sp.basisMengeG : rz.basisMengeG)}"
+                title="Basismenge v${sp.v}, g"></div>`).join("")}
+            </div>` : ""}`
+            : `<div class="scaler noprint">
             <label>Basis (g)<input id="zielBasis" type="number" min="1" step="10" value="${Math.round(rz.basisMengeG*f)}"></label>
             <label>Portionen<input id="zielPortionen" type="number" min="1" step="1" value="${Math.round(rz.portionen*f)}"></label>
             <button class="ghost" id="btnReset">Original</button>
-          </div>
+          </div>`}
         </div>
       </section>
 
+      ${Store.entwOverlayOffen ? View.entwRahmenKopf(rz, zEntw, entwGridTemplate, entwSpaltenOffen) : ""}
+
       <section class="card">
         <h2>Zubereitung</h2>
-        ${bearbeitenButton}
-        <div style="padding:0 1rem">${entwurfTile}</div>
+        ${zEntw ? "" : bearbeitenButton}
+        ${zEntw ? "" : `<div style="padding:0 1rem">${entwurfTile}</div>`}
         ${zubereitungInhalt}
       </section>
 
@@ -4562,20 +5070,24 @@ const View = {
             : '<div class="hint">Alle Zutaten sind einem Rohstoff zugeordnet.</div>'}`)}
       </div>
 
+      ${Store.entwOverlayOffen ? View.entwRahmenFuss(zEntw, entwGridTemplate, entwSpaltenOffen) : ""}
+
       <div class="actions noprint">
         <button class="ghost" id="btnExport">Exportieren</button>
         <button class="ghost" id="btnDruck">Drucken / PDF</button>
-        <button class="ghost" id="btnEntwOeffnen" title="${esc(entwTitel)}">${entwLabel}</button>
-        <button class="ghost" id="btnZurueck">Zurück zur Liste</button>
-      </div>`;
+        ${Store.entwOverlayOffen ? "" : `<button class="ghost" id="btnEntwOeffnen" title="${esc(entwTitel)}">${entwLabel}</button>`}
+        <button class="ghost" id="btnZurueck">Rezept schliessen</button>
+      </div>
+      ${Store.entwOverlayOffen && zEntw ? View.entwOverlay(rz, zEntw) : ""}`;
 
-    // AP-0304 (libarius-gestaltung), O-20/R-09: Entwicklung (B6) ist kein Inhalt der rechten
-    // Schiene mehr, sondern ein Overlay ueber der Rezeptur (Vorlage 1d) — Inhalt/Verhalten von
-    // View.entwKarte() bleibt unveraendert, nur Zielelement und Sichtbarkeit wechseln.
-    el("#panelEntwicklung").innerHTML = `<div class="entw-inhalt">${View.entwKarte(rz)}</div>`;
-    el("#panelEntwicklung").hidden = !Store.entwOverlayOffen;
-    el("#entwSchleier").hidden = !Store.entwOverlayOffen;
-    el("#btnEntwOeffnen").addEventListener("click", () => App.entwModusOeffnen());
+    // AP-0315 (libarius-gestaltung), AP-0205 §5: #entwSchleier entfaellt (das Rezept bleibt
+    // sichtbar UND in Grenzen bedienbar, ein Schleier darueber waere eine Luege) — Element
+    // bleibt im DOM (nichts loeschen), wird nur nie mehr eingeblendet, dieselbe Behandlung wie
+    // der Dunkelmodus in AP-0313. #panelEntwicklung traegt seither nichts mehr fuer B6 (Kopf/
+    // Fuss/Zellen sitzen jetzt in #rezeptbereich, B7 direkt mit) und bleibt darum ebenfalls zu.
+    el("#panelEntwicklung").hidden = true;
+    el("#entwSchleier").hidden = true;
+    if(!Store.entwOverlayOffen) el("#btnEntwOeffnen").addEventListener("click", () => App.entwModusOeffnen());
     View.einkaufsliste();
     View.notizsection();
 
@@ -4585,11 +5097,13 @@ const View = {
     // AP-0304: offen/zu je Metadatenblock geraetelokal merken (AP-0201 §1, B5).
     document.querySelectorAll("details.metablock").forEach(d =>
       d.addEventListener("toggle", () => View.metablockToggle(d)));
-    el("#zielBasis").addEventListener("input", e => {
+    // AP-0315: bei offener Entwicklung ersetzt der Nebentext-Hinweis die Skalierungsfelder
+    // (§6) — dann existieren #zielBasis/#zielPortionen nicht, nichts zu verdrahten.
+    if(el("#zielBasis")) el("#zielBasis").addEventListener("input", e => {
       const v = Number(e.target.value); if(v > 0) App.skalieren(Calc.faktorAusBasis(v, rz)); });
-    el("#zielPortionen").addEventListener("input", e => {
+    if(el("#zielPortionen")) el("#zielPortionen").addEventListener("input", e => {
       const v = Number(e.target.value); if(v > 0) App.skalieren(Calc.faktorAusPortionen(v, rz)); });
-    el("#btnReset").addEventListener("click", () => App.skalieren(1));
+    if(el("#btnReset")) el("#btnReset").addEventListener("click", () => App.skalieren(1));
     // AP-0306: alle Phasen vor dem Druckdialog aufklappen (details.phase[open], nicht nur
     // die CSS-Regel unten) — moderne Browser rendern den Inhalt eines geschlossenen <details>
     // per content-visibility, das eine reine display:block-Regel auf .phasebody NICHT
@@ -4668,19 +5182,36 @@ const View = {
       });
     }
     View.entwEreignisse(rz);
+    // AP-0315-Nacharbeit (§3.4): nach JEDEM Neuaufbau erneut pruefen, ob der Spaltenkopf
+    // bereits klebt — #rezeptbereich wird komplett ersetzt, der Scroll-Listener allein
+    // wuerde die Klasse erst beim naechsten Scroll-Ereignis nachziehen.
+    Layout.entwKopfKlebenPruefen();
+    // AP-0315-Nacharbeit (§1.4): dieselbe Ueberlegung fuer das Einklappen — erst nach dem
+    // Einfuegen ins DOM ist scrollWidth/clientWidth verlaesslich messbar. Aendert sich dabei
+    // etwas, ist genau EIN erneuter Aufbau noetig (die neue Spaltenzahl selbst kann nicht
+    // wieder ueberlaufen), kein Endlosaufruf.
+    if(Layout.entwSpaltenAutoEinklappen()) View.rezept();
   },
 
   /* ---------- Import-Dialog (AP-0315) ------------------------------------
      Ein Durchlauf, EIN Bildschirm: Eingabe -> (Fehler | Zuordnung + Konflikte + Vorschau).
-     Store.import === null -> Dialog geschlossen, nichts rendern. */
+     Store.import === null -> Dialog geschlossen, nichts rendern.
+     AP-0313, B-2: eigener Blendover (wie #panelEntwicklung) statt Ansichtswechsel — box/
+     Schleier bleiben stehen (nur innerHTML wechselt), hidden folgt Store.import. */
   import(){
-    const box = el("#importbereich");
+    const box = el("#importbereich"), schleier = el("#importSchleier");
     const st = Store.import;
-    if(!st){ box.innerHTML = ""; return; }
+    if(!st){ box.innerHTML = ""; box.hidden = true; schleier.hidden = true; return; }
+    box.hidden = false; schleier.hidden = false;
 
     const kopf = `
+      <div class="entw-overlay-kopf">
+        <div class="lb-titel">Rezept importieren</div>
+        <div class="entw-overlay-kopf-rechts">
+          <button type="button" class="ghost" id="btnImportSchliessen" aria-label="Import schliessen">×</button>
+        </div>
+      </div>
       <section class="card" id="importKarte">
-        <h2>Rezept importieren</h2>
         <div class="body">
           <div class="hint">Datei wählen (.json im Format <code>rezept/1</code>, oder .xlsx einer Bestandsdatei)
             oder Text einfügen. Freitext lässt sich mit «Freitext umwandeln» in ein Gerüst überführen —
@@ -4810,6 +5341,7 @@ const View = {
     });
     el("#importAbbrechen") && el("#importAbbrechen").addEventListener("click", () => App.importSchliessen());
     el("#importAbbrechen2") && el("#importAbbrechen2").addEventListener("click", () => App.importSchliessen());
+    el("#btnImportSchliessen") && el("#btnImportSchliessen").addEventListener("click", () => App.importSchliessen());
     el("#importUebernehmen") && el("#importUebernehmen").addEventListener("click", () => App.importUebernehmen());
     document.querySelectorAll("[data-unbekannt]").forEach(sel =>
       sel.addEventListener("change", e => App.importZuordnen(e.target.dataset.unbekannt, e.target.value)));
@@ -4819,19 +5351,31 @@ const View = {
 
   /* ---------- Recherche-Dialog (AP-0318, «Preise aktualisieren») ---------------------
      Store.recherche === null -> Dialog geschlossen, nichts rendern. Gleiche Regel wie im
-     Import-Dialog: nichts wird ungefragt geschrieben, jede Zeile braucht ein Häkchen. */
+     Import-Dialog: nichts wird ungefragt geschrieben, jede Zeile braucht ein Häkchen.
+     AP-0313, B-2: derselbe Blendover wie #importbereich (Schritt 7 — mitgezogen, keine
+     dritte Variante). */
   recherche(){
-    const box = el("#rechercheBereich");
+    const box = el("#rechercheBereich"), schleier = el("#rechercheSchleier");
     const st = Store.recherche;
-    if(!st){ box.innerHTML = ""; return; }
+    if(!st){ box.innerHTML = ""; box.hidden = true; schleier.hidden = true; return; }
+    box.hidden = false; schleier.hidden = false;
+
+    const kopf = `
+      <div class="entw-overlay-kopf">
+        <div class="lb-titel">Preise aktualisieren</div>
+        <div class="entw-overlay-kopf-rechts">
+          <button type="button" class="ghost" id="btnRechercheSchliessen" aria-label="Recherche schliessen">×</button>
+        </div>
+      </div>`;
 
     if(st.laedt){
-      box.innerHTML = `<section class="card" id="rechercheKarte"><h2>Preise aktualisieren</h2>
+      box.innerHTML = kopf + `<section class="card" id="rechercheKarte">
         <div class="body"><div class="hint">Anfrage läuft für ${st.namen.length} Rohstoff(e) …</div></div></section>`;
+      View.rechercheEreignisse();
       return;
     }
     if(st.fehler){
-      box.innerHTML = `<section class="card" id="rechercheKarte"><h2>Preise aktualisieren</h2>
+      box.innerHTML = kopf + `<section class="card" id="rechercheKarte">
         <div class="body">
           <div class="msg err"><b>Fehler</b> Anfrage fehlgeschlagen: ${esc(st.fehler)}</div>
           <div class="actions" style="margin-top:.6rem"><button class="ghost" id="rechercheAbbrechen">Schliessen</button></div>
@@ -4857,8 +5401,7 @@ const View = {
       </div>`;
     }).join("");
 
-    box.innerHTML = `<section class="card" id="rechercheKarte">
-      <h2>Preise aktualisieren</h2>
+    box.innerHTML = kopf + `<section class="card" id="rechercheKarte">
       <div class="body">
         <div class="hint">Vorschlag je Rohstoff mit Quelle und Stand — nur angehakte Zeilen werden geschrieben.</div>
         ${zeilen || '<div class="hint">Keine Vorschläge erhalten.</div>'}
@@ -4872,6 +5415,7 @@ const View = {
   },
 
   rechercheEreignisse(){
+    el("#btnRechercheSchliessen") && el("#btnRechercheSchliessen").addEventListener("click", () => App.rechercheSchliessen());
     document.querySelectorAll("[data-recherche]").forEach(cb =>
       cb.addEventListener("change", e => App.rechercheEntscheiden(e.target.dataset.recherche, e.target.checked)));
     el("#rechercheUebernehmen") && el("#rechercheUebernehmen").addEventListener("click", () => App.rechercheUebernehmen());
@@ -4956,7 +5500,10 @@ const Layout = {
     if(Layout.schmal()) Layout.state.rechts = false;
     Layout.speichern(); Layout.anwenden();
   },
-  schliessenLinks(){ Layout.state.links = false; Layout.speichern(); Layout.anwenden(); },
+  // AP-0314: das Rezeptlisten-Blendover haengt als Kind an #railLinks (AP-0204 §6.3) —
+  // schliesst die Schiene, muss das Blendover mit, sonst bliebe es unsichtbar-aber-offen
+  // in einer zugeklappten Schiene stehen (Store/DOM liefen sonst auseinander).
+  schliessenLinks(){ Layout.state.links = false; Layout.speichern(); Layout.anwenden(); App.blendoverSchliessen(); },
   toggleLinks(){ Layout.state.links ? Layout.schliessenLinks() : Layout.oeffnenLinks(); },
 
   oeffnenRechts(){
@@ -4975,6 +5522,54 @@ const Layout = {
   scrimKlick(){
     Layout.state.links = false; Layout.state.rechts = false;
     Layout.speichern(); Layout.anwenden();
+    App.blendoverSchliessen();
+  },
+
+  // AP-0315-Nacharbeit (§3.4): der Spaltenkopf hat zwei Gestalten — voll 224 px an seinem
+  // Platz im Textfluss, geschrumpft 56 px, sobald er klebt (sonst wuerde ein 224 px hoher
+  // klebender Kopf beim Scrollen genau die Zeilen verdecken, deren Werte er beschriftet).
+  // ".entw-rahmen" traegt Leiste UND Kopfreihe zusammen als EIN position:sticky-Block
+  // (top:var(--lb-bedien)) — "klebt" heisst hier: seine Oberkante hat den Sticky-Versatz
+  // erreicht. Die Klasse allein steuert die kompakte Darstellung (CSS), keine zweite
+  // Markup-Fassung noetig.
+  entwKopfKlebenPruefen(){
+    const rahmen = document.querySelector(".entw-rahmen");
+    if(!rahmen) return;
+    const bedien = parseFloat(getComputedStyle(document.documentElement)
+      .getPropertyValue("--lb-bedien")) || 56;
+    rahmen.classList.toggle("entw-rahmen--geklebt", rahmen.getBoundingClientRect().top <= bedien + 0.5);
+  },
+
+  // AP-0315-Nacharbeit (§1.4): "es rollt nichts waagrecht" — Varianten, fuer die keine 126-px-
+  // Spur mehr Platz hat, werden eingeklappt statt zu ueberlaufen. Misst denselben Signalweg,
+  // den die Abnahme von AP-0315 schon von Hand nutzte (scrollWidth-clientWidth der Seite),
+  // statt eine eigene, zweite Rechnung gegen die im Konzept vorgerechneten Flaechenwerte
+  // (§1.3) aufzuziehen — diese Vereinfachung ist bereits als bewusste Abweichung dokumentiert
+  // (AP-0315-Dokumentation). Aktiv bleibt immer offen; von den uebrigen weicht die zuletzt
+  // angelegte (hoechste v) zuerst. Kein automatisches Wiederausklappen beim Breiterziehen
+  // (nicht Teil von §1.4) — dafuer bleibt der manuelle Tausch (▶/◀) unveraendert.
+  entwSpaltenAutoEinklappen(){
+    const z = Store.entw;
+    if(!z || !Store.entwOverlayOffen) return false;
+    const offene = z.spalten.filter(sp => !sp.eingeklappt);
+    if(offene.length <= 1) return false;
+    const doc = document.documentElement;
+    const ueberlauf = doc.scrollWidth - doc.clientWidth;
+    if(ueberlauf <= 0.5) return false;
+    const anzahlEinklappen = Math.min(offene.length - 1, Math.ceil(ueberlauf / 126));
+    // Aktive UND die zuletzt von Hand geoeffnete Spalte bleiben verschont (siehe
+    // App.entwSpalteEinklappen) — sonst wuerde ein "▶"-Klick bei Platzmangel sofort
+    // rueckgaengig gemacht, statt eine ANDERE offene Spalte dafuer weichen zu lassen.
+    let kandidaten = offene.filter(sp => sp.v !== z.aktivV && sp.v !== z.entwZuletztGeoeffnet)
+      .sort((a, b) => b.v - a.v);
+    if(kandidaten.length < anzahlEinklappen){
+      kandidaten = offene.filter(sp => sp.v !== z.aktivV).sort((a, b) => b.v - a.v);
+    }
+    const ziel = kandidaten.slice(0, anzahlEinklappen);
+    if(!ziel.length) return false;
+    ziel.forEach(sp => { sp.eingeklappt = true; });
+    App.entwPersistieren();
+    return true;
   },
 
   init(){
@@ -4993,18 +5588,33 @@ const Layout = {
     // eigenes Element (#entwSchleier, nicht #scrim) — er blendet nur B6 aus, nicht die
     // Schienen, darum eigener, einmalig verdrahteter Klick-Schliesser statt Layout.scrimKlick.
     el("#entwSchleier").addEventListener("click", () => App.entwModusSchliessen());
-    // AP-0305 (libarius-gestaltung), R-36: B7 steht fix, das Raster von #panelEntwicklung
-    // scrollt mit seinem Inhalt. Ist B6 um einen Rest gescrollt, rueckt B7 per --lb-versatz
-    // auf die naechste Linie (DESIGN.md «Overlay-Rahmen») — sonst liefen die Linien im
-    // Overlay neben denen darunter. Das Panel-Element bleibt stehen (nur innerHTML wechselt),
-    // darum genuegt ein einmalig verdrahteter Zuhoerer.
-    const panelEntw = el("#panelEntwicklung");
-    panelEntw.addEventListener("scroll", () => {
-      const zeile = parseFloat(getComputedStyle(panelEntw).getPropertyValue("--lb-zeile")) || 28;
-      panelEntw.style.setProperty("--lb-versatz", ((zeile - panelEntw.scrollTop % zeile) % zeile) + "px");
+    // AP-0313 (libarius-gestaltung), B-2: dieselbe Begruendung wie bei #entwSchleier — eigene,
+    // einmalig verdrahtete Schleier statt Layout.scrimKlick, weil sie nur ihren eigenen Dialog
+    // ausblenden, nicht die Schienen. Die Elemente bleiben stehen (nur innerHTML wechselt).
+    el("#importSchleier").addEventListener("click", () => App.importSchliessen());
+    el("#rechercheSchleier").addEventListener("click", () => App.rechercheSchliessen());
+    // AP-0305 (libarius-gestaltung), R-36, umgestellt in AP-0315: B7 steht fix, das Raster
+    // dahinter scrollt mit der SEITE (B6 hat seit AP-0315 keinen eigenen Scroll-Container
+    // mehr — Kopf/Fuss/Zellen sitzen in #rezeptbereich). Ist die Seite um einen Rest
+    // gescrollt, rueckt B7 per --lb-versatz auf die naechste Linie (DESIGN.md
+    // «Overlay-Rahmen») — sonst liefen die Linien im Overlay neben denen dahinter. Auf
+    // :root gesetzt (nicht mehr auf #panelEntwicklung), damit B7 sie unabhaengig vom
+    // eigenen Elternelement erbt.
+    const wurzel = document.documentElement;
+    window.addEventListener("scroll", () => {
+      const zeile = parseFloat(getComputedStyle(wurzel).getPropertyValue("--lb-zeile")) || 28;
+      wurzel.style.setProperty("--lb-versatz", ((zeile - window.scrollY % zeile) % zeile) + "px");
+      Layout.entwKopfKlebenPruefen();
     }, { passive: true });
     window.addEventListener("resize", Layout.anwenden);
     window.addEventListener("orientationchange", Layout.anwenden);
+    // AP-0315-Nacharbeit (§1.4): eine Fensterbreitenaenderung allein loest kein View.rezept()
+    // aus (Layout.anwenden setzt nur Schienen-/Vollbild-Klassen) — ohne diesen Zusatz bliebe
+    // eine beim Verschmalern noetige Einklappung bis zur naechsten inhaltlichen Aenderung aus.
+    window.addEventListener("resize", () => {
+      Layout.entwKopfKlebenPruefen();
+      if(Layout.entwSpaltenAutoEinklappen()) View.rezept();
+    });
     Layout.anwenden();
   }
 };
@@ -5533,14 +6143,24 @@ async function selfTest(){
     // Abnahmekriterium 2, zweite Haelfte: das erzwungene Aufklappen darf den gemerkten
     // Zustand NICHT ueberschreiben — sonst kaeme der afterprint-Rueckbau mit allem offen zurueck.
     (() => {
-      const vorherMeta = Layout.meta, vorherDruck = View.druckLaeuft, vorherPhasen = Store.offenePhasen;
-      Layout.meta = {}; Store.offenePhasen = new Set();
+      // AP-0314 (libarius-gestaltung), AP-0204 §1.1/Umsetzungsschritt 10: Store.offenePhasen
+      // haengt seit AP-0314 am aktiven Tab (tabFeld) statt an einem globalen Feld — ohne
+      // aktiven Tab schreibt "Store.offenePhasen = ..." ins Leere. Dieser Test braucht darum
+      // einen Scratch-Tab, sonst prueft er nichts mehr (mitgezogen statt abgeschaltet).
+      const vorherMeta = Layout.meta, vorherDruck = View.druckLaeuft;
+      const vorherOffene = Store.offene, vorherAktiv = Store.aktivIdx;
+      Store.offene = [{ rezeptId:"selftest-druck", faktor:1, offenePhasen:new Set(), phaseAktiv:0,
+        referenzIds:[], korrekturUebernehmenOffen:false, zutatenEditor:null, protokollEintrag:null,
+        entw:null, entwOverlayOffen:false, scrollY:0 }];
+      Store.aktivIdx = 0;
+      Layout.meta = {};
       const mb = { dataset:{ block:"kosten" }, open:true }, ph = { dataset:{ i:"0" }, open:true };
       View.druckLaeuft = true;  View.metablockToggle(mb); View.phaseToggle(ph);
       const beimDruckIgnoriert = Layout.metaOffen("kosten") === false && Store.offenePhasen.size === 0;
       View.druckLaeuft = false; View.metablockToggle(mb); View.phaseToggle(ph);
       const beiKlickGemerkt = Layout.metaOffen("kosten") === true && Store.offenePhasen.has(0);
-      Layout.meta = vorherMeta; View.druckLaeuft = vorherDruck; Store.offenePhasen = vorherPhasen;
+      Layout.meta = vorherMeta; View.druckLaeuft = vorherDruck;
+      Store.offene = vorherOffene; Store.aktivIdx = vorherAktiv;
       Settings.set("metablock", Layout.meta);
       return ["AP0304-3 Aufklappen für den Druck wird nicht gemerkt, ein echter Klick schon",
         beimDruckIgnoriert && beiKlickGemerkt];
@@ -5777,7 +6397,32 @@ async function selfTest(){
     // haben einen Merkmalssatz — sonst waere "Bewerten" fuer die uebrigen 13 nicht ausfuellbar.
     ["AP0308-6 Merkmalskatalog deckt alle 14 Verfahren aus VERFAHREN_KATALOG ab",
                             Object.keys(VERFAHREN_KATALOG).every(v =>
-                              MERKMALE_KATALOG[v] && MERKMALE_KATALOG[v].skalen.length > 0 && MERKMALE_KATALOG[v].kaesten.length > 0)]
+                              MERKMALE_KATALOG[v] && MERKMALE_KATALOG[v].skalen.length > 0 && MERKMALE_KATALOG[v].kaesten.length > 0)],
+    // AP-0314 (libarius-gestaltung), AP-0204 §1.3/§9: "mindestens ein Fall zwei Tabs,
+    // unterschiedlicher Faktor, Werte bleiben getrennt" — Store.faktor (tabFeld) liest je
+    // aktivem Tab seinen eigenen Wert, und ein Schreibzugriff trifft ausschliesslich den
+    // aktiven Tab, der andere bleibt unangetastet.
+    (() => {
+      const vorOffene = Store.offene, vorAktiv = Store.aktivIdx;
+      Store.offene = [
+        { rezeptId:"selftest-t1", faktor:1, offenePhasen:new Set([0]), phaseAktiv:0, referenzIds:[],
+          korrekturUebernehmenOffen:false, zutatenEditor:null, protokollEintrag:null, entw:null,
+          entwOverlayOffen:false, scrollY:0 },
+        { rezeptId:"selftest-t2", faktor:2.5, offenePhasen:new Set([0]), phaseAktiv:0, referenzIds:[],
+          korrekturUebernehmenOffen:false, zutatenEditor:null, protokollEintrag:null, entw:null,
+          entwOverlayOffen:false, scrollY:0 }
+      ];
+      Store.aktivIdx = 0;
+      const f1 = Store.faktor;
+      Store.aktivIdx = 1;
+      const f2 = Store.faktor;
+      Store.faktor = 3; // schreibt nur auf den aktiven Tab (Index 1)
+      const tab1UnveraendertNachSchreiben = Store.offene[0].faktor === 1;
+      const tab2Geschrieben = Store.offene[1].faktor === 3;
+      Store.offene = vorOffene; Store.aktivIdx = vorAktiv;
+      return ["AP0314-1 Zwei Tabs, getrennte Faktoren: Lesen/Schreiben trifft nur den aktiven Tab",
+        f1 === 1 && f2 === 2.5 && tab1UnveraendertNachSchreiben && tab2Geschrieben];
+    })()
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
   return { anzahl:t.length, fehler };
@@ -5869,11 +6514,32 @@ const App = {
     Store.rezepte   = Model.aufloesen(BEISPIEL_REZEPTE, BEISPIEL_ROHSTOFFE);
 
     View.liste();
+    // AP-0314, AP-0204 §2.5: gemerkte Tabs beim Start wiederherstellen (Beispieldaten sind
+    // sofort "geladen" — bei OneDrive passiert dasselbe erst nach App.datenLaden).
+    App.offeneWiederherstellen();
 
-    el("#suche").addEventListener("input", e => { Store.suchtext = e.target.value; View.liste(); });
+    el("#suche").addEventListener("input", e => {
+      Store.suchtext = e.target.value;
+      View.blendoverListe();
+      // AP-0204 §5: das Blendover oeffnet ab dem ersten Zeichen mit der gefilterten Liste.
+      if(Store.suchtext.trim()) App.blendoverOeffnen(); else App.blendoverSchliessen();
+    });
+    el("#suche").addEventListener("keydown", e => {
+      if(e.key === "Escape"){ e.target.value = ""; Store.suchtext = ""; View.blendoverListe(); App.blendoverSchliessen(); }
+    });
     // AP-0301 (libarius-gestaltung), R-02: Suche-Symbol oeffnet die linke Schiene
     // (falls zu) und setzt den Fokus ins Suchfeld - kein zweites Suchfeld.
     el("#btnSuche").addEventListener("click", () => { Layout.oeffnenLinks(); el("#suche").focus(); });
+    // AP-0314, AP-0204 §6.1: "Rezept öffnen" ist der zweite Anstoss fuer das Blendover.
+    el("#btnRezeptOeffnen").addEventListener("click", () => App.blendoverOeffnen());
+    el("#btnRezeplisteSchliessen").addEventListener("click", () => App.blendoverSchliessen());
+    el("#rezeplisteSchleier").addEventListener("click", () => App.blendoverSchliessen());
+    document.addEventListener("keydown", e => {
+      if(e.key === "Escape" && !el("#rezeplisteBlendover").hidden) App.blendoverSchliessen();
+    });
+    // AP-0204 §8: auf Stufe K wird #kopftitel zur Bedienzeile — ein Tippen darauf oeffnet
+    // die Schiene mit den Tabs (sonst kostet jeder Rezeptwechsel zwei Griffe statt einem).
+    el("#kopftitel").addEventListener("click", () => { if(Layout.stufe() === "k") Layout.oeffnenLinks(); });
     // R-03: Export und Datenbankwechsel wandern hinter das Anmelde-Symbol in ein
     // Menue; #btnLogin selbst oeffnet/schliesst nur noch dieses Menue, #btnKonto
     // darin loest die eigentliche An-/Abmeldung aus.
@@ -5986,7 +6652,13 @@ const App = {
       try{ Store.rohstoffeETag = (await Data.getItemMeta(CONFIG.rohstoffePfad)).eTag; }
       catch(e){ Store.rohstoffeETag = null; }
       el("#modus").textContent = "OneDrive — " + Store.rezepte.length + " Rezepte";
+      // AP-0314, AP-0204 §2.5: der Bestand hat gewechselt (Beispieldaten -> OneDrive) — bereits
+      // offene Tabs der Beispieldaten passen zu keiner rezeptId des neuen Bestands mehr und
+      // fallen still weg (kein Fehler, §2.5); danach die fuer DIESEN Geraet gemerkten Tabs neu
+      // oeffnen, "solange keine Datenbank geladen ist, werden Tabs erst nach dem Laden hergestellt".
+      Store.offene = []; Store.aktivIdx = -1;
       View.liste();
+      App.offeneWiederherstellen();
       if(fehlerhaft.length){
         View.meldung(fehlerhaft.length + " Rezept(e) mit ungültigem JSON übersprungen — in der Liste markiert, restliche Rezepte geladen.",
           "warn", "Teilweise geladen");
@@ -6015,35 +6687,91 @@ const App = {
     await App.datenLaden(konto);
   },
 
+  // AP-0314 (libarius-gestaltung), AP-0204 §2.2: "oeffnen oder zu bestehendem Tab springen" —
+  // alle Anstoesse (Blendover-Eintrag, Suchtreffer, Sprung aus Import/Referenz) laufen hier
+  // zusammen. Ist das Rezept schon offen, wird NICHTS zurueckgesetzt (kein zweiter Tab).
   rezeptOeffnen(id){
-    Store.aktuellesRezept = Store.rezepte.find(r => r.id === id) || null;
-    Store.faktor = 1;
-    Store.offenePhasen = new Set([0]);
-    Store.phaseAktiv = 0;
-    // AP-0313: Referenzen gehören zum verglichenen Rezept — beim Wechsel zurücksetzen, sonst
-    // stünden im nächsten Rezept die Vergleichsspalten des vorigen.
-    Store.referenzIds = [];
-    // AP-0308/§5.2 R7: Store.entw wird HIER NICHT zurueckgesetzt — es bleibt unter seiner
-    // eigenen rezeptId liegen (localStorage, EntwEntwurf) und wird beim naechsten Rendern
-    // automatisch fuer das neu geoeffnete Rezept nachgeladen (View.entwSicherstellen erkennt
-    // die abweichende rezeptId von selbst). Ein Reset hier wuerde nur den In-Memory-Zwischenstand
-    // wegwerfen, nicht den Entwurf selbst — unnoetig und im Widerspruch zu R7.
-    // AP-0303: die Korrekturablage selbst bleibt unter ihrer rezeptId liegen (AP-0201 §3.4,
-    // Abnahmekriterium 3) — nur der Uebernahme-Bestaetigungsdialog ist ein Formular ueber dem
-    // vorherigen Rezept und muss beim Wechsel zu.
-    Store.korrekturUebernehmenOffen = false;
-    // AP-0305: ein Editor-Entwurf gehoert zum vorherigen Rezept und muss beim Wechsel zu —
-    // der Entwurf selbst bleibt aber in Entwurf (localStorage), bis er geladen oder verworfen
-    // wird (§4.4), genau wie Korrekturen.alle oben.
-    Store.zutatenEditor = null;
-    // AP-0304 (libarius-gestaltung), O-20/R-09: das Entwicklungsmodus-Overlay gehoert zum
-    // vorherigen Rezept und muss beim Wechsel zu — Store.entw selbst bleibt (R7 oben).
-    Store.entwOverlayOffen = false;
+    if(!Store.rezepte.some(r => r.id === id)) return;
+    const bestehend = Store.offene.findIndex(t => t.rezeptId === id);
+    if(bestehend > -1){
+      App.tabWechseln(bestehend);
+    }else{
+      Store.offene.push({
+        rezeptId: id, faktor:1, offenePhasen:new Set([0]), phaseAktiv:0,
+        referenzIds:[], korrekturUebernehmenOffen:false, zutatenEditor:null,
+        protokollEintrag:null, entw:null, entwOverlayOffen:false, scrollY:0
+      });
+      App.tabWechseln(Store.offene.length - 1, true);
+    }
+    App.blendoverSchliessen();
+    App.offeneSpeichern();
+  },
+
+  // AP-0204 §2.3: Wechseln verwirft nichts — nur die Scrollposition wird je Tab gemerkt,
+  // sonst spraenge jeder Wechsel an den Anfang (frueher window.scrollTo in rezeptOeffnen).
+  // neu=true (frisch geoeffneter Tab, s.o.) startet dagegen bewusst oben.
+  tabWechseln(i, neu){
+    if(!Store.offene[i]) return;
+    const vorher = Store.offene[Store.aktivIdx];
+    if(vorher) vorher.scrollY = window.scrollY;
+    Store.aktivIdx = i;
     View.rezept();
-    // AP-0310: Cue-Spalte (Sprungblock, aktives Rezept in der Notiz) haengt am
-    // offenen Rezept — bei jedem Wechsel neu zeichnen.
-    View.liste();
-    window.scrollTo({top:0, behavior:"smooth"});
+    // AP-0310: Cue-Spalte/Sprungblock haengt am aktiven Tab — bei jedem Wechsel neu zeichnen.
+    View.tabs(); View.sprungblock();
+    if(neu) window.scrollTo({top:0, behavior:"smooth"});
+    else window.scrollTo({top: Store.offene[i].scrollY || 0});
+    App.offeneSpeichern();
+  },
+
+  // AP-0204 §2.4: Schliessen fragt nie nach (§2.4 Tabelle — nichts geht verloren, alles bleibt
+  // unter der rezeptId liegen). Aktiv wird der Nachbar rechts, sonst links; war es der letzte,
+  // zeigt die Mitte den leeren Zustand.
+  tabSchliessen(i){
+    if(!Store.offene[i]) return;
+    const warAktiv = i === Store.aktivIdx;
+    Store.offene.splice(i, 1);
+    if(!Store.offene.length){
+      Store.aktivIdx = -1;
+    }else if(warAktiv){
+      Store.aktivIdx = Math.min(i, Store.offene.length - 1);
+    }else if(i < Store.aktivIdx){
+      Store.aktivIdx -= 1;
+    }
+    View.rezept();
+    View.tabs(); View.sprungblock();
+    App.offeneSpeichern();
+  },
+
+  // AP-0204 §2.5: Settings->offeneRezepte merkt nur, WELCHE Rezepte offen waren (Menge + aktiv),
+  // nicht ihren Zustand — dasselbe Muster wie Layout.state.
+  offeneSpeichern(){
+    Settings.set("offeneRezepte", {
+      ids: Store.offene.map(t => t.rezeptId),
+      aktiv: Store.offene[Store.aktivIdx] ? Store.offene[Store.aktivIdx].rezeptId : null
+    });
+  },
+
+  // AP-0204 §2.5: beim Start jeden gemerkten Tab neu oeffnen (Anfangszustand wie §2.2 — Faktor
+  // wieder 1, das ist die einzige spuerbare Luecke). Eine gemerkte rezeptId, die im geladenen
+  // Bestand fehlt, faellt still weg (kein Rezept mehr -> rezeptOeffnen ist bereits ein No-Op).
+  offeneWiederherstellen(){
+    const g = Settings.get("offeneRezepte", null);
+    if(!g || !Array.isArray(g.ids) || !g.ids.length) return;
+    g.ids.forEach(id => { if(Store.rezepte.some(r => r.id === id)) App.rezeptOeffnen(id); });
+    const aktivIdx = g.aktiv ? Store.offene.findIndex(t => t.rezeptId === g.aktiv) : -1;
+    if(aktivIdx > -1) App.tabWechseln(aktivIdx);
+  },
+
+  // AP-0204 §6.1/§6.2: Blendover ueber der linken Schiene — Anstoss "Rezept öffnen" oder
+  // Tippen ins Suchfeld (§5); Klick auf den Schleier oder Esc schliesst (§6.2).
+  blendoverOeffnen(){
+    View.blendoverListe();
+    el("#rezeplisteBlendover").hidden = false;
+    el("#rezeplisteSchleier").hidden = false;
+  },
+  blendoverSchliessen(){
+    el("#rezeplisteBlendover").hidden = true;
+    el("#rezeplisteSchleier").hidden = true;
   },
 
   skalieren(f){
@@ -6057,8 +6785,11 @@ const App = {
     }
   },
 
-  schliessen(){ Store.aktuellesRezept = null; Store.korrekturUebernehmenOffen = false;
-    Store.entwOverlayOffen = false; View.rezept(); View.liste(); },
+  // AP-0314: "Zurueck zur Liste" schloss frueher das einzige offene Rezept — jetzt schliesst es
+  // den aktiven Tab (AP-0204 §2.4/§9: kein "alle schliessen").
+  schliessen(){
+    if(Store.aktivIdx > -1) App.tabSchliessen(Store.aktivIdx);
+  },
 
   /* ---------- Korrekturen (AP-0303, B4) -------------------------------------
      Kochkorrekturen wirken sofort und ohne Bestaetigung (AP-0203 §6.2) — nur der letzte
@@ -6578,17 +7309,23 @@ const App = {
     let z = View.entwSicherstellen(rz);
     if(!z){
       const v1 = { v:1, datum: heute, notiz:"Startpunkt, Kopie der produktiven Rezeptur",
-        herkunft:"produktiv", eingeklappt:false, phasen: Import.phasenExport(rz.phasen), versuche:[] };
+        herkunft:"produktiv", eingeklappt:false, basisMengeG: rz.basisMengeG,
+        phasen: Import.phasenExport(rz.phasen), versuche:[] };
       z = Store.entw = { rezeptId: rz.id, status:"entwicklung", zielwerte:{}, aktivV:1,
         basis:"produktiv", spalten:[v1], overlay:null, schrittBearbeiten:null };
     }
     const quelle = ausV != null ? z.spalten.find(s => s.v === ausV) : null;
     const quellPhasen = quelle ? quelle.phasen
       : (z.basis === "produktiv" ? rz.phasen : ((z.spalten.find(s => s.v === z.basis) || {}).phasen || rz.phasen));
+    // AP-0315-Nacharbeit (§3.2): neue Spalte erbt die Basismenge ihrer Quelle (Abzweigung)
+    // bzw. der gewaehlten "Δ gegen"-Basis — sonst die produktive Basismenge, wie v1.
+    const quellBasis = quelle ? quelle.basisMengeG
+      : (z.basis !== "produktiv" ? ((z.spalten.find(s => s.v === z.basis) || {}).basisMengeG) : null);
     const naechsteV = z.spalten.reduce((m, s) => Math.max(m, s.v || 0), 0) + 1;
     z.spalten.push({ v: naechsteV, datum: heute, notiz:"",
       herkunft: quelle ? { ausV: quelle.v } : z.basis,
-      eingeklappt:false, phasen: JSON.parse(JSON.stringify(quellPhasen)), versuche:[] });
+      eingeklappt:false, basisMengeG: quellBasis != null ? quellBasis : rz.basisMengeG,
+      phasen: JSON.parse(JSON.stringify(quellPhasen)), versuche:[] });
     z.aktivV = naechsteV;
     App.entwPersistieren();
     View.rezept();
@@ -6624,6 +7361,12 @@ const App = {
     const z = Store.entw, sp = z && z.spalten.find(s => s.v === v);
     if(!sp) return;
     sp.eingeklappt = !sp.eingeklappt;
+    // AP-0315-Nacharbeit (§1.4): "ein Klick tauscht eine eingeklappte gegen eine offene
+    // Spalte" — ohne diese Vormerkung wuerde Layout.entwSpaltenAutoEinklappen() die gerade
+    // von Hand geoeffnete Spalte bei Platzmangel sofort wieder einklappen (höchste v zuerst),
+    // und der Klick liefe ins Leere. Rein fluechtig auf Store.entw (nicht Teil von
+    // EntwModell.dehydrieren), gilt bis zur naechsten manuellen Einklapp-Aktion.
+    z.entwZuletztGeoeffnet = sp.eingeklappt ? null : v;
     App.entwPersistieren();
     View.rezept();
   },
@@ -6643,10 +7386,27 @@ const App = {
     const sp = z && z.spalten.find(s => s.v === v);
     const zu = sp && sp.phasen[pi] && sp.phasen[pi].zutaten[zi];
     if(!zu) return;
+    // AP-0315-Nacharbeit (§3.2): dieselbe Basismenge wie beim Anzeigen (View.entwZelle) —
+    // sonst würde ein in Gramm eingegebener Wert bei einer abweichenden Basismenge dieser
+    // Spalte anders zurückgelesen, als er eingetippt wurde.
+    const basisMenge = sp.basisMengeG != null ? sp.basisMengeG : rz.basisMengeG;
     const n = Number(wert);
     if(wert === "" || !isFinite(n)) zu.prozent = "";
     else if(Store.entwEinheit === "%") zu.prozent = n / 100;
-    else zu.prozent = rz.basisMengeG > 0 ? n / rz.basisMengeG : "";
+    else zu.prozent = basisMenge > 0 ? n / basisMenge : "";
+    App.entwPersistieren();
+    View.rezept();
+  },
+
+  // AP-0315-Nacharbeit (§3.2/§4.3): Basismenge als Kopf-Zelle — die Teigmenge ist der
+  // klassische Variantenwert, eine je Spalte abweichende Chargengrösse. Leer/ungueltig/≤0
+  // wird null (kein Rateversuch) und faellt beim Anzeigen/Eintippen auf die produktive
+  // Basismenge zurueck (View.entwZelle/App.entwZutatFeld).
+  entwBasisMengeFeld(v, wert){
+    const z = Store.entw, sp = z && z.spalten.find(s => s.v === v);
+    if(!sp) return;
+    const n = Number(wert);
+    sp.basisMengeG = (wert === "" || !isFinite(n) || n <= 0) ? null : n;
     App.entwPersistieren();
     View.rezept();
   },
@@ -6680,7 +7440,21 @@ const App = {
   // selbst (B6 als Ganzes über der Rezeptur) — zu unterscheiden von entwOverlaySchliessen()
   // oben, das nur den EINEN Nebendialog-Slot INNERHALB dieses Overlays raeumt (Bewertung,
   // Zielwerte, Referenz, Substitution, Uebernehmen).
-  entwModusOeffnen(){ Store.entwOverlayOffen = true; View.rezept(); },
+  // AP-0315, AP-0205 §7.1: die feste 860-px-Sperre (AP-0304) faellt zugunsten der Rechnung
+  // "zwei Spalten neben der Rezeptur auf ihrer Mindestbreite" — Rahmen 147 + Rezeptur 420 +
+  // 2 × 126 = 819 px (Stufe K). Ab W/M (>= 860) ist die Rechnung ohnehin immer erfuellt.
+  entwModusOeffnen(){
+    if(window.innerWidth < 819){
+      View.meldung("Zwei Varianten nebeneinander brauchen 819 px — Gerät drehen.", "warn", "Entwicklungsmodus");
+      return;
+    }
+    Store.entwOverlayOffen = true;
+    // AP-0205 §2.4/§6: linke Schiene klappt zu (Spindel bleibt auf W), Zutaten-Editor ist
+    // waehrend der Entwicklung stillgelegt.
+    Layout.schliessenLinks();
+    Store.zutatenEditor = null;
+    View.rezept();
+  },
   entwModusSchliessen(){ Store.entwOverlayOffen = false; View.rezept(); },
 
   /* ---------- Versuchsprotokoll je Variante (AP-0204 §7) ---------------------------

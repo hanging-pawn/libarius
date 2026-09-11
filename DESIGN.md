@@ -11,9 +11,14 @@ die «Gestaltungsschicht». Siehe «Stand der Umstellung».
 `Projekte/libarius-bedienung/04_qualitaet/AP-0403_design_review_output.md` — 59 Befunde
 R-01–R-59, davon 13 mit Entscheidbedarf (dort Abschnitt 10), und die Fortsetzung der
 Korrekturtabelle K-10 bis K-21 — **eingearbeitet am 10.09.2026**, nachdem die 13 Fragen
-entschieden waren (siehe «Entscheide vom 10.09.2026»). Dringend und ohne Entscheidbedarf:
-R-30, Variantentabelle Achse/Spalten um 99 px versetzt — entfällt mit dem Overlay aus R-09,
-bis dahin ein Fehler im laufenden Betrieb.
+entschieden waren (siehe «Entscheide vom 10.09.2026»).
+
+**Sprint `libarius-gestaltung` abgeschlossen am 11.09.2026** (AP-0501): alle 59 Befunde haben
+einen Endstand mit AP-Verweis — 55 vollständig behoben oder entschieden umgesetzt/anders
+gelöst, 2 ohne Handlungsbedarf, 2 als kleine Korrektur nach `entscheide.md` (O-21) überführt.
+Der einst dringendste Befund, R-30 (Variantentabelle 99 px versetzt), ist seit AP-0308/AP-0315
+mit 0 px Versatz behoben. Vollständige Tabelle:
+`Projekte/libarius-gestaltung/05_abschluss/projektabschluss.md`.
 
 | Datei | Inhalt |
 |---|---|
@@ -200,10 +205,15 @@ Bei 1440 px sind das 200 / 1.5 / 757 / 1.5 / 272 bei 40 px Rand und 32 px Gassen
 wandert nicht in die Zutatenzeile. Was die dafür gezeichneten 240 px heute tragen, klärt
 AP-0403 Schritt 7.
 
-Name rechtsbündig an die Menge, Notiz auf derselben Zeile rechts daneben:
-`Name (dehnbar, rechtsbündig) · Menge 96 · Einheit 32 · Notiz 240`.
+Name linksbündig, Notiz auf derselben Zeile rechts daneben (Entwurfsmass, ohne Notizspalte
+in der App — siehe K-9/K-14):
+`Name (dehnbar, linksbündig) · Menge 96 · Einheit 32 · Notiz 240`.
 Der Name gehört zur Menge, die Notiz gehört zur Zutat — die Zutat wird nicht wiederholt.
-Ohne Notizspalte (Kochmodus, Druck, schmale Geräte) steht der Name wieder links.
+Linksbündig gilt durchgehend — Hauptansicht, Kochmodus und Druck lesen sich damit gleich
+(R-29, Entscheid am Gerät AP-0402, Herleitung AP-0403 Abschnitt 7: ohne Notizspalte geht die
+Namensbreite vollständig an die App-Namensspalte, 300–450 px Leerstrecke je Zeile bei
+rechtsbündig; AP-0312 hat am 10.09.2026 linksbündig umgesetzt — **abgeschlossen**, kein
+offener Punkt mehr).
 
 ## Korrekturen am Entwurf
 
@@ -229,8 +239,8 @@ Der Entwurf ist ein Entwurf: mehrere Objekte stehen nicht auf ihrer Kante. Durch
 | K-15 | 1c, 2a | Phasen immer offen, Titel ohne Pfeil | klappbar mit `›`, Summary 56 (AP-0201 §4.1, Entscheid 1) |
 | K-16 | 2a | Metadatenzeile 28, Pfeil rechts | 56 px (Entscheid 1); Pfeil wandert nach rechts (R-25) |
 | K-17 | 1e | Kochmodus ohne Bedienelemente und Metadaten | **übernommen wie gezeichnet** — Entscheid 10.09.2026 (O-20): Skalierung, Aktionen und Metadaten fallen weg, nur das Rezept bleibt |
-| K-18 | 1e, 1c | Randlinie direkt an der mittigen Rezeptur | zu übernehmen — App hat sie heute am Seitenrand (R-11, R-28) |
-| K-19 | 2a | Skalierung rechts vom Titel auf derselben 56-px-Zeile | zu übernehmen (R-24) |
+| K-18 | 1e, 1c | Randlinie direkt an der mittigen Rezeptur | **übernommen** — Hauptansicht seit AP-0302 (R-11), Kochmodus seit AP-0306 (R-28); AP-0401 misst 32 px Gasse statt der 215 px aus dem Review |
+| K-19 | 2a | Skalierung rechts vom Titel auf derselben 56-px-Zeile | **übernommen** (AP-0303, R-24) — bei langen Titeln bricht die Skalierung bewusst auf eine eigene 56-px-Zeile um, siehe AP-0303-Doku |
 | K-20 | 1d | Entwicklungsmodus als Overlay, `.lb-vergleich`, `.lb-protokoll` | **gilt** — Entscheid 10.09.2026 (O-20/R-09): O-17.2 wird sofort umgesetzt, B6 verlässt die rechte Schiene. Eigenes AP; `.lb-protokoll` dient auch dem Versuchs- und Verfahrensformular |
 | K-21 | Stilblatt | keine Zustände, keine Meldungen, keine Overlays | **Nachtrag bestellt** — Entscheid 10.09.2026 (O-20): Marker, Hover, Fokus, Fehler, ladend, Meldungen und Overlay-Rahmen werden gezeichnet. **Gezeichnet 10.09.2026** (AP-0201 libarius-gestaltung): `design/stilblatt-nachtrag.html`, Regeln im Abschnitt «Marker, Zustände, Meldungen, Overlays» |
 
@@ -302,42 +312,58 @@ Offen bis AP-0401: rechtsbündige Zutatennamen (R-29) — Entscheid am Gerät.
 
 ## Stand der Umstellung
 
+**Nachgeführt 11.09.2026 (AP-0501, Sprintabschluss) — beschreibt den gebauten Endstand nach
+allen 24 AP dieses Sprints, nicht mehr einen Zwischenstand.** Vollständige Befund-für-Befund-
+Abrechnung: `Projekte/libarius-gestaltung/05_abschluss/projektabschluss.md`.
+
 Übernommen in `index.html`:
 
 - Papier mit 28-px-Linienraster über die ganze Fläche; Kochmodus mit 38-px-Raster.
 - Fira Sans 15/28, Titel 26 auf zwei Zeilen, Phase 17, Nebentext 13, tabellarische Ziffern.
 - Karten, Schatten, Rundungen und Farbflächen sind weg. Zwischen Kopf, Zubereitung,
   Phasen und Metadaten steht der rote Trenner.
-- Rote Linie in allen drei Rollen: Randlinien links und rechts der Rezeptur als eigene
-  Rasterspalten, Trenner, Korrekturwert.
-- Bedienelemente ohne Rahmen: Suchfeld, Kategorie, Skalierung und Formularfelder tragen
-  eine Graphitlinie bei 47 px, Kästchen sind 12 px mit 2-px-Papierring.
-- Kopfzeile eine Bedienzeile hoch, mit den Symbolen des Entwurfs (Schiene, Import,
-  Kochmodus, Anmeldung) und dem Namen des offenen Rezepts in der Mitte.
-- Kochmodus mit Randlinie links, Inhalt 960 px, Schliessen innerhalb des Seitenrandes.
+- Rote Linie in drei Rollen: Randlinien links und rechts der Rezeptur als eigene
+  Rasterspalten, Trenner, Korrekturwert — plus die Korrektur-Kennzeichnung `.navgruppe .punkt`
+  (gehört zur Korrektur, Rolle 3, keine vierte Rolle). Zwei Hover-Reste ausserhalb der drei
+  Rollen sind noch offen, siehe unten.
+- Bedienelemente ohne Rahmen: Suchfeld, Skalierung und Formularfelder tragen eine Graphitlinie
+  bei 47 px, Kästchen sind 12 px mit 2-px-Papierring. Die Kategorie-Auswahl `#kategorie` ist
+  entfallen (AP-0310) — die Cue-Spalte übernimmt ihren Zweck.
+- Kopfzeile eine Bedienzeile hoch, nur noch Symbole (Schiene, Suche, Import, Notizen,
+  Kochmodus, Konto), Rezeptname in der Mitte; Export und Datenbankwechsel im Menü hinter dem
+  Konto-Symbol (AP-0301, O-20/R-01–R-06).
+- Linke Schiene: Cornell-Schnitt mit Cue-Spalte (Kategorien, Sprungmarken auf die Phasen,
+  AP-0202/AP-0310), auf jeder Stufe vollständig versteckbar (R-10), darunter die Einkaufsliste.
+  Trägt jetzt zusätzlich mehrere gleichzeitig offene Rezepte als Tab-Schiene, Rezeptliste als
+  Blendover (AP-0204/AP-0314).
+- Rechte Schiene führt nur noch die Notizsection (B4) — der Entwicklungsmodus (B6) ist als
+  eigenständiges, zeilengleich in die Rezeptur eingehängtes Overlay gebaut, kein Reiter mehr
+  (O-20/R-09, AP-0304/AP-0308/AP-0315). Widerspruch zu K-9/O-17.4 damit aufgelöst — siehe
+  Lessons Learned in `projektabschluss.md`.
+- Kochmodus zeigt nur noch das Rezept (K-17): Skalierung, Aktionsknöpfe und Metadaten fallen
+  weg (AP-0306); Randlinie sitzt eine Gasse vor dem Text statt am Seitenrand (R-28, R-18).
+- Meldungen sind Textmarker in drei Farben (gelb/grün/rot, durchscheinend) statt einer roten
+  Randlinie (R-44, AP-0307); Rot ist auf drei Rollen zurückgeführt (R-45, Tabelle unten).
+- Druckpfad angepasst: rote Trenner drucken nicht mehr, Korrekturwert im Druck Schwarz mit
+  Klammerform „(Soll …)", `break-inside:avoid` an den Bruchstellen (AP-0308, R-40–R-42).
+- Import, Recherche und die Rezeptliste laufen als Blendover statt Ansichtswechsel (AP-0313/
+  AP-0314); Dunkelmodus bleibt deaktiviert, nichts gelöscht (Backlog).
 
-Nachgemessen im Browser: Zutatenzeile 28 px, anklickbare Zeilen 56 px, Kopfzeile 56 px;
-`#rezeptbereich` und jeder Block darin sind ein ganzzahliges Vielfaches von 28 px
-(gemessen 980 px = 35 × 28, kein Kind ausserhalb des Rasters). **Präzisiert 10.09.2026
-(R-54):** das galt im gemessenen Zustand mit geschlossenen Metablöcken; mit offenem
-Protokollblock lag der Bereich 1 px daneben (R-20, `table.log`). Nach AP-0303
-(libarius-gestaltung) nachgemessen bei 1440 px: Grundzustand 952 = 34 × 28, alle acht `details`
-offen 1876 = 67 × 28, jede Blockhöhe auf 28. Ausserhalb stehen nur die fünf Kurzwerte der
-Metablock-Zeilen, 14 px unter der Zeilenoberkante — Folge der mittigen Textlage (siehe «Offene
-Punkte»). Der `<style>`-Block parst
-mit 359 Regeln fehlerfrei, `selfTest()` unverändert 82/82 grün, kein Waagrecht-Überlauf
-bei 1440, 1200, 1120, 1000, 834 und 700 px. Unter 860 px stehen die Zutatennamen wieder
-linksbündig und die Schiene wird zum Overlay.
+Nachgemessen im Browser (AP-0401, 10.09.2026, elf Breiten 1440–700 px, Hauptansicht und
+Kochmodus): kein Waagrecht-Überlauf an keiner Breite. `#rezeptbereich` ein ganzzahliges
+Vielfaches von 28 px in jedem gemessenen Zustand — Grundzustand 952 = 34 × 28, alle Metablöcke
+offen 1708 = 61 × 28, alles offen inklusive Protokollblock **1876 = 67 × 28 exakt** (R-20
+vollständig behoben; AP-0403 hatte hier vor der Umsetzung noch 1905 = 68 × 28 + 1 gemessen).
+Entwicklungsmodus-Achse und Wertespalten weichen **0 px** voneinander ab (R-30 behoben,
+AP-0403 hatte 98.8 px Versatz — der schwerste Befund des Reviews). Kochmodus-Randlinie 32 px
+vor dem Text (R-28, vorher 215 px). Von 36 im Review rechnerisch gefundenen Rasterabweichungen
+sind alle 36 behoben — die letzten zwei (`View.korrekturUebernehmenVorschau`) über AP-0311 am
+10.09.2026. `selfTest()` lief in der Cowork-/Sandbox-Umgebung durchgehend nicht durch (SheetJS
+per CDN nicht erreichbar), zuletzt in einer Browser-Sitzung mit Netz bei AP-0315/AP-0316
+(Claude Code) bei 82–83/83 grün geprüft — keine Gestaltungsaussage, nur Regressionsschutz des
+Rechenkerns.
 
-**Nach AP-0304/0306/0307 (libarius-gestaltung, 10.09.2026):** Entwicklungsmodus (B6) ist
-Overlay über der Rezeptur statt Reiter der rechten Schiene (O-20/R-09) — Achsen- und
-Spaltenköpfe/-füsse auf identischer Höhe (4×56/2×56), R-30 damit behoben; Kochmodus zeigt
-nur noch das Rezept (K-17), Randlinie sitzt eine Gasse vor dem Text statt am Seitenrand
-(R-28); Meldungen sind Textmarker in drei Farben statt einer roten Randlinie (R-44), Rot ist
-auf drei Rollen zurückgeführt (R-45, Tabelle unten). `selfTest()` nach allen drei APs
-unverändert 82/82 grün.
-
-**R-45, Fundstellen einzeln entschieden (AP-0307):**
+**R-45, Fundstellen einzeln entschieden (AP-0307) — Stand nach der Abschlussprüfung:**
 
 | Stelle | Entscheid | Warum |
 |---|---|---|
@@ -349,6 +375,15 @@ unverändert 82/82 grün.
 | Hover (Knöpfe, Kopfzeile) | Unterstreichung Nebentext bzw. Graphit → Nebentext bei reinen Symbolen | wie `.lb-bedienzeile:hover` |
 | Fokus (Eingabefelder) | Graphitlinie 2 px statt 1 px farbig | wie im Stilblatt-Nachtrag spezifiziert |
 
+**Bei der Abschlussprüfung (AP-0501, 11.09.2026) neu gefunden — zwei Stellen setzen den
+Entscheid noch nicht um:** `details.metablock > summary:hover` (Zeile 700) und
+`#btnEntwSchliessen:hover,#btnRezeplisteSchliessen:hover` (Zeile 843) zeigen weiterhin
+`color:var(--rot)` auf Hover, statt wie oben entschieden auf Unterstreichung/Nebentext
+umgestellt zu sein. Keine der zehn Umsetzungs-APs prüfte diese zwei Stellen einzeln, weil sie
+ausserhalb der in AP-0403 dokumentierten Fundstellenliste liegen. Offener Punkt, überführt nach
+`Projekte/rezeptverwaltung/entscheide.md` (O-21) — kleine Korrektur, Claude Code, kein
+Entscheid mehr nötig.
+
 Noch **nicht** übernommen, mit Grund:
 
 | Was | Warum nicht |
@@ -356,21 +391,36 @@ Noch **nicht** übernommen, mit Grund:
 | Notiz auf der Zutatenzeile (Durchgang 2) | Es gibt keine Notiz je Zutat. `Korrekturen` führt je Rezept eine freie Notiz und je Zutat eine Mengenkorrektur — die Korrektur erscheint bereits in der roten Rolle 3. Eine Notiz je Zutat ist eine Datenmodell-Änderung und braucht ein eigenes AP. |
 | Einkaufsliste in der rechten Spalte | Sie steht laut AP-0201 §1 links (B2), rechts liegen Notizen und Entwicklung (B4/B6) — *Entwicklung überholt durch O-20/R-09: B6 wird Overlay über der Rezeptur*. Das ist eine Layoutentscheidung des Sprints, keine Gestaltungsfrage — sie umzuhängen berührt `View.notizsection()`, `Layout.*` und den Druckpfad. |
 | Rezept-Tabs und Menüname (Durchgang 2) | Mehrere gleichzeitig geöffnete Rezepte und Menüs gibt es in der Anwendung nicht. Neue Funktion, eigenes AP. |
-| Alte Regeln oberhalb der Schicht | Bleiben stehen (CLAUDE.md Regel 1). Erst entfernen, wenn nachweislich keine Regel mehr darauf zeigt. |
+| Alte Regeln oberhalb der Schicht | Bleiben stehen (CLAUDE.md Regel 1). **Geprüft 11.09.2026 (AP-0501):** keine der alten Regeln ist nachweislich tot — jede wird von der Schicht weiterhin überschrieben (Position unter allen bisherigen Regeln), ein Entfernen wäre reine Codepflege ohne sichtbare Wirkung und Sache von Claude Code, nicht dieses AP. Einzige Ausnahme mit Wirkung: `.railtoggle{display:none}` (Zeile 30/68, R-08) — ihre Überschreibung funktioniert nur durch CSS-Spezifität, nicht durch bewusste Neutralisierung; folgenlos, aber als Aufräumpunkt in `entscheide.md` (O-21) vermerkt. |
 
 ## Offene Punkte
 
-- Schrift lokal ablegen, falls die App ohne Netz in Fira Sans starten soll.
-- Dunkelmodus entscheiden (Backlog).
-- Rund zwanzig Vorlagen tragen Inline-Abstände von .4–.9 rem, die aus dem Raster fallen.
-  Die Schicht hebt sie gesammelt über `.actions[style]`, `.hint[style]` und
-  `textarea[style]` auf. Sauberer wäre, die Abstände in den Vorlagen selbst zu entfernen —
-  eigener Aufräumschritt, ohne sichtbare Wirkung.
-- AP-0401 prüft zusätzlich: rechtsbündige Zutatennamen, Bedienbarkeit der 28-px-Zeilen in
-  der Variantentabelle, Druck mit dem neuen Raster.
-- **Gemessen 10.09.2026** (AP-0201 libarius-gestaltung, 1440 px, Fira Sans geladen): die
-  anklickbaren 56-px-Zeilen der App — Rezeptliste, Einkaufsliste, Phasen- und Metablock-Zeilen —
-  setzen ihren Text mittig, Grundlinie bei 33 statt auf der Linie bei 47. Der Text steht damit
-  zwischen den Linien. Regel dafür: «Zustände», Text auf der unteren Linie.
+**Stand 11.09.2026 (AP-0501, Sprintabschluss).** Erledigte Punkte aus dem Sprint
+`libarius-gestaltung` sind unten entfernt bzw. als erledigt vermerkt — Beleg je Punkt in
+`Projekte/libarius-gestaltung/05_abschluss/projektabschluss.md`. Was weiterhin offen ist, steht
+jetzt in `Projekte/rezeptverwaltung/entscheide.md`, nicht mehr nur hier:
+
+- Zwei Rot-Hover-Reste aus R-45 sowie der Aufräumpunkt R-08 — **entscheide.md O-21**
+  (kleine Korrektur, Claude Code, kein Entscheid nötig).
+- Schrift lokal ablegen, falls die App ohne Netz in Fira Sans starten soll — weiterhin offen,
+  unverändert seit DESIGN.md-Entscheid 3 (09.09.2026).
+- Dunkelmodus entscheiden — Backlog, unverändert.
+- Rund zwanzig Vorlagen tragen Inline-Abstände von .4–.9 rem ausserhalb der drei mit AP-0311/
+  AP-0309 bereits behobenen Flächen; die Schicht hebt sie weiterhin gesammelt über
+  `.actions[style]`, `.hint[style]` und `textarea[style]` auf. Sauberer wäre, die Abstände in
+  den Vorlagen selbst zu entfernen — eigener Aufräumschritt ohne sichtbare Wirkung, nicht
+  Teil dieses Sprints.
+- ~~AP-0401 prüft zusätzlich: rechtsbündige Zutatennamen, Bedienbarkeit der 28-px-Zeilen in der
+  Variantentabelle, Druck mit dem neuen Raster.~~ **erledigt** — R-29 entschieden und umgesetzt
+  (AP-0402/AP-0312), Variantentabelle zeilengleich gebaut (AP-0315), Druck geprüft (AP-0308,
+  Emulation) und am Gerät bestätigt (AP-0402).
+- ~~Gemessen 10.09.2026: anklickbare 56-px-Zeilen setzen ihren Text mittig statt auf der
+  unteren Linie.~~ **erledigt** — Regel «Text auf der unteren Linie» (AP-0201-Nachtrag)
+  liegt seit AP-0303 dem gesamten Raster zugrunde, im Rahmen der AP-0401-Rasterabnahme
+  nicht mehr als Abweichung gemeldet.
+- `kochen/design/libarius.css` (Entwurfs-Referenzdatei, **nicht** die App) trägt weiterhin die
+  alten Entwurfswerte (`--lb-schiene:200px` u. a.) — bewusst so belassen, siehe K-11/K-12 oben.
+- O-16 (Entwicklungsmodus-Neubau) ist mit diesem Sprintabschluss startbar — Details in
+  `entscheide.md`.
 
 Der Rechenkern `Calc.*` ist unberührt.
