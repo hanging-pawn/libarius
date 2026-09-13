@@ -1776,7 +1776,17 @@ const CONFIG = {
     "zucker (tagatose)": "tagatose"
   }
 };
-const zahlOderNull = v => (v == null || v === "") ? null : Number(v);
+// AP-0303/H3: liefert nie mehr NaN — "3,50" oder "ca. 12" wurden bisher zu NaN, das an
+// "== null"-Pruefungen vorbeirutscht (NaN == null ist false) und dann in jede Rechnung
+// hineinrechnet ("roh += NaN" -> "CHF NaN" im ganzen Rezept). Number.isFinite() faengt auch
+// Infinity/-Infinity ab.
+const zahlOderNull = v => { if(v == null || v === "") return null; const n = Number(v); return Number.isFinite(n) ? n : null; };
+// AP-0305/M1: lokales Datum (Europe/Zurich) statt new Date().toISOString(), das in UTC rechnet
+// und bei einem Save vor 01:00/02:00 MESZ auf den Vortag springt — Backup-Dateiname und die
+// Felder "Geändert"/"Gelernt am" landeten dadurch falsch, und weil das Backup ein Tages-Upsert
+// ist, ueberschrieb das zweite Save des Tages sogar den Stand vor dem ersten. sv-SE liefert
+// mit Intl.DateTimeFormat das Format JJJJ-MM-TT direkt.
+const heutigesDatumLokal = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Zurich" }).format(new Date());
 
 /* ---------- Verfahrenskatalog (AP-0202/AP-0307) ---------------------------
    Kern (datum, optional sollG/istG, notizen) gilt fuer jedes Verfahren. Ob Soll/Ist im
@@ -1937,7 +1947,15 @@ async function ladeConfig(){
   try{
     const res = await fetch("config.json", { cache: "no-store" });
     if(!res.ok) throw new Error("HTTP " + res.status);
-    Object.assign(CONFIG, await res.json());
+    const geladen = await res.json();
+    // AP-0305/H1: flaches Object.assign hat den kompletten aliase-Block der eingebauten
+    // Tabelle ersetzt, sobald config.json einen eigenen aliase-Block mitbrachte — die 53
+    // eingebauten Aliase (1722ff.) waren damit in Produktion weg. Aliase separat mergen,
+    // wie bei 1951 bereits mit Settings gemacht.
+    const aliaseAusConfig = geladen.aliase;
+    delete geladen.aliase;
+    Object.assign(CONFIG, geladen);
+    if(aliaseAusConfig) CONFIG.aliase = Object.assign({}, CONFIG.aliase, aliaseAusConfig);
   }catch(e){
     View.meldung("config.json konnte nicht geladen werden (" + e.message + "). "
       + "Anmeldung ist ohne clientId nicht möglich — Beispieldaten bleiben nutzbar.",
@@ -1970,19 +1988,36 @@ const Model = {
   // verknüpft jede Zutat einmalig mit ihrem Rohstoff (FR-306/FR-307).
   // idxOverride: optional vorgebauter Index (AP-0315 Import-Vorschau ueberlagert den reellen
   // Bestand mit den im Dialog gewaehlten, noch nicht gespeicherten Zuordnungen).
+  // AP-0305/M3: eine Phase ohne "zutaten" (kaputtes/handgepflegtes JSON, z.B. via Excel direkt
+  // bearbeitet) liess frueher ph.zutaten.forEach() werfen — weil aufloesen() alle Rezepte in
+  // einem gemeinsamen forEach abarbeitet, riss das den GESAMTEN Ladevorgang ab, nicht nur diese
+  // Zeile. Jetzt faellt nur das betroffene Rezept nach "fehlerhaft", der Rest laedt normal.
+  // Rueckgabe wechselt darum von einem Array zu {rezepte, fehlerhaft} — Aufrufer, die den
+  // Rueckgabewert nicht nutzen (Model.aufloesen([rz], …) fuer ein einzelnes, im Editor
+  // erzeugtes Rezept), sind davon unberuehrt.
   aufloesen(rezepte, rohstoffe, idxOverride){
     const idx = idxOverride || Model.rohstoffIndex(rohstoffe);
+    const ok = [], fehlerhaft = [];
     rezepte.forEach(rz => {
       // AP-0307: Quellen ohne eigene Protokoll (JSON)-Spalte (Beispieldaten, frisch importierte
       // Rezepte) fallen auf das vorhandene Backprotokoll zurueck — dieselbe Leseregel wie in
       // Model.parseRezepte, hier fuer Objekte, die nicht durch parseRezepte gelaufen sind.
       if(rz.protokoll == null) rz.protokoll = rz.backprotokoll || [];
-      rz.phasen.forEach(ph => ph.zutaten.forEach(z => {
-        z.nameKey  = Model.nameKey(z.name);
-        z.rohstoff = idx.get(z.nameKey) || null;
-      }));
+      try{
+        rz.phasen.forEach(ph => {
+          if(!Array.isArray(ph.zutaten)) throw new Error('Phase "' + (ph.name || "?") + '" ohne Zutaten');
+          ph.zutaten.forEach(z => {
+            z.nameKey  = Model.nameKey(z.name);
+            z.rohstoff = idx.get(z.nameKey) || null;
+          });
+        });
+        ok.push(rz);
+      }catch(e){
+        fehlerhaft.push({ id: rz.id || "?", name: rz.name || "?", fehler: e.message,
+          zeile: rz._raw ? rz._raw.zeile + 1 : null });
+      }
     });
-    return rezepte;
+    return { rezepte: ok, fehlerhaft };
   },
 
   // Excel ⇄ intern (Feinkonzept §3, §3.2). aoa = Array-of-Arrays inkl. Kopfzeile.
@@ -2135,7 +2170,16 @@ const Model = {
 
 /* ---------- Calc: reiner Rechenkern (kein DOM, kein Netz) --------------- */
 const Calc = {
-  mengeG(zutat, basisMengeG, faktor){ return basisMengeG * faktor * zutat.prozent; },
+  // AP-0303 (libarius-codefix)/H3: zutat.prozent kann bei einer von Hand veraenderten
+  // "Phasen (JSON)"-Zelle Text statt Zahl sein (Excel prueft das nicht) — ungeschuetzt rechnet
+  // "Zahl * Text" zu NaN und diese NaN frisst sich in jede Kosten-/Naehrwert-/Mengen-Summe
+  // dieses Rezepts hinein (Befund H3). Einziger Berechnungsort fuer "wie viel Gramm ist diese
+  // Zutat", darum genuegt die Absicherung hier fuer alle Aufrufer (Calc.kosten/naehrwerte/
+  // einkaufsliste/View).
+  mengeG(zutat, basisMengeG, faktor){
+    const p = zutat.prozent;
+    return (typeof p === "number" && Number.isFinite(p)) ? basisMengeG * faktor * p : 0;
+  },
 
   // AP-0303/§3.3: eine Kochkorrektur wird proportional zur aktuellen Skalierung
   // nachgefuehrt — faktorBeiEingabe bleibt dabei als fester Bezugspunkt stehen, "ist"
@@ -2208,8 +2252,12 @@ const Calc = {
       roh += g * kk / 1000;
     }
     // FR-402: Materialeinsatz = Kosten / (1 - Schwund). Siehe offener Punkt O-5.
+    // AP-0303 (libarius-codefix)/H2: ein Schwund von 100 % oder mehr (moeglich, wenn
+    // schwundEintrag() ihn nicht mehr faelschlich bei fehlendem Ist liefert, siehe oben) wuerde
+    // hier durch 0 oder negativ teilen ("CHF Infinity"/negative Kosten) — Rohkosten als
+    // Rueckfallwert statt eines unsinnigen Ergebnisses; die Formel selbst (O-5) bleibt unberuehrt.
     const s = (schwund == null ? 0 : schwund);
-    const effektiv = s > 0 ? roh / (1 - s) : roh;
+    const effektiv = (s > 0 && s < 1) ? roh / (1 - s) : roh;
     const portionen = rezept.portionen * faktor;
     return { roh, effektiv, proPortion: portionen ? effektiv/portionen : null, fehlend };
   },
@@ -2231,8 +2279,12 @@ const Calc = {
     return { gesamt:g0, proPortion:teile(g0, portionen), pro100g:teile(g0, masseG/100), fehlend, masseG };
   },
 
+  // AP-0303 (libarius-codefix)/H2: ein Backprotokoll-Eintrag mit Soll ohne Ist lieferte istG:null
+  // nach dem Reload — "1 - null/sollG" rechnet null zu 0 und damit 100 % Schwund aus einem
+  // fehlenden Wert, nicht aus einer echten Messung. istG == null ist jetzt "keine Angabe",
+  // nicht "0 g gewogen".
   schwundEintrag(sollG, istG){
-    if(!sollG) return null;
+    if(!sollG || istG == null) return null;
     return 1 - (istG / sollG);
   },
 
@@ -2422,6 +2474,10 @@ const Calc = {
 
 /* ---------- Data: MSAL-Login + Microsoft Graph (Feinkonzept §5) --------- */
 let msalApp = null;
+// AP-0305/H5: laufendes Token-Promise, damit parallele Aufrufe (loadWorkbooks() ruft
+// Data.token() zweimal gleichzeitig ueber readWorkbook()) dieselbe Anfrage teilen statt
+// je ein eigenes Popup zu oeffnen (MSAL antwortet dem zweiten sonst mit interaction_in_progress).
+let tokenPromise = null;
 
 const Data = {
   verfuegbar(){ return !!msalApp; },
@@ -2507,17 +2563,34 @@ const Data = {
     Data.istIPad() ? msalApp.logoutRedirect(req) : msalApp.logoutPopup(req);
   },
 
+  // AP-0305/H5: teilt ein laufendes Token-Promise zwischen parallelen Aufrufern (siehe
+  // tokenPromise oben) — sonst oeffnet z.B. loadWorkbooks() zwei Popups gleichzeitig.
   async token(){
+    if(tokenPromise) return tokenPromise;
+    tokenPromise = Data._tokenHolen().finally(() => { tokenPromise = null; });
+    return tokenPromise;
+  },
+
+  async _tokenHolen(){
     const konto = msalApp.getActiveAccount();
     if(!konto) throw new Error("nicht angemeldet");
     const req = { scopes: ["Files.ReadWrite", "User.Read"], account: konto };
     try{
       return (await msalApp.acquireTokenSilent(req)).accessToken;
     }catch(e){
-      const antwort = Data.istIPad()
-        ? await msalApp.acquireTokenRedirect(req)
-        : await msalApp.acquireTokenPopup(req);
-      return antwort && antwort.accessToken;
+      // AP-0305/H5: nur ein echter Interaktionsbedarf (abgelaufener/fehlender Refresh-Token)
+      // loest den interaktiven Weg aus — sonst haette jeder Silent-Fehler (auch ein Netzfehler)
+      // ein Anmelde-Popup zur Folge.
+      if(!(e instanceof msal.InteractionRequiredAuthError)) throw e;
+      if(Data.istIPad()){
+        // acquireTokenRedirect navigiert weg und liefert hier nie einen Wert zurueck; bislang
+        // wurde daraus "Bearer undefined" -> 401 noch vor dem Redirect. Stattdessen werfen,
+        // damit kein Aufruf mit ungueltigem Token hinausgeht.
+        await msalApp.acquireTokenRedirect(req);
+        throw new Error("Anmeldung erforderlich — Weiterleitung läuft");
+      }
+      const antwort = await msalApp.acquireTokenPopup(req);
+      return antwort.accessToken;
     }
   },
 
@@ -2570,7 +2643,7 @@ const Data = {
     const buf = await Data.readWorkbook(pfad);
     const token = await Data.token();
     const name = pfad.split("/").pop();
-    const heute = new Date().toISOString().slice(0, 10);
+    const heute = heutigesDatumLokal();
     const zielName = name.replace(/\.xlsx$/i, "") + "_backup_" + heute + ".xlsx";
     const url = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(ordner + "/" + zielName) + ":/content";
     const res = await fetch(url, { method: "PUT",
@@ -2581,9 +2654,16 @@ const Data = {
 
   // Schnittstelle für AP-0305 (Speichern). Pilotbefund zum Formatverlust: siehe
   // AP-0302 Dokumentation / Entscheid O-9 — SheetJS-Ganzdatei-PUT verwerfen.
-  // Bleibt fuer den AP-0315-Importpfad (ganze neue Zeilen/Blaetter) bestehen; das
-  // Backprotokoll selbst schreibt AP-0305 gezielt ueber Data.updateCell().
-  async writeWorkbook(pfad, arrayBuffer){
+  // AP-0301/K1: seit diesem AP schreibt kein Aufrufer mehr blind eine Ganzdatei — der einzige
+  // verbliebene Aufrufer (Import) ist auf zellgenaue Writes (importSchreiben()) umgestellt.
+  // Die Funktion bleibt bestehen (statt geloescht), bekommt aber einen Pflichtparameter
+  // "erwarteterETag": fehlt er oder weicht er vom aktuellen eTag der Datei ab, wird verworfen
+  // statt eine Fremdaenderung stillschweigend zu ueberschreiben. Damit faellt ein kuenftiger
+  // Aufrufer ohne eTag beim ersten Test auf statt erst im Betrieb (Entscheid O-9).
+  async writeWorkbook(pfad, arrayBuffer, erwarteterETag){
+    if(!erwarteterETag) throw new Error("writeWorkbook ohne erwarteterETag — Ganzdatei-Schreiben ohne Konflikterkennung ist gesperrt");
+    const meta = await Data.getItemMeta(pfad);
+    if(meta.eTag !== erwarteterETag) throw new Error("Konflikt: " + pfad + " wurde zwischenzeitlich extern geändert");
     await Data.backup(pfad);
     const token = await Data.token();
     const url = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(pfad) + ":/content";
@@ -2605,6 +2685,29 @@ const Data = {
       headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
       body: JSON.stringify({ values: [[wert]] }) });
     if(!res.ok) throw new Error("Zelle " + addr + " schreiben fehlgeschlagen (" + res.status + ")");
+    return true;
+  },
+
+  // AP-0301/K1: legt ein Blatt an, falls es fehlt — noetig fuer den allerersten gelernten
+  // Alias (Data.updateCell() kann nur in ein bestehendes Blatt schreiben, keines anlegen).
+  // headerRow ist optional und wird nur bei tatsaechlicher Neuanlage geschrieben.
+  async ensureSheet(pfad, sheetName, headerRow){
+    const token = await Data.token();
+    const pruefUrl = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(pfad)
+      + ":/workbook/worksheets('" + encodeURIComponent(sheetName) + "')";
+    const res = await fetch(pruefUrl, { headers: { Authorization: "Bearer " + token } });
+    if(res.ok) return false;   // Blatt existiert bereits
+    if(res.status !== 404) throw new Error("Graph-Fehler " + res.status + " beim Prüfen von Blatt " + sheetName);
+    const anlegenUrl = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(pfad) + ":/workbook/worksheets/add";
+    const anlegenRes = await fetch(anlegenUrl, { method: "POST",
+      headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
+      body: JSON.stringify({ name: sheetName }) });
+    if(!anlegenRes.ok) throw new Error("Blatt " + sheetName + " anlegen fehlgeschlagen (" + anlegenRes.status + ")");
+    if(headerRow && headerRow.length){
+      for(let c = 0; c < headerRow.length; c++){
+        await Data.updateCell(pfad, sheetName, XLSX.utils.encode_col(c) + "1", headerRow[c]);
+      }
+    }
     return true;
   }
 };
@@ -3145,17 +3248,37 @@ const EntwModell = {
   // Rezeptur, der Default trifft zu, kein Schreibvorgang noetig.
   hydrieren(entwicklung){
     if(!entwicklung) return null;
-    const versuche = entwicklung.versuche || [];
+    // AP-0303/K2: Typerzwingung — ein Import oder eine von Hand veraenderte Zelle darf das
+    // Rendern nicht zum Absturz bringen. "versionen"/"versuche" werden nur als Array
+    // uebernommen, jede Version nur als Objekt; "v" bleibt eine Zahl, wo immer moeglich (es ist
+    // in fast der ganzen App die Vergleichsbasis gegen `Number(dataset...)`, siehe die vielen
+    // "s.v === v"-Stellen) — ein fremder Typ wird zu einem laengenbegrenzten String statt
+    // still durchgereicht zu werden (matcht dann keine Auswahl mehr, bricht aber auch nichts
+    // ab). Die Ausgabe selbst laeuft immer ueber esc() (View-Vorlagen), das gilt unabhaengig
+    // vom hier gewaehlten Typ.
+    const vSicher = wert => {
+      if(typeof wert === "number" && Number.isFinite(wert)) return wert;
+      if(typeof wert === "string") return wert.slice(0, 40);
+      return null;
+    };
+    const versuche = Array.isArray(entwicklung.versuche) ? entwicklung.versuche : [];
+    const versionen = Array.isArray(entwicklung.versionen) ? entwicklung.versionen : [];
     // AP-0315-Nacharbeit (§3.2/§4.3): basisMengeG je Variante — fehlt es (Bestand vor
     // diesem Feld), bleibt es null, View.entwZelle/App.entwZutatFeld fallen dann auf
     // rz.basisMengeG zurueck (kein Migrationsschritt noetig).
-    const spalten = (entwicklung.versionen || []).map(v => ({
-      v: v.v, datum: v.datum, notiz: v.notiz || "",
+    const spalten = versionen.filter(v => v && typeof v === "object").map(v => ({
+      v: vSicher(v.v), datum: typeof v.datum === "string" ? v.datum : null,
+      notiz: typeof v.notiz === "string" ? v.notiz : "",
       herkunft: v.herkunft || "produktiv",
       eingeklappt: !!v.eingeklappt,
-      basisMengeG: v.basisMengeG != null ? v.basisMengeG : null,
-      phasen: v.phasen,
-      versuche: versuche.filter(x => x.version === v.v)
+      basisMengeG: typeof v.basisMengeG === "number" && Number.isFinite(v.basisMengeG) ? v.basisMengeG : null,
+      // AP-0303 (libarius-codefix)/M5: eine Version ohne (gueltiges) "phasen"-Array liess
+      // View.entwZeilenplan() bislang mit "s.phasen.length" auf undefined mitten im Rendern
+      // abbrechen (altes DOM blieb stehen). Leeres Array statt Absturz — View.entwSpalteHtml
+      // markiert eine so entstandene Spalte am Kopf als "unvollständig" (unten, entwUnvollstaendig).
+      phasen: Array.isArray(v.phasen) ? v.phasen : [],
+      unvollstaendig: !Array.isArray(v.phasen),
+      versuche: versuche.filter(x => x && x.version === v.v)
     }));
     return {
       status: entwicklung.status, zielwerte: entwicklung.zielwerte || {},
@@ -3536,10 +3659,19 @@ const Entwurf = {
     try{ return JSON.parse(localStorage.getItem(Entwurf.SCHLUESSEL) || "{}"); }
     catch(e){ return {}; }
   },
+  // AP-0305/H9: verschluckte bislang jeden Fehler — bei vollem localStorage oder Safari im
+  // privaten Modus wurde der Entwurf nicht gesichert, ohne dass die Aufrufer (Konfliktpfad,
+  // 7419/7437) das bemerkten. Gibt jetzt den Erfolg zurueck.
   speichern(rezeptId, phasen){
     const alle = Entwurf.alle();
     alle[rezeptId] = { ts: new Date().toISOString(), phasen };
-    try{ localStorage.setItem(Entwurf.SCHLUESSEL, JSON.stringify(alle)); }catch(e){}
+    try{
+      localStorage.setItem(Entwurf.SCHLUESSEL, JSON.stringify(alle));
+      return true;
+    }catch(e){
+      console.error("Entwurf.speichern fehlgeschlagen:", e);
+      return false;
+    }
   },
   lesen(rezeptId){ return Entwurf.alle()[rezeptId] || null; },
   verwerfen(rezeptId){
@@ -3594,6 +3726,10 @@ const NavGruppen = {
 /* ---------- View -------------------------------------------------------- */
 const el = (sel) => document.querySelector(sel);
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+// AP-0303 (libarius-codefix)/M5: bewertung kommt aus dem Verfahrensprotokoll bzw. einem
+// Import — ohne Begrenzung wirft "○".repeat(5-bewertung) bei einer Bewertung über 5 eine
+// RangeError (negative Wiederholung) und reisst das ganze Rendern mit ab.
+const bewertungSicher = (n) => Math.max(0, Math.min(5, Number(n) || 0));
 const nf = (v,d=1) => v==null ? "—" : Number(v).toFixed(d);
 const chf = (v) => v==null ? "—" : "CHF " + Number(v).toFixed(2);
 const pct = (v,d=1) => v==null ? "—" : (v*100).toFixed(d) + " %";
@@ -3965,10 +4101,13 @@ const View = {
         + `${Calc.runden(korrektur.ist, korrektur.einheit)} eingegeben">↕ <s>${View.mengeText(g, z.einheit, z.rohstoff)}</s></span>`;
       pct = istAktuell / (rz.basisMengeG * faktor) * 100;
     }else{
-      menge = View.mengeText(g, z.einheit, z.rohstoff);
-      pct = z.prozent * 100;
+      // AP-0303 (libarius-codefix)/H3: z.prozent kann bei einer von Hand veraenderten
+      // "Phasen (JSON)"-Zelle Text statt Zahl sein — "—" statt "NaN %" anzeigen.
+      const prozentGueltig = typeof z.prozent === "number" && Number.isFinite(z.prozent);
+      menge = prozentGueltig ? View.mengeText(g, z.einheit, z.rohstoff) : "—";
+      pct = prozentGueltig ? z.prozent * 100 : null;
     }
-    return { nameHtml: `${esc(z.name)}${unbekannt}${fodmapHtml}`, pctText: pct.toFixed(1) + " %", mengeHtml: menge };
+    return { nameHtml: `${esc(z.name)}${unbekannt}${fodmapHtml}`, pctText: pct != null ? pct.toFixed(1) + " %" : "—", mengeHtml: menge };
   },
 
   // AP-0315 (libarius-gestaltung): entwZellenHtml (optional) haengt fertig gerenderte
@@ -4129,10 +4268,10 @@ const View = {
       // AP-0309/§3 Nr.7: Substitutions-Dialog ist Nebenansicht (B7), der Anstoss dazu bleibt
       // aber an der Zutatenzeile selbst — sonst waere er nicht mehr auffindbar.
       return `<div class="entw-zelle">
-        <input type="number" step="any" data-entw-zutat="${sp.v}|${r.pi}|${r.zi}"
+        <input type="number" step="any" data-entw-zutat="${esc(sp.v)}|${r.pi}|${r.zi}"
           class="entw-wert${geaendert ? " entw-geaendert" : ""}" style="width:auto;flex:1;min-width:0"
           value="${Number.isFinite(anzeige) ? Math.round(anzeige * 100) / 100 : ""}" title="${esc(zu.name)}">${deltaHtml}
-        <button type="button" class="ghost noprint" data-entw-subst="${sp.v}|${r.pi}|${r.zi}"
+        <button type="button" class="ghost noprint" data-entw-subst="${esc(sp.v)}|${r.pi}|${r.zi}"
           title="${esc(zu.name)} ersetzen (Substitution)" style="min-height:auto;padding:0 .25rem;font-size:.7rem;flex:none">⇄</button>
       </div>`;
     }
@@ -4145,8 +4284,8 @@ const View = {
     const geaendert = (sc.text || "") !== basisText;
     const eb = Store.entw.schrittBearbeiten;
     if(eb && eb.v === sp.v && eb.pi === r.pi && eb.si === r.si)
-      return `<div class="entw-zelle"><input type="text" data-entw-schritt-feld="${sp.v}|${r.pi}|${r.si}" value="${esc(sc.text || "")}"></div>`;
-    return `<div class="entw-zelle entw-schritt-zelle" data-entw-schritt-oeffnen="${sp.v}|${r.pi}|${r.si}"
+      return `<div class="entw-zelle"><input type="text" data-entw-schritt-feld="${esc(sp.v)}|${r.pi}|${r.si}" value="${esc(sc.text || "")}"></div>`;
+    return `<div class="entw-zelle entw-schritt-zelle" data-entw-schritt-oeffnen="${esc(sp.v)}|${r.pi}|${r.si}"
       title="${esc(sc.text || "")}">${geaendert ? "✎" : "—"}</div>`;
   },
 
@@ -4165,28 +4304,31 @@ const View = {
     const sGeaendert = diff.schritte.filter(x => x.geaendert).length;
     return `<div class="entw-kopf">
       <div class="entw-kopf-zeile1">
-        <button type="button" class="ghost entw-v" data-entw-aktiv="${sp.v}">v${sp.v}</button>
+        <button type="button" class="ghost entw-v" data-entw-aktiv="${esc(sp.v)}">v${esc(sp.v)}</button>
         ${aktiv ? '<span class="entw-badge-aktiv">aktiv</span>' : ""}
+        ${sp.unvollstaendig ? '<span class="warn-inline" title="Kein gültiges Phasen-Array (z. B. beschädigter Import) — Spalte zeigt keine Zutaten/Schritte.">unvollständig</span>' : ""}
       </div>
       <div class="entw-diff">${zGeaendert || sGeaendert
         ? `${zGeaendert} Zutat(en) · ${sGeaendert} Schritt(e) geändert gegenüber produktiv`
         : "unverändert gegenüber produktiv"}</div>
-      <input type="text" data-entw-notiz="${sp.v}" value="${esc(sp.notiz || "")}" placeholder="Notiz…">
+      <input type="text" data-entw-notiz="${esc(sp.v)}" value="${esc(sp.notiz || "")}" placeholder="Notiz…">
       <div class="entw-kopf-knoepfe noprint">
-        <button class="ghost" data-entw-abzweigen="${sp.v}" title="Neue Variante als Kopie dieser Spalte">+ Var.</button>
-        <button class="ghost" data-entw-einklappen="${sp.v}">◀</button>
+        <button class="ghost" data-entw-abzweigen="${esc(sp.v)}" title="Neue Variante als Kopie dieser Spalte">+ Var.</button>
+        <button class="ghost" data-entw-einklappen="${esc(sp.v)}">◀</button>
       </div>
     </div>`;
   },
   entwSpaltenfuss(sp){
-    const letzter = (sp.versuche || []).slice().sort((a, b) => (b.datum || "").localeCompare(a.datum || ""))[0];
+    // AP-0303 (libarius-codefix)/M5: datum kann bei einem Import als Zahl statt Text vorliegen —
+    // String() davor haelt localeCompare() am Leben statt das Rendern abzubrechen.
+    const letzter = (sp.versuche || []).slice().sort((a, b) => String(b.datum || "").localeCompare(String(a.datum || "")))[0];
     return `<div class="entw-fuss noprint">
-      <div class="entw-letzter" data-entw-bewerten="${sp.v}">${letzter
-        ? "Letzter Versuch " + esc(letzter.datum) + " · " + "●".repeat(letzter.bewertung || 0) + "○".repeat(5 - (letzter.bewertung || 0))
+      <div class="entw-letzter" data-entw-bewerten="${esc(sp.v)}">${letzter
+        ? "Letzter Versuch " + esc(letzter.datum) + " · " + "●".repeat(bewertungSicher(letzter.bewertung)) + "○".repeat(5 - bewertungSicher(letzter.bewertung))
         : "noch kein Versuch"}</div>
       <div class="actions">
-        <button class="ghost" data-entw-bewerten="${sp.v}">Bewerten</button>
-        <button data-entw-uebernehmen="${sp.v}">Übernehmen</button>
+        <button class="ghost" data-entw-bewerten="${esc(sp.v)}">Bewerten</button>
+        <button data-entw-uebernehmen="${esc(sp.v)}">Übernehmen</button>
       </div>
     </div>`;
   },
@@ -4216,7 +4358,7 @@ const View = {
       <div class="entw-kopf-reihe" style="grid-template-columns:${entwGridTemplate}">
         <div></div><div></div><div></div><div></div>
         ${entwSpaltenOffen.map(sp => View.entwSpaltenkopf(sp, z, rz)).join("")}
-        ${eingeklappt.map(sp => `<div class="entw-kopf entw-kopf--streifen"><button class="ghost" data-entw-einklappen="${sp.v}" title="v${sp.v} wieder anzeigen">v${sp.v}</button></div>`).join("")}
+        ${eingeklappt.map(sp => `<div class="entw-kopf entw-kopf--streifen"><button class="ghost" data-entw-einklappen="${esc(sp.v)}" title="v${esc(sp.v)} wieder anzeigen">v${esc(sp.v)}</button></div>`).join("")}
       </div>
     </div>`;
   },
@@ -4254,33 +4396,36 @@ const View = {
     const diff = Calc.entwDiff({ phasen: basisPhasen }, { phasen: sp.phasen });
     const zGeaendert = diff.zutaten.filter(x => x.delta != null && Math.abs(x.delta) > 0.0001).length;
     const sGeaendert = diff.schritte.filter(x => x.geaendert).length;
-    const letzter = (sp.versuche || []).slice().sort((a, b) => (b.datum || "").localeCompare(a.datum || ""))[0];
+    // AP-0303 (libarius-codefix)/M5: datum kann bei einem Import als Zahl statt Text vorliegen —
+    // String() davor haelt localeCompare() am Leben statt das Rendern abzubrechen.
+    const letzter = (sp.versuche || []).slice().sort((a, b) => String(b.datum || "").localeCompare(String(a.datum || "")))[0];
     // AP-0304 (libarius-gestaltung), R-30/R-35: Kopf und Fuss bestehen aus festen 56-px-Zeilen
     // (Bedienzeilen) statt inline verdrahteter min-height — nur so bleibt ihre Gesamthoehe fuer
     // JEDE Spalte UND die Achse identisch, egal wie lang Diff-Text oder Notiz gerade sind. Die
     // 28-px-Ausnahme (DESIGN.md Entscheid 1) gilt seit R-35/R-56 nur noch fuer .entw-zelle.
     const kopf = `<div class="entw-kopf">
       <div class="entw-kopf-zeile1">
-        <button type="button" class="ghost entw-v" data-entw-aktiv="${sp.v}">v${sp.v}</button>
+        <button type="button" class="ghost entw-v" data-entw-aktiv="${esc(sp.v)}">v${esc(sp.v)}</button>
         ${aktiv ? '<span class="entw-badge-aktiv">aktiv</span>' : ""}
+        ${sp.unvollstaendig ? '<span class="warn-inline" title="Kein gültiges Phasen-Array (z. B. beschädigter Import) — Spalte zeigt keine Zutaten/Schritte.">unvollständig</span>' : ""}
       </div>
       <div class="entw-diff">${zGeaendert || sGeaendert
         ? `${zGeaendert} Zutat(en) · ${sGeaendert} Schritt(e) geändert gegenüber ${z.basis === "produktiv" ? "produktiv" : "v" + z.basis}`
         : "unverändert gegenüber " + (z.basis === "produktiv" ? "produktiv" : "v" + z.basis)}</div>
-      <input type="text" data-entw-notiz="${sp.v}" value="${esc(sp.notiz || "")}" placeholder="Notiz…">
+      <input type="text" data-entw-notiz="${esc(sp.v)}" value="${esc(sp.notiz || "")}" placeholder="Notiz…">
       <div class="entw-kopf-knoepfe noprint entw-verbergen">
-        <button class="ghost" data-entw-abzweigen="${sp.v}" title="Neue Variante als Kopie dieser Spalte">+ Var.</button>
-        <button class="ghost" data-entw-einklappen="${sp.v}">${sp.eingeklappt ? "▶" : "◀"}</button>
+        <button class="ghost" data-entw-abzweigen="${esc(sp.v)}" title="Neue Variante als Kopie dieser Spalte">+ Var.</button>
+        <button class="ghost" data-entw-einklappen="${esc(sp.v)}">${sp.eingeklappt ? "▶" : "◀"}</button>
       </div>
     </div>`;
     const zellen = `<div class="entw-verbergen">${zeilen.map(r => View.entwZelle(sp, r, rz, basisPhasen)).join("")}</div>`;
     const fuss = `<div class="entw-fuss noprint entw-verbergen">
-      <div class="entw-letzter" data-entw-bewerten="${sp.v}">${letzter
-        ? "Letzter Versuch " + esc(letzter.datum) + " · " + "●".repeat(letzter.bewertung || 0) + "○".repeat(5 - (letzter.bewertung || 0))
+      <div class="entw-letzter" data-entw-bewerten="${esc(sp.v)}">${letzter
+        ? "Letzter Versuch " + esc(letzter.datum) + " · " + "●".repeat(bewertungSicher(letzter.bewertung)) + "○".repeat(5 - bewertungSicher(letzter.bewertung))
         : "noch kein Versuch"}</div>
       <div class="actions">
-        <button class="ghost" data-entw-bewerten="${sp.v}">Bewerten</button>
-        <button data-entw-uebernehmen="${sp.v}">Übernehmen</button>
+        <button class="ghost" data-entw-bewerten="${esc(sp.v)}">Bewerten</button>
+        <button data-entw-uebernehmen="${esc(sp.v)}">Übernehmen</button>
       </div>
     </div>`;
     return `<div class="entw-spalte${aktiv ? " entw-aktiv" : ""}${sp.eingeklappt ? " entw-eingeklappt" : ""}">${kopf}${zellen}${fuss}</div>`;
@@ -4355,15 +4500,15 @@ const View = {
     if(!sp) return "";
     const feldsatz = Verfahren.feldsatz(rz.verfahren);
     const merkmalsatz = Merkmale.satz(rz.verfahren);
-    const liste = (sp.versuche || []).slice().sort((a, b) => (a.datum || "").localeCompare(b.datum || ""));
+    const liste = (sp.versuche || []).slice().sort((a, b) => String(a.datum || "").localeCompare(String(b.datum || "")));
     const listeHtml = liste.length ? `<table class="log">
       <tr><th>Datum</th><th class="num">Soll</th><th class="num">Ist</th><th>Bewertung</th><th>Erkenntnis</th></tr>
       ${liste.map(v => `<tr><td>${esc(v.datum)}</td>
         <td class="num">${Calc.versuchSollG(v) != null ? Calc.versuchSollG(v) + " g" : "—"}</td>
         <td class="num">${Calc.versuchIstG(v) != null ? Calc.versuchIstG(v) + " g" : "—"}</td>
-        <td>${"★".repeat(v.bewertung || 0)}${"☆".repeat(5 - (v.bewertung || 0))}</td>
+        <td>${"★".repeat(bewertungSicher(v.bewertung))}${"☆".repeat(5 - bewertungSicher(v.bewertung))}</td>
         <td>${esc(v.erkenntnis || "")}</td></tr>`).join("")}
-    </table>` : `<div class="hint">Noch kein Versuch für v${sp.v}.</div>`;
+    </table>` : `<div class="hint">Noch kein Versuch für v${esc(sp.v)}.</div>`;
 
     // AP-0305 (libarius-gestaltung), R-34/R-38: Formular nach .lb-protokoll (Entwurf 1d) —
     // Etikett und Feld auf einer Zeile statt Etikett ueber dem Feld; keine Inline-Abstaende
@@ -4382,7 +4527,7 @@ const View = {
       + merkmalsatz.kaesten.map(k => `<label class="entw-merkmal lb-protokoll lb-protokoll--feld"><span class="lbl">${esc(k)}</span><input type="checkbox" data-entw-bew-kasten="${esc(k)}"${ov.merkmale[k] ? " checked" : ""}></label>`).join("");
 
     return `<div class="entw-overlay noprint">
-      <div class="entw-b7-kopf"><h3>Versuche v${sp.v}</h3></div>
+      <div class="entw-b7-kopf"><h3>Versuche v${esc(sp.v)}</h3></div>
       ${listeHtml}
       <div class="entw-abschnitt">
         <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Datum</span><input id="entwBewDatum" type="date" value="${esc(ov.datum)}"></label>
@@ -4408,7 +4553,7 @@ const View = {
     const sp = z.spalten.find(s => s.v === ov.v);
     if(!sp) return "";
     return `<div class="entw-overlay noprint">
-      <div class="msg warn"><b>v${sp.v} wird produktive Rezeptur.</b> Bisherige Rezeptur bleibt als Version erhalten;
+      <div class="msg warn"><b>v${esc(sp.v)} wird produktive Rezeptur.</b> Bisherige Rezeptur bleibt als Version erhalten;
         ${(sp.versuche || []).length ? "ihre " + sp.versuche.length + " Versuch(e) werden zusätzlich ins Verfahrensprotokoll kopiert." : "sie hat noch keine Versuche."}</div>
       <div class="actions noprint" style="margin-top:.6rem">
         <button id="btnEntwUebernehmenBestaetigt">Bestätigen</button>
@@ -4499,7 +4644,7 @@ const View = {
       vergleichHtml = `
         <div class="tabellescroll">
           <table class="log vergleich">
-            <tr><th>Kennzahl</th><th class="num">v${sp.v} (Entwicklung)</th>
+            <tr><th>Kennzahl</th><th class="num">v${esc(sp.v)} (Entwicklung)</th>
               ${refs.map(r => `<th class="num">${esc(r.name)}</th>`).join("")}</tr>
             ${vg.kennzahlen.map(zeileHtml).join("")}
             <tr class="gruppe"><td colspan="${refs.length + 2}">Zutaten (% der Basis)</td></tr>
@@ -4507,7 +4652,7 @@ const View = {
           </table>
         </div>
         <div class="hint">▲ markiert: mehr als 20 % relative Abweichung der Referenz gegenüber
-          der Entwicklungsversion v${sp.v}.</div>`;
+          der Entwicklungsversion v${esc(sp.v)}.</div>`;
     }
 
     const q = (ov.suchtext || "").trim().toLowerCase();
@@ -4772,10 +4917,15 @@ const View = {
   // der NEUE Stand aus OneDrive, siehe App.zutatenEditorSpeichern) neben dem Entwurf.
   zutatenEditorKonflikt(rz, ed){
     if(ed.konflikt.fremdeAnsicht){
+      // AP-0303 (libarius-codefix)/H3: z.prozent kann bei einer von Hand veraenderten Zelle
+      // Text statt Zahl sein — "—" statt "NaN %"/"NaN g" anzeigen statt ungeprueft zu rechnen.
       const fremd = rz.phasen.map(ph => `<div class="editorphase"><h4>${esc(ph.name)}</h4>
-        <table class="zutaten">${(ph.zutaten||[]).map(z => `<tr><td>${esc(z.name)}</td>
-          <td class="pct">${(z.prozent*100).toFixed(1)} %</td>
-          <td class="menge">${Calc.runden(z.prozent*rz.basisMengeG, z.einheit)}</td></tr>`).join("")}</table></div>`).join("");
+        <table class="zutaten">${(ph.zutaten||[]).map(z => {
+          const gueltig = typeof z.prozent === "number" && Number.isFinite(z.prozent);
+          return `<tr><td>${esc(z.name)}</td>
+          <td class="pct">${gueltig ? (z.prozent*100).toFixed(1) : "—"} %</td>
+          <td class="menge">${gueltig ? Calc.runden(z.prozent*rz.basisMengeG, z.einheit) : "—"}</td></tr>`;
+        }).join("")}</table></div>`).join("");
       return `<div class="msg warn noprint">
         <b>Fremde Fassung — aktueller Stand in Rezepte.xlsx</b>
         ${fremd}
@@ -4979,7 +5129,7 @@ const View = {
       // damit man beim Zuklappen nicht ins Leere sieht.
       const entwSummary = (zEntw && entwSpaltenOffen.length) ? `<span class="entw-summary">${entwSpaltenOffen.map(sp => {
         const anzahl = entwZeilenAlle.filter(r => r.pi === i && r.typ !== "phase" && View.entwGeaendert(sp, r, rz.phasen)).length;
-        return `<span class="entw-phase-zaehler" title="v${sp.v}">${anzahl || "="}</span>`;
+        return `<span class="entw-phase-zaehler" title="v${esc(sp.v)}">${anzahl || "="}</span>`;
       }).join("")}</span>` : "";
       return `<details class="phase" data-i="${i}"${offen}>
                 <summary><span class="nm">${esc(p.name)}</span>${entwSummary}</summary>
@@ -5001,7 +5151,7 @@ const View = {
     // oder, solange dafuer noch nichts geschrieben wurde, die migrierten Backprotokoll-Eintraege
     // (Leseregel AP-0202, siehe Model.parseRezepte). Soll/Ist bleiben leer, wo das Verfahren sie
     // nicht fuehrt; felder zeigt die verfahrensspezifischen Werte kompakt in einer eigenen Spalte.
-    const protokollSortiert = (rz.protokoll || []).slice().sort((a,b) => (a.datum||"").localeCompare(b.datum||""));
+    const protokollSortiert = (rz.protokoll || []).slice().sort((a,b) => String(a.datum||"").localeCompare(String(b.datum||"")));
     const feldWert = (f, v) => {
       if(v == null || v === "") return "";
       if(f.typ === "bool") return v ? "ja" : "nein";
@@ -5128,9 +5278,9 @@ const View = {
               <div class="entw-zeile-menge"></div>
               ${entwGasseHtml}
               ${entwSpaltenOffen.map(sp => `<div class="entw-zelle"><input type="number" min="1" step="10"
-                data-entw-basismenge="${sp.v}"
+                data-entw-basismenge="${esc(sp.v)}"
                 value="${Math.round(sp.basisMengeG != null ? sp.basisMengeG : rz.basisMengeG)}"
-                title="Basismenge v${sp.v}, g"></div>`).join("")}${entwStreifenLeerHtml}
+                title="Basismenge v${esc(sp.v)}, g"></div>`).join("")}${entwStreifenLeerHtml}
             </div>` : ""}`
             : `<div class="scaler noprint">
             <label>Basis (g)<input id="zielBasis" type="number" min="1" step="10" value="${Math.round(rz.basisMengeG*f)}"></label>
@@ -5840,7 +5990,8 @@ async function selfTest(){
       async backup(){ log.push("backup"); if(script.backupWirft) throw new Error("Backup-Fehler (mock)"); return "datei.xlsx"; },
       async updateCell(pfad, sheet, addr){ log.push("updateCell:" + addr);
         if(script.updateCellWirft === addr) throw new Error("Zelle " + addr + " schreiben fehlgeschlagen (mock)");
-        return true; }
+        return true; },
+      async ensureSheet(pfad, sheetName){ log.push("ensureSheet:" + sheetName); return true; }
     };
   };
   const editorSchreibenHeader = ["Rezept-ID","Name","Kategorie","Unterkategorie","Basis-Rohstoff",
@@ -5872,7 +6023,95 @@ async function selfTest(){
   const ergProtokoll = await protokollSchreiben(gwProtokoll, { ...editorSchreibenParams,
     aktuellerETag:"E1", protokoll:[{ datum:"2026-09-01", sollG:500, istG:470, notizen:null }] });
 
+  // AP-0301/H11: aktuellerETag == null darf nicht mehr ungeprueft weiterschreiben, sondern muss
+  // wie ein Konflikt abbrechen — VOR jedem Backup/Zell-Update.
+  const gwProtokollOhneETag = mockGateway({ eTag:() => ({ eTag:"E1" }) });
+  const ergProtokollOhneETag = await protokollSchreiben(gwProtokollOhneETag, { ...editorSchreibenParams,
+    aktuellerETag:null, protokoll:[{ datum:"2026-09-01", sollG:500, istG:470, notizen:null }] });
+
+  // AP-0303 (libarius-codefix)/H2: Soll ohne Ist als einziger Protokolleintrag im Fenster —
+  // Calc.schwundAktuell() liefert null (kein 100 %-Artefakt mehr), protokollSchreiben() darf
+  // darum keine "Schwund (%)"-Zelle schreiben.
+  const schwundHeader = [...editorSchreibenHeader, "Schwund (%)"];
+  const addrSchwundTest = Model.zelladresse(schwundHeader, "Schwund (%)", 5);
+  const addrGeaendertTest = Model.zelladresse(schwundHeader, "Geändert", 5);
+  const gwSchwundOhneIst = mockGateway({ eTag:() => ({ eTag:"E1" }) });
+  const ergSchwundOhneIst = await protokollSchreiben(gwSchwundOhneIst, { rezeptePfad:"/Test/Rezepte.xlsx", sheetName:"Rezepte",
+    header: schwundHeader, zeileExcel:5, aktuellerETag:"E1",
+    protokoll:[{ datum:"2026-09-01", sollG:1000, istG:null, notizen:null }] });
+
+  // AP-0301/K1: gemockter Schreibpfad fuer importSchreiben() — Rezepte.xlsx mit einer bereits
+  // bestehenden Datenzeile (naechste freie Zeile ist Excel-Zeile 3), Rohstoffe.xlsx noch ohne
+  // "Aliase"-Blatt (Fall "allererster gelernter Alias").
+  const importHeader = ["Rezept-ID","Name","Kategorie","Unterkategorie","Basis-Rohstoff",
+    "Basis-Menge (g)","Sollgewicht (g)","Portionen","Einheit","Quelle","Phasen (JSON)","Backprotokoll (JSON)","Entwicklung (JSON)"];
+  const importRezWbGleich = { SheetNames:["Rezepte"], Sheets:{ Rezepte: XLSX.utils.aoa_to_sheet([
+    importHeader, ["RZP-001","Bestehend","Kategorie",null,"Mehl",1000,1000,1,"Stk",null,"[]","[]",null] ]) } };
+  const importRohWb = { SheetNames:["Rohstoffe"], Sheets:{ Rohstoffe: XLSX.utils.aoa_to_sheet([["Name"],["Mehl"]]) } };
+  const importNeuesRezept = Import.zuIntern({
+    name:"Neu", kategorie:"Kat", unterkategorie:null, quelle:null, basisName:"Mehl", basisMengeG:1000,
+    sollgewichtG:1000, portionen:1, einheit:"Stk",
+    phasen:[{ name:"P", zutaten:[{ name:"Mehl", prozent:1, einheit:"g" }], schritte:[] }],
+    backprotokoll:[], entwicklung:null
+  });
+  importNeuesRezept.id = "RZP-002";   // zuIntern() liefert id:null, importUebernehmen() vergibt sie sonst per Import.naechsteId()
+
+  // Zweig 1: fremder eTag — Abbruch direkt nach der Pruefung, kein Backup, kein Zell-Update.
+  const importRezWbFremd = { SheetNames:["Rezepte"], Sheets:{ Rezepte: XLSX.utils.aoa_to_sheet([
+    importHeader, ["RZP-001","Bestehend","Kategorie",null,"Mehl",1000,1000,1,"Stk",null,"[]","[]",null] ]) } };
+  const gwImportFremd = mockGateway({ eTag:() => ({ eTag:"E2" }) });
+  const ergImportFremd = await importSchreiben(gwImportFremd, {
+    rezeptePfad:"/Test/Rezepte.xlsx", rezWorkbook: importRezWbFremd, rezSheetName:"Rezepte",
+    neueRezepte:[importNeuesRezept], versionRezepte:[], aktuellerRezepteETag:"E1",
+    rohstoffePfad:"/Test/Rohstoffe.xlsx", rohWorkbook: importRohWb, neueAliase:[], aktuellerRohstoffeETag:null
+  });
+
+  // Zweig 2: gleicher eTag — Backup + je eine Zelle pro belegter Spalte der neuen Zeile (Excel-Zeile 3).
+  const gwImportGleich = mockGateway({ eTag:() => ({ eTag:"E1" }) });
+  const ergImportGleich = await importSchreiben(gwImportGleich, {
+    rezeptePfad:"/Test/Rezepte.xlsx", rezWorkbook: importRezWbGleich, rezSheetName:"Rezepte",
+    neueRezepte:[importNeuesRezept], versionRezepte:[], aktuellerRezepteETag:"E1",
+    rohstoffePfad:"/Test/Rohstoffe.xlsx", rohWorkbook: importRohWb, neueAliase:[], aktuellerRohstoffeETag:null
+  });
+
+  // Zweig 3: neuer Alias, "Aliase"-Blatt fehlt noch — ensureSheet() wird aufgerufen, danach die
+  // Alias-Zeile (Excel-Zeile 2, erste Datenzeile im neu angelegten Blatt).
+  const gwImportAlias = mockGateway({ eTag:() => ({ eTag:"R1" }) });
+  const ergImportAlias = await importSchreiben(gwImportAlias, {
+    rezeptePfad:"/Test/Rezepte.xlsx", rezWorkbook: importRezWbGleich, rezSheetName:"Rezepte",
+    neueRezepte:[], versionRezepte:[], aktuellerRezepteETag:null,
+    rohstoffePfad:"/Test/Rohstoffe.xlsx", rohWorkbook: importRohWb,
+    neueAliase:[{ variante:"Weizenmehl", ziel:"Mehl", datum:"2026-09-13" }], aktuellerRohstoffeETag:"R1"
+  });
+
+  // AP-0305/H1 Regressionstest (Umsetzungsschritt 1): ladeConfig() darf die eingebauten Aliase
+  // (1722ff.) nicht verlieren, nur weil config.json einen eigenen aliase-Block mitbringt — genau
+  // das war H1. fetch() wird kurz gemockt, CONFIG.aliase danach vollstaendig wiederhergestellt.
+  const aliaseVorLadeConfigTest = CONFIG.aliase;
+  const anzahlEingebauterAliase = Object.keys(aliaseVorLadeConfigTest).length;
+  const echterFetch = window.fetch;
+  window.fetch = async () => ({ ok:true, json: async () => ({ aliase: { "ganz neuer alias": "butter" } }) });
+  let aliaseNachLadeConfig = {};
+  try{ await ladeConfig(); aliaseNachLadeConfig = CONFIG.aliase; }
+  finally{ window.fetch = echterFetch; CONFIG.aliase = aliaseVorLadeConfigTest; }
+  const h1AliaseNachConfigErhalten =
+    Object.keys(aliaseNachLadeConfig).length === anzahlEingebauterAliase + 1
+      && aliaseNachLadeConfig["burro"] === "butter"
+      && aliaseNachLadeConfig["ganz neuer alias"] === "butter";
+
   const t = [
+    ["AP0305-H1 ladeConfig() behaelt eingebaute Aliase und ergaenzt config.json-Aliase, statt sie zu ersetzen",
+      h1AliaseNachConfigErhalten],
+    // AP-0305/M3: eine Phase ohne "zutaten" (kaputtes/handgepflegtes JSON) darf nur diese Zeile
+    // nach fehlerhaft legen, nicht den gesamten Ladevorgang abbrechen.
+    (() => {
+      const gut = { id:"OK1", name:"Gut", phasen:[{name:"P",zutaten:[{name:"Wasser"}]}] };
+      const kaputt = { id:"BAD1", name:"Kaputt", phasen:[{name:"Ohne Zutaten"}] };
+      const { rezepte, fehlerhaft } = Model.aufloesen([gut, kaputt], BEISPIEL_ROHSTOFFE);
+      return ["AP0305-M3 Phase ohne zutaten faellt nach fehlerhaft, restliche Rezepte laden weiter",
+        rezepte.length === 1 && rezepte[0].id === "OK1"
+          && fehlerhaft.length === 1 && fehlerhaft[0].id === "BAD1"];
+    })(),
     ["T1 Skalierung",       nah(Calc.mengeG({prozent:0.65}, 1000, 1.5), 975)],
     ["T2 Stückzahl",        nah(Calc.alsStueck(120, idx.get("vollei")).stueck, 2)],
     ["T3 Schwund",          nah(Calc.schwundEintrag(2400, 2180), 0.09167, 0.0001)],
@@ -6530,6 +6769,36 @@ async function selfTest(){
                             ergProtokoll.ergebnis === "ok"
                               && gwProtokoll.log.includes("updateCell:" + addrProtokoll)
                               && !gwProtokoll.log.some(x => x.startsWith("updateCell:" + addrBackprotokoll))],
+    // ---- AP-0301 H11/K1 — Testblock (4 Fälle) ----
+    // H11: kein aktuellerETag -> protokollSchreiben() bricht ab wie bei einem Konflikt, OHNE
+    // Backup oder Zell-Update (vorher wurde die Pruefung bei fehlendem eTag stillschweigend
+    // uebersprungen und ungeprueft weitergeschrieben).
+    ["AP0301-1 H11 protokollSchreiben() ohne aktuellerETag bricht ab, kein Backup, kein Zell-Update",
+                            ergProtokollOhneETag.ergebnis === "konflikt"
+                              && gwProtokollOhneETag.log.length === 1 && gwProtokollOhneETag.log[0] === "getItemMeta"
+                              && !gwProtokollOhneETag.log.includes("backup")
+                              && !gwProtokollOhneETag.log.some(x => x.startsWith("updateCell"))],
+    // K1 Zweig 1: fremder eTag — importSchreiben() bricht ab, nichts wird geschrieben.
+    ["AP0301-2 K1 importSchreiben() mit fremdem eTag bricht ab, kein Backup, kein Zell-Update",
+                            ergImportFremd.ergebnis === "konflikt" && ergImportFremd.stufe === "rezepte"
+                              && gwImportFremd.log.length === 1 && gwImportFremd.log[0] === "getItemMeta"
+                              && !gwImportFremd.log.includes("backup")
+                              && !gwImportFremd.log.some(x => x.startsWith("updateCell"))],
+    // K1 Zweig 2: gleicher eTag — neue Zeile wird zellgenau an Excel-Zeile 3 angehaengt (kein
+    // Ganzdatei-PUT), leere Spalten (Unterkategorie/Quelle/Entwicklung) werden ausgelassen.
+    ["AP0301-3 K1 importSchreiben() haengt neue Rezeptzeile zellgenau an (Excel-Zeile 3), leere Spalten ausgelassen",
+                            ergImportGleich.ergebnis === "ok"
+                              && gwImportGleich.log.includes("backup")
+                              && gwImportGleich.log.includes("updateCell:A3") && gwImportGleich.log.includes("updateCell:K3")
+                              && !gwImportGleich.log.includes("updateCell:D3") && !gwImportGleich.log.includes("updateCell:J3")
+                              && !gwImportGleich.log.includes("updateCell:M3")],
+    // K1 Zweig 3: allererster Alias — Blatt "Aliase" wird angelegt (ensureSheet), die Alias-Zeile
+    // landet danach in Excel-Zeile 2 (erste Datenzeile), Store.rohstoffeETag wird zurueckgegeben (M15).
+    ["AP0301-4 K1/M15 importSchreiben() legt fehlendes Aliase-Blatt an und schreibt die Alias-Zeile, neuer eTag kommt zurueck",
+                            ergImportAlias.ergebnis === "ok"
+                              && gwImportAlias.log.includes("ensureSheet:Aliase")
+                              && gwImportAlias.log.includes("updateCell:A2") && gwImportAlias.log.includes("updateCell:C2")
+                              && ergImportAlias.neuerRohstoffeETag === "R1"],
     // ---- AP-0308 Entwicklungsmodus Hauptansicht — Testblock (7 Fälle) ----
     // Abnahmekriterium 2: Store.devForm existiert nicht mehr, Store.entw ist sein Ersatz.
     ["AP0308-1 Store.devForm existiert nicht mehr, Store.entw ersetzt es",
@@ -6620,7 +6889,78 @@ async function selfTest(){
       Store.offene = vorOffene; Store.aktivIdx = vorAktiv;
       return ["AP0314-1 Zwei Tabs, getrennte Faktoren: Lesen/Schreiben trifft nur den aktiven Tab",
         f1 === 1 && f2 === 2.5 && tab1UnveraendertNachSchreiben && tab2Geschrieben];
-    })()
+    })(),
+    // AP-0305/H4 Regressionsbeleg (Umsetzungsschritt 8): bildet den try/catch-Schutz von
+    // App.start() nach — ein absichtlich werfender Testfall darf App.initDaten() (hier durch
+    // einen Merker ersetzt) nicht verhindern. Der Wurf selbst steckt im try/catch DIESES
+    // Testfalls, nicht ungefangen in t — sonst wuerde er selfTest() genau wie H4 zu Fall bringen.
+    (() => {
+      let initDatenLief = false;
+      try{
+        (() => { throw new Error("absichtlicher Testwurf"); })();
+      }catch(e){
+        initDatenLief = true; // entspricht App.initDaten(), das im catch-Zweig von App.start() dennoch laeuft
+      }
+      return ["AP0305-13 Ein werfender Selbsttest verhindert initDaten() nicht (H4)", initDatenLief];
+    })(),
+    // ---- AP-0303 (libarius-codefix) K2/H2/H3/M5 — Testblock (9 Fälle) ----
+    // H3: zahlOderNull() liefert nie mehr NaN.
+    ["AP0303-1 H3 zahlOderNull() liefert null statt NaN bei Text, weiterhin die Zahl bei gueltiger Eingabe",
+                            zahlOderNull("3,50") === null && zahlOderNull("ca. 12") === null
+                              && zahlOderNull("") === null && zahlOderNull("42") === 42],
+    // H3: eine Textzelle in Kosten/kg (CHF) darf nicht in "CHF NaN" enden — kostenProKg wird
+    // null (dank zahlOderNull), Calc.kosten() zeigt die Zutat unter "fehlend" statt zu rechnen.
+    (() => {
+      const rohstoffTextpreis = Model.parseRohstoffe([["Rohstoff-ID","Name","Kosten/kg (CHF)"], ["RS-T","Testmehl","ca. 5.00"]])[0];
+      const rzKostenText = { basisMengeG:1000, portionen:1, phasen:[{ zutaten:[{ name:"Testmehl", prozent:0.5, rohstoff: rohstoffTextpreis }] }] };
+      const k = Calc.kosten(rzKostenText, 1, null);
+      return ["AP0303-2 H3 Textzelle in Kosten/kg (CHF) -> kostenProKg null, Calc.kosten() zeigt „fehlend“ statt CHF NaN",
+        rohstoffTextpreis.kostenProKg === null && Number.isFinite(k.roh) && k.fehlend.includes("Testmehl")];
+    })(),
+    // H2: Soll ohne Ist liefert keinen Schwund von 100 %, und Calc.kosten() rechnet bei einem
+    // (weiterhin moeglichen) echten Schwund von 100 % nicht mehr durch 0.
+    ["AP0303-3 H2 schwundEintrag(sollG, null) liefert null statt fälschlich 100 % Schwund",
+                            Calc.schwundEintrag(1000, null) === null && Calc.schwundEintrag(1000, 900) !== null],
+    ["AP0303-4 H2 Calc.kosten() mit Schwund 100 % rechnet nicht durch 0 (kein CHF Infinity)",
+                            Number.isFinite(Calc.kosten(
+                              { basisMengeG:1000, portionen:1, phasen:[{ zutaten:[{ prozent:1, rohstoff:{ kostenProKg:10 } }] }] },
+                              1, 1).effektiv)],
+    // H2: protokollSchreiben() schreibt bei Soll-ohne-Ist als einzigem Fenster-Eintrag keine
+    // Schwundspalte (vorher stand dort faelschlich "0"/„100“ statt gar nichts).
+    ["AP0303-5 H2 Soll ohne Ist: protokollSchreiben() schreibt keine Schwundspalte, „Geändert“ weiterhin",
+                            ergSchwundOhneIst.ergebnis === "ok"
+                              && !gwSchwundOhneIst.log.some(x => x.startsWith("updateCell:" + addrSchwundTest))
+                              && gwSchwundOhneIst.log.includes("updateCell:" + addrGeaendertTest)],
+    // M5: eine Bewertung ausserhalb 0-5 (Import/Altdaten) darf "○".repeat() nicht mit einer
+    // RangeError (negative Wiederholung) abbrechen lassen.
+    ["AP0303-6 M5 bewertungSicher() begrenzt auf 0-5, „○“.repeat() wirft nicht mehr bei Bewertung > 5",
+                            bewertungSicher(7) === 5 && bewertungSicher(-3) === 0
+                              && "○".repeat(5 - bewertungSicher(7)).length === 0],
+    // M5: ein datum als Zahl (statt Text) darf localeCompare() nicht zu Fall bringen.
+    ["AP0303-7 M5 datum als Zahl bricht die Versuchs-/Protokoll-Sortierung nicht ab",
+                            (() => {
+                              try{
+                                return [{datum:20260101},{datum:"2026-02-01"}]
+                                  .slice().sort((a,b) => String(a.datum||"").localeCompare(String(b.datum||""))).length === 2;
+                              }catch(e){ return false; }
+                            })()],
+    // M5: eine Version ohne gueltiges "phasen"-Array bricht EntwModell.hydrieren()/
+    // View.entwZeilenplan() nicht mehr ab, sondern wird als leer/unvollstaendig markiert.
+    (() => {
+      const entwOhnePhasen = { status:"entwicklung", zielwerte:{}, aktivV:1, versuche:[],
+        versionen:[{ v:1, datum:"2026-01-01", notiz:"", herkunft:"produktiv", eingeklappt:false, phasen:"kein-array" }] };
+      const hydriert = EntwModell.hydrieren(entwOhnePhasen);
+      const spDefekt = hydriert.spalten[0];
+      let zeilenplanWarf = false;
+      try{ View.entwZeilenplan([{ name:"P", zutaten:[], schritte:[] }], hydriert.spalten); }
+      catch(e){ zeilenplanWarf = true; }
+      return ["AP0303-8 M5 Version ohne gültiges „phasen“-Array: hydrieren() liefert [] + unvollstaendig, entwZeilenplan() bricht nicht ab",
+        spDefekt.unvollstaendig === true && Array.isArray(spDefekt.phasen) && spDefekt.phasen.length === 0 && !zeilenplanWarf];
+    })(),
+    // K2: esc() entschaerft jeden HTML-Sonderzeichen — Grundlage aller neu escapten
+    // Entwicklungs-Ausgaben (sp.v), belegt hier direkt an der Funktion.
+    ["AP0303-9 K2 esc() entschaerft spitze Klammern/Anführungszeichen (Grundlage für sp.v-Escaping)",
+                            !esc('<img src=x onerror=alert(1)>').includes("<") && !esc('<img src=x onerror=alert(1)>').includes(">")]
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
   return { anzahl:t.length, fehler };
@@ -6655,7 +6995,7 @@ async function editorSchreiben(gateway, { rezeptePfad, sheetName, header, zeileE
   let nebenfehler = false;
   const addrGeaendert = Model.zelladresse(header, "Geändert", zeileExcel);
   if(addrGeaendert){
-    try{ await gateway.updateCell(rezeptePfad, sheetName, addrGeaendert, new Date().toISOString().slice(0,10)); }
+    try{ await gateway.updateCell(rezeptePfad, sheetName, addrGeaendert, heutigesDatumLokal()); }
     catch(e){ nebenfehler = true; }
   }
 
@@ -6677,31 +7017,130 @@ async function protokollSchreiben(gateway, { rezeptePfad, sheetName, header, zei
   try{ meta = await gateway.getItemMeta(rezeptePfad); }
   catch(e){ return { ergebnis:"fehler", stufe:"eTag", meldung: e.message }; }
 
-  if(aktuellerETag && meta.eTag !== aktuellerETag) return { ergebnis:"konflikt" };
+  // AP-0301/H11: kein aktuellerETag heisst der Bestand ist nicht bestaetigt — nicht mehr
+  // ungeprueft weiterschreiben (wie ein Konflikt behandeln, App.protokollSpeichern laedt neu).
+  if(!aktuellerETag || meta.eTag !== aktuellerETag) return { ergebnis:"konflikt" };
 
   try{ await gateway.backup(rezeptePfad); }
   catch(e){ return { ergebnis:"fehler", stufe:"backup", meldung: e.message }; }
 
   const addrProtokoll = Model.zelladresse(header, "Protokoll (JSON)", zeileExcel);
   if(!addrProtokoll) return { ergebnis:"fehler", stufe:"protokoll", meldung:'Spalte "Protokoll (JSON)" fehlt in Rezepte.xlsx' };
-  try{ await gateway.updateCell(rezeptePfad, sheetName, addrProtokoll, JSON.stringify(protokoll)); }
+  const protokollWert = JSON.stringify(protokoll);
+  try{ await gateway.updateCell(rezeptePfad, sheetName, addrProtokoll, protokollWert); }
   catch(e){ return { ergebnis:"fehler", stufe:"protokoll", meldung: e.message }; }
+  // AP-0301/K1: jede erfolgreich geschriebene Zelle wird zurueckgegeben, damit die Aufrufer-
+  // seite (App.protokollSpeichern) Store.rezepteWorkbook nachfuehren kann (Umsetzungsschritt 4).
+  const geschrieben = [{ addr: addrProtokoll, wert: protokollWert }];
 
-  const heute = new Date().toISOString().slice(0, 10);
+  const heute = heutigesDatumLokal();
   const schwund = Calc.schwundAktuell(protokoll);
-  const nebenfelder = [["Schwund (%)", schwund == null ? 0 : Math.round(schwund * 100)], ["Geändert", heute]];
+  // AP-0303 (libarius-codefix)/H2: kein Schwundwert (z. B. Soll ohne Ist als einziger Eintrag im
+  // Fenster) schreibt keine Schwundspalte mehr — vorher stand dort faelschlich "0", was echte
+  // 0 % Schwund vorgetaeuscht haette; "keine Angabe" bleibt jetzt schlicht ungeschrieben.
+  const nebenfelder = schwund == null ? [["Geändert", heute]]
+    : [["Schwund (%)", Math.round(schwund * 100)], ["Geändert", heute]];
   const nebenfehler = [];
   for(const [spalte, wert] of nebenfelder){
     const addr = Model.zelladresse(header, spalte, zeileExcel);
     if(!addr) continue;
-    try{ await gateway.updateCell(rezeptePfad, sheetName, addr, wert); }
+    try{ await gateway.updateCell(rezeptePfad, sheetName, addr, wert); geschrieben.push({ addr, wert }); }
     catch(e){ nebenfehler.push(spalte); }
   }
 
   let neuerETag = null;
   try{ neuerETag = (await gateway.getItemMeta(rezeptePfad)).eTag; }catch(e){ neuerETag = null; }
 
-  return { ergebnis:"ok", neuerETag, nebenfehler };
+  return { ergebnis:"ok", neuerETag, nebenfehler, geschrieben };
+}
+
+// AP-0301/K1: haelt die In-Memory-Kopie (Store.rezepteWorkbook/rohstoffeWorkbook) synchron mit
+// jedem erfolgreichen Data.updateCell() — ohne das lief die Kopie auseinander (Kontext des AP:
+// keiner der updateCell-Pfade fuehrte sie nach), und ein kuenftiger Aufruf von
+// Data.writeWorkbook() haette mit einer veralteten Kopie wieder frische Zell-Updates ueberschrieben.
+function workbookZelleNachfuehren(workbook, sheetName, addr, wert){
+  const sheet = workbook && workbook.Sheets[sheetName];
+  if(!sheet) return;
+  XLSX.utils.sheet_add_aoa(sheet, [[wert]], { origin: addr });
+}
+
+// AP-0301/K1: Import zellgenau statt Ganzdatei-PUT — dasselbe Muster wie protokollSchreiben()
+// oben: eTag pruefen, Backup, dann je Zeile die einzelnen Zellen setzen. Getrennt fuer
+// Rezepte.xlsx (neue Rezeptzeilen + Versions-Updates bestehender Zeilen) und Rohstoffe.xlsx
+// (Alias-Zeilen), weil beide Dateien ihren eigenen eTag und ihre eigene Konflikterkennung haben —
+// bei eTag-Abweichung bricht der jeweilige Teil ab, OHNE etwas zu schreiben (Abnahmekriterium 2).
+// rezWorkbook/rohWorkbook werden dabei lokal mitgefuehrt (Import.anhaengen()/aliasAnhaengen()
+// haengen die neue Zeile an "!ref" an, Umsetzungsschritt 1) — reine Funktion, kein Store/DOM,
+// darum ueber eine gemockte Graph-Schicht testbar (siehe selfTest()).
+async function importSchreiben(gateway, {
+  rezeptePfad, rezWorkbook, rezSheetName, neueRezepte, versionRezepte, aktuellerRezepteETag,
+  rohstoffePfad, rohWorkbook, neueAliase, aktuellerRohstoffeETag
+}){
+  let neuerRezepteETag = aktuellerRezepteETag, neuerRohstoffeETag = aktuellerRohstoffeETag;
+  const versionFehler = [];
+
+  if(neueRezepte.length || versionRezepte.length){
+    let meta;
+    try{ meta = await gateway.getItemMeta(rezeptePfad); }
+    catch(e){ return { ergebnis:"fehler", stufe:"eTag", meldung: e.message }; }
+    if(!aktuellerRezepteETag || meta.eTag !== aktuellerRezepteETag) return { ergebnis:"konflikt", stufe:"rezepte" };
+
+    try{ await gateway.backup(rezeptePfad); }
+    catch(e){ return { ergebnis:"fehler", stufe:"backup", meldung: e.message }; }
+
+    const sheet = rezWorkbook.Sheets[rezSheetName];
+    for(const rz of neueRezepte){
+      const vorRange = XLSX.utils.decode_range(sheet["!ref"]);
+      const header = (XLSX.utils.sheet_to_json(sheet, { header:1, raw:true, defval:null })[0]) || [];
+      Import.anhaengen(rezWorkbook, rezSheetName, rz);   // haengt die Zeile lokal an "!ref" an
+      const zeileExcel = vorRange.e.r + 2;                // naechste freie Excel-Zeile (Kopf = Zeile 1)
+      const werte = Import.rezeptZeile(header, rz);
+      for(let c = 0; c < werte.length; c++){
+        if(werte[c] == null) continue;
+        try{ await gateway.updateCell(rezeptePfad, rezSheetName, XLSX.utils.encode_col(c) + zeileExcel, werte[c]); }
+        catch(e){ return { ergebnis:"fehler", stufe:"rezept", meldung: e.message }; }
+      }
+    }
+    for(const v of versionRezepte){
+      if(!v.rz._raw){ versionFehler.push(v.rz.name + " (Zeilenposition unbekannt)"); continue; }
+      const vHeader = v.rz._raw.spalten, vZeileExcel = v.rz._raw.zeile + 1;
+      const addr = Model.zelladresse(vHeader, "Entwicklung (JSON)", vZeileExcel);
+      if(!addr){ versionFehler.push(v.rz.name + ' (Spalte „Entwicklung (JSON)“ fehlt)'); continue; }
+      const wert = JSON.stringify(v.rz.entwicklung);
+      try{ await gateway.updateCell(rezeptePfad, rezSheetName, addr, wert); workbookZelleNachfuehren(rezWorkbook, rezSheetName, addr, wert); }
+      catch(e){ versionFehler.push(v.rz.name + ": " + e.message); }
+    }
+    try{ neuerRezepteETag = (await gateway.getItemMeta(rezeptePfad)).eTag; }catch(e){ neuerRezepteETag = null; }
+  }
+
+  if(neueAliase.length){
+    let meta;
+    try{ meta = await gateway.getItemMeta(rohstoffePfad); }
+    catch(e){ return { ergebnis:"fehler", stufe:"eTagRohstoffe", meldung: e.message }; }
+    if(!aktuellerRohstoffeETag || meta.eTag !== aktuellerRohstoffeETag) return { ergebnis:"konflikt", stufe:"rohstoffe" };
+
+    try{ await gateway.backup(rohstoffePfad); }
+    catch(e){ return { ergebnis:"fehler", stufe:"backupRohstoffe", meldung: e.message }; }
+
+    if(!rohWorkbook.Sheets["Aliase"]){
+      try{ await gateway.ensureSheet(rohstoffePfad, "Aliase", ["Variante","Zielname","Gelernt am"]); }
+      catch(e){ return { ergebnis:"fehler", stufe:"aliasBlatt", meldung: e.message }; }
+    }
+    for(const a of neueAliase){
+      const sheetVorher = rohWorkbook.Sheets["Aliase"];
+      const vorRange = sheetVorher ? XLSX.utils.decode_range(sheetVorher["!ref"]) : null;
+      Import.aliasAnhaengen(rohWorkbook, a.variante, a.ziel, a.datum);
+      const zeileExcel = vorRange ? vorRange.e.r + 2 : 2;
+      const werte = [a.variante, a.ziel, a.datum];
+      for(let c = 0; c < werte.length; c++){
+        try{ await gateway.updateCell(rohstoffePfad, "Aliase", XLSX.utils.encode_col(c) + zeileExcel, werte[c]); }
+        catch(e){ return { ergebnis:"fehler", stufe:"alias", meldung: e.message }; }
+      }
+    }
+    try{ neuerRohstoffeETag = (await gateway.getItemMeta(rohstoffePfad)).eTag; }catch(e){ neuerRohstoffeETag = null; }
+  }
+
+  return { ergebnis:"ok", neuerRezepteETag, neuerRohstoffeETag, versionFehler };
 }
 
 /* ---------- App --------------------------------------------------------- */
@@ -6709,7 +7148,7 @@ const App = {
   async start(){
     Layout.init();
     Store.rohstoffe = BEISPIEL_ROHSTOFFE;
-    Store.rezepte   = Model.aufloesen(BEISPIEL_REZEPTE, BEISPIEL_ROHSTOFFE);
+    Store.rezepte   = Model.aufloesen(BEISPIEL_REZEPTE, BEISPIEL_ROHSTOFFE).rezepte;
 
     View.liste();
     // AP-0314, AP-0204 §2.5: gemerkte Tabs beim Start wiederherstellen (Beispieldaten sind
@@ -6755,7 +7194,21 @@ const App = {
     // AP-0305: selfTest() ist seit diesem AP async — die drei gemockten Schreibpfad-Zweige
     // (Umsetzungsschritt 5) brauchen echte awaits. App.start() selbst wird ohne await
     // aufgerufen (DOMContentLoaded-Handler unten), das ist unveraendert unkritisch.
-    const st = await selfTest();
+    // AP-0305/H4: eine Regression im Rechenkern liess selfTest() werfen (u.a. ueber
+    // ungeschuetzte find()-Zugriffe in den Testfaellen, z.B. 6113/6114/6229/6495) und riss
+    // App.start() ohne Fangnetz mit — initDaten() lief nie, nur die Konsole zeigte etwas.
+    // Ein Selbsttest-Fehler darf Anmeldung/Laden nicht verhindern.
+    let st;
+    try{
+      st = await selfTest();
+    }catch(e){
+      console.error("Selbsttest abgebrochen:", e);
+      el("#selftest").textContent = ` · Selbsttest abgebrochen: ${e.message}`;
+      View.meldung("Selbsttest abgebrochen: " + e.message + " — Anmeldung und Laden laufen trotzdem weiter.",
+        "err", "Selbsttest des Rechenkerns");
+      App.initDaten();
+      return;
+    }
     el("#selftest").textContent = st.fehler.length
       ? ` · Selbsttest: ${st.fehler.length} von ${st.anzahl} fehlgeschlagen (${st.fehler.join(", ")})`
       : ` · Selbsttest: ${st.anzahl}/${st.anzahl} ok`;
@@ -6838,8 +7291,12 @@ const App = {
       // localStorage-Eintraege — sie sind geraeteuebergreifend die aktuellere Quelle.
       CONFIG.aliase = Object.assign({}, CONFIG.aliase, geladeneAliase);
       Store.rohstoffe = rohstoffe;
-      Store.rezepte = Model.aufloesen(rezepte, rohstoffe);
-      Store.rezepteFehlerhaft = fehlerhaft;
+      // AP-0305/M3: Model.aufloesen() legt Rezepte mit einer Phase ohne "zutaten" jetzt selbst
+      // nach fehlerhaft, statt den ganzen Ladevorgang abzubrechen — mit den JSON-Fehlern aus
+      // parseRezepte() zusammengefuehrt, dieselbe Anzeige (View §…, "fehlerhaft (Zeile …)").
+      const aufgeloest = Model.aufloesen(rezepte, rohstoffe);
+      Store.rezepte = aufgeloest.rezepte;
+      Store.rezepteFehlerhaft = [...fehlerhaft, ...aufgeloest.fehlerhaft];
       Store.rezepteWorkbook = rezWb; Store.rezepteSheetName = rezSheetName;
       Store.rohstoffeWorkbook = rohWb; Store.rohstoffeSheetName = rohSheetName;
       // AP-0305: Basis-eTag fuer die Konflikterkennung vor dem naechsten Schreiben.
@@ -6857,32 +7314,55 @@ const App = {
       Store.offene = []; Store.aktivIdx = -1;
       View.liste();
       App.offeneWiederherstellen();
-      if(fehlerhaft.length){
-        View.meldung(fehlerhaft.length + " Rezept(e) mit ungültigem JSON übersprungen — in der Liste markiert, restliche Rezepte geladen.",
+      if(Store.rezepteFehlerhaft.length){
+        View.meldung(Store.rezepteFehlerhaft.length + " Rezept(e) mit ungültigem JSON übersprungen — in der Liste markiert, restliche Rezepte geladen.",
           "warn", "Teilweise geladen");
       }else{
         View.meldung("Rezepte und Rohstoffe aus OneDrive geladen.", "ok");
       }
+      return true;
     }catch(e){
       View.meldung("Laden fehlgeschlagen: " + e.message, "err", "Fehler beim Laden");
+      return false;
     }
   },
 
   // AP-0302 Schritt 3 / Lastenheft F1: alternativer OneDrive-Pfad statt der
   // Standard-Datenbank. Pfade werden pro Nutzer in localStorage gemerkt (§5.4).
+  // AP-0301/M16: die neuen Pfade werden erst nach erfolgreichem Laden persistiert (CONFIG UND
+  // localStorage) — scheitert das Laden mit den neuen Pfaden, bleiben Pfad und Workbook-Zustand
+  // auf dem alten Stand (Store.datenLaden() aendert dank seines eigenen try/catch ohnehin nichts
+  // an Store.*Workbook, solange loadWorkbooks() scheitert; hier wird nur verhindert, dass CONFIG
+  // trotzdem auf den neuen, ungeprueften Pfad zeigen bleibt).
   async altDBKlick(){
     const rez = prompt("Pfad zur Rezepte.xlsx (ab OneDrive-Wurzel, z. B. /Küche/Rezepte.xlsx):", CONFIG.rezeptePfad || "");
     if(rez == null || !rez.trim()) return;
     const roh = prompt("Pfad zur Rohstoffe.xlsx:", CONFIG.rohstoffePfad || "");
     if(roh == null || !roh.trim()) return;
-    CONFIG.rezeptePfad = rez.trim();
-    CONFIG.rohstoffePfad = roh.trim();
-    Settings.set("rezeptePfad", CONFIG.rezeptePfad);
-    Settings.set("rohstoffePfad", CONFIG.rohstoffePfad);
-    if(!Data.verfuegbar()){ View.meldung("Pfade gespeichert. Zum Laden zuerst anmelden.", "ok", "Andere Datenbank"); return; }
+    const alterRezPfad = CONFIG.rezeptePfad, alterRohPfad = CONFIG.rohstoffePfad;
+    const neuerRezPfad = rez.trim(), neuerRohPfad = roh.trim();
+
+    if(!Data.verfuegbar()){
+      // Noch keine Verbindung, also kein Laden zum Pruefen moeglich — Pfade koennen erst beim
+      // naechsten Anmelden bestaetigt werden, es existiert aber auch noch kein Workbook-Zustand,
+      // der dabei auseinanderlaufen koennte.
+      CONFIG.rezeptePfad = neuerRezPfad; CONFIG.rohstoffePfad = neuerRohPfad;
+      Settings.set("rezeptePfad", CONFIG.rezeptePfad);
+      Settings.set("rohstoffePfad", CONFIG.rohstoffePfad);
+      View.meldung("Pfade gespeichert. Zum Laden zuerst anmelden.", "ok", "Andere Datenbank");
+      return;
+    }
     const konto = msalApp.getActiveAccount();
     if(!konto){ await App.loginKlick(); return; }
-    await App.datenLaden(konto);
+
+    CONFIG.rezeptePfad = neuerRezPfad; CONFIG.rohstoffePfad = neuerRohPfad;
+    const erfolg = await App.datenLaden(konto);
+    if(erfolg){
+      Settings.set("rezeptePfad", CONFIG.rezeptePfad);
+      Settings.set("rohstoffePfad", CONFIG.rohstoffePfad);
+    }else{
+      CONFIG.rezeptePfad = alterRezPfad; CONFIG.rohstoffePfad = alterRohPfad;
+    }
   },
 
   // AP-0314 (libarius-gestaltung), AP-0204 §2.2: "oeffnen oder zu bestehendem Tab springen" —
@@ -7094,8 +7574,11 @@ const App = {
       const header = rz._raw.spalten, zeileExcel = rz._raw.zeile + 1;
       const iPhasen = header.indexOf("Phasen (JSON)");
       if(iPhasen === -1) throw new Error('Spalte "Phasen (JSON)" fehlt in Rezepte.xlsx');
-      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
-        Model.zelladresse(header, "Phasen (JSON)", zeileExcel), JSON.stringify(Import.phasenExport(rz.phasen)));
+      const addrPhasenKx = Model.zelladresse(header, "Phasen (JSON)", zeileExcel);
+      const wertPhasenKx = JSON.stringify(Import.phasenExport(rz.phasen));
+      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName, addrPhasenKx, wertPhasenKx);
+      // AP-0301/K1, Umsetzungsschritt 4: In-Memory-Kopie nachfuehren.
+      workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, addrPhasenKx, wertPhasenKx);
       try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
       catch(e){ Store.rezepteETag = null; }
 
@@ -7197,6 +7680,18 @@ const App = {
         + "Seite neu laden und erneut versuchen.", "err", "Speichern nicht möglich");
       return;
     }
+    // AP-0301/H11, §4.3-Schutz wie im Zutaten-Editor: kein Vergleichs-eTag bekannt -> vor dem
+    // Schreiben neu laden statt ungeprueft zu schreiben (protokollSchreiben() wuerde diesen
+    // Fall inzwischen ohnehin als Konflikt abweisen — hier aber mit der zutreffenden Meldung).
+    if(!Store.rezepteETag){
+      rz.protokoll = vorher;
+      View.meldung("Der Stand von Rezepte.xlsx konnte zuletzt nicht bestätigt werden — der Bestand wird vor "
+        + "dem Speichern neu geladen. Eintrag bitte danach erneut erfassen.", "warn", "Stand wird geprüft");
+      const konto = msalApp.getActiveAccount();
+      await App.datenLaden(konto);
+      App.rezeptOeffnen(rz.id);
+      return;
+    }
     const header = rz._raw.spalten, zeileExcel = rz._raw.zeile + 1;
     const ergebnis = await protokollSchreiben(Data, {
       rezeptePfad: CONFIG.rezeptePfad, sheetName: Store.rezepteSheetName,
@@ -7220,6 +7715,9 @@ const App = {
       return;
     }
 
+    // AP-0301/K1, Umsetzungsschritt 4: Store.rezepteWorkbook mit den tatsaechlich geschriebenen
+    // Zellen nachfuehren, damit es nicht wieder von der OneDrive-Datei auseinanderlaeuft.
+    ergebnis.geschrieben.forEach(g => workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, g.addr, g.wert));
     Store.rezepteETag = ergebnis.neuerETag;
     Store.protokollEintrag = null;
     View.meldung("Verfahrensprotokoll-Eintrag gespeichert, Backup in " + (CONFIG.backupOrdner || "/Backups") + " angelegt."
@@ -7373,7 +7871,11 @@ const App = {
 
     // §4.3 Sonderfall: kein Vergleichs-eTag bekannt -> vor dem Schreiben neu laden statt vergleichen.
     if(!Store.rezepteETag){
-      Entwurf.speichern(rz.id, normPhasen);
+      // AP-0305/H9: erst neu laden, wenn der Entwurf tatsaechlich gesichert ist — sonst waeren
+      // die Editor-Eingaben beim Neuladen (voller localStorage, privater Modus) still weg.
+      if(!Entwurf.speichern(rz.id, normPhasen)
+        && !confirm("Entwurf konnte nicht lokal gesichert werden (Speicher voll oder privater Modus). "
+          + "Trotzdem neu laden? Nicht gespeicherte Änderungen gehen dabei verloren.")) return;
       View.meldung("Der Stand von Rezepte.xlsx konnte zuletzt nicht bestätigt werden — der Bestand wird vor "
         + "dem Speichern neu geladen.", "warn", "Stand wird geprüft");
       const konto = msalApp.getActiveAccount();
@@ -7391,7 +7893,11 @@ const App = {
 
     if(ergebnis.ergebnis === "konflikt"){
       // §4.1: Entwurf sichern, Bestand neu laden, Konfliktdialog statt nur der Kachel.
-      Entwurf.speichern(rz.id, normPhasen);
+      // AP-0305/H9: nur neu laden, wenn das Sichern geklappt hat — sonst waeren die
+      // Editor-Eingaben beim Neuladen ohne Rueckfrage verloren.
+      if(!Entwurf.speichern(rz.id, normPhasen)
+        && !confirm("Entwurf konnte nicht lokal gesichert werden (Speicher voll oder privater Modus). "
+          + "Trotzdem neu laden? Nicht gespeicherte Änderungen gehen dabei verloren.")) return;
       const konto = msalApp.getActiveAccount();
       await App.datenLaden(konto);
       App.rezeptOeffnen(rz.id);
@@ -7959,13 +8465,19 @@ const App = {
       const iPhasen = header.indexOf("Phasen (JSON)"), iEntw = header.indexOf("Entwicklung (JSON)"), iProtokoll = header.indexOf("Protokoll (JSON)");
       if(iPhasen === -1) throw new Error('Spalte "Phasen (JSON)" fehlt in Rezepte.xlsx');
       if(iEntw === -1) throw new Error('Spalte "Entwicklung (JSON)" fehlt in Rezepte.xlsx');
-      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
-        Model.zelladresse(header, "Phasen (JSON)", zeileExcel), JSON.stringify(rz.phasen));
-      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
-        Model.zelladresse(header, "Entwicklung (JSON)", zeileExcel), JSON.stringify(rz.entwicklung));
-      if(iProtokoll !== -1 && kopierteVersuche.length)
-        await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
-          Model.zelladresse(header, "Protokoll (JSON)", zeileExcel), JSON.stringify(rz.protokoll));
+      // AP-0301/K1, Umsetzungsschritt 4: Store.rezepteWorkbook nach jedem erfolgreichen
+      // Data.updateCell() nachfuehren, damit die In-Memory-Kopie nicht auseinanderlaeuft.
+      const addrPhasenEntw = Model.zelladresse(header, "Phasen (JSON)", zeileExcel), wertPhasenEntw = JSON.stringify(rz.phasen);
+      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName, addrPhasenEntw, wertPhasenEntw);
+      workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, addrPhasenEntw, wertPhasenEntw);
+      const addrEntwEntw = Model.zelladresse(header, "Entwicklung (JSON)", zeileExcel), wertEntwEntw = JSON.stringify(rz.entwicklung);
+      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName, addrEntwEntw, wertEntwEntw);
+      workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, addrEntwEntw, wertEntwEntw);
+      if(iProtokoll !== -1 && kopierteVersuche.length){
+        const addrProtokollEntw = Model.zelladresse(header, "Protokoll (JSON)", zeileExcel), wertProtokollEntw = JSON.stringify(rz.protokoll);
+        await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName, addrProtokollEntw, wertProtokollEntw);
+        workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, addrProtokollEntw, wertProtokollEntw);
+      }
       try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
       catch(e){ Store.rezepteETag = null; }
       z.overlay = null; z.status = "produktiv"; z.aktivV = sp.v;
@@ -8032,8 +8544,10 @@ const App = {
       if(wert.length > CONFIG.zellenWarnung)
         View.meldung("Entwicklung (JSON) ist " + wert.length + " Zeichen lang (Warnschwelle " + CONFIG.zellenWarnung
           + ") — Excel-Zellenlimit liegt bei 32'767.", "warn", "Nahe am Zellenlimit");
-      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName,
-        Model.zelladresse(header, "Entwicklung (JSON)", zeileExcel), wert);
+      const addrEntwSpeichern = Model.zelladresse(header, "Entwicklung (JSON)", zeileExcel);
+      await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName, addrEntwSpeichern, wert);
+      // AP-0301/K1, Umsetzungsschritt 4: In-Memory-Kopie nachfuehren.
+      workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, addrEntwSpeichern, wert);
       try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
       catch(e){ Store.rezepteETag = null; }
       View.meldung(erfolgstext + " Backup in " + (CONFIG.backupOrdner || "/Backups") + " angelegt.", "ok", "Gespeichert");
@@ -8069,23 +8583,33 @@ const App = {
 
   // AP-0316: Excel-Altdatei einlesen, erkennen, als rezept/1-Text ins selbe Feld stellen —
   // ab hier laeuft exakt derselbe Weg wie ein .json-Dateiupload (kein zweiter Uebernahmeweg).
+  // AP-0305/M17: lief bisher ohne jeden Fehlerfang — eine beschaedigte/fremde Excel-Datei warf
+  // eine unhandled rejection ohne jede Meldung. Zusaetzlich kann der Import-Dialog waehrend des
+  // asynchronen Lesens geschlossen worden sein (Store.import dann null); auch das wird jetzt
+  // abgefangen statt gegen null zu schreiben.
   async importExcelAltdatei(datei){
-    const buf = await datei.arrayBuffer();
-    const wb = XLSX.read(buf, { type: "array", cellDates: true });
-    const ergebnis = Import.excelDateiErkennen(wb, datei.name, null);
-    const st = Store.import;
-    st.text = JSON.stringify({ format: ergebnis.format, rezepte: ergebnis.rezepte }, null, 2);
+    try{
+      const buf = await datei.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+      const ergebnis = Import.excelDateiErkennen(wb, datei.name, null);
+      const st = Store.import;
+      if(!st) return;
+      st.text = JSON.stringify({ format: ergebnis.format, rezepte: ergebnis.rezepte }, null, 2);
 
-    const offene = ergebnis.protokolle.flatMap(p => p.nicht_zugeordnet.map(n => `${p.blatt} Zeile ${n.zeile}: ${n.grund}`));
-    const nichtErkannt = ergebnis.protokolle.filter(p => p.status !== "erkannt").map(p => p.blatt);
-    let text = ergebnis.rezepte.length
-      ? ergebnis.rezepte.length + " von " + ergebnis.protokolle.length + " Blatt/Blätter erkannt und ins Feld unten übertragen."
-      : "Kein Blatt der Datei entspricht dem erkannten Muster — nichts übertragen.";
-    if(nichtErkannt.length) text += " Nicht erkannt: " + nichtErkannt.join(", ") + ".";
-    if(offene.length) text += " " + offene.length + " Stelle(n) offen (siehe Konsole) — vor «Prüfen» ergänzen.";
-    if(offene.length) console.log("Import-Protokoll " + datei.name + ":\n" + offene.join("\n"));
-    View.meldung(text, ergebnis.rezepte.length ? "warn" : "err", "Excel-Altdatei erkannt");
-    View.import();
+      const offene = ergebnis.protokolle.flatMap(p => p.nicht_zugeordnet.map(n => `${p.blatt} Zeile ${n.zeile}: ${n.grund}`));
+      const nichtErkannt = ergebnis.protokolle.filter(p => p.status !== "erkannt").map(p => p.blatt);
+      let text = ergebnis.rezepte.length
+        ? ergebnis.rezepte.length + " von " + ergebnis.protokolle.length + " Blatt/Blätter erkannt und ins Feld unten übertragen."
+        : "Kein Blatt der Datei entspricht dem erkannten Muster — nichts übertragen.";
+      if(nichtErkannt.length) text += " Nicht erkannt: " + nichtErkannt.join(", ") + ".";
+      if(offene.length) text += " " + offene.length + " Stelle(n) offen (siehe Konsole) — vor «Prüfen» ergänzen.";
+      if(offene.length) console.log("Import-Protokoll " + datei.name + ":\n" + offene.join("\n"));
+      View.meldung(text, ergebnis.rezepte.length ? "warn" : "err", "Excel-Altdatei erkannt");
+      View.import();
+    }catch(e){
+      View.meldung("Excel-Datei „" + datei.name + "“ konnte nicht gelesen werden: " + e.message,
+        "err", "Import fehlgeschlagen");
+    }
   },
 
   // AP-0318: LLM-Import. Genau wie beim Excel-Erkenner landet die Antwort NUR im Textfeld —
@@ -8168,9 +8692,15 @@ const App = {
     View.import();
   },
 
+  // AP-0301/K1: schreibt zellgenau ueber importSchreiben() statt eine Ganzdatei zu PUTten
+  // (Befund K1 — der alte Weg ueberschrieb bei jedem Import saemtliche Zell-Updates seit dem
+  // letzten Laden, siehe AP-Dokumentation). Store.rezepte/CONFIG.aliase werden weiterhin
+  // optimistisch angewendet (gleiches Prinzip wie App.protokollSpeichern) — schlaegt das
+  // OneDrive-Schreiben fehl, bleibt der Import nur in dieser Sitzung sichtbar, bei einem
+  // erkannten Konflikt wird der Bestand neu geladen (die ungeschriebenen Eintraege fallen dabei weg).
   async importUebernehmen(){
     const st = Store.import;
-    const heute = new Date().toISOString().slice(0,10);
+    const heute = heutigesDatumLokal();
 
     // Zuordnungen sofort als Alias lernen (wirkt ab jetzt in dieser Sitzung fuers Matching).
     const neueAliase = [];
@@ -8180,7 +8710,7 @@ const App = {
       const ziel = Store.rohstoffe.find(r => r.id === zielId);
       if(!ziel) return;
       CONFIG.aliase[Model.normKey(name)] = Model.nameKey(ziel.name);
-      neueAliase.push({ variante: name, ziel: ziel.name });
+      neueAliase.push({ variante: name, ziel: ziel.name, datum: heute });
     });
 
     const uebernommen = [];
@@ -8198,29 +8728,46 @@ const App = {
     });
 
     if(Store.rezepteWorkbook && Store.rohstoffeWorkbook){
+      // AP-0301/H11-Schutz, §4.3-Muster: kein Vergleichs-eTag bekannt -> nicht ungeprueft
+      // schreiben, sondern denselben Hinweis wie im Zutaten-Editor zeigen und neu laden.
+      if(!Store.rezepteETag){
+        View.meldung("Der Stand von Rezepte.xlsx konnte zuletzt nicht bestätigt werden — der Bestand wird vor "
+          + "dem Speichern neu geladen. Bitte den Import danach erneut übernehmen.", "warn", "Stand wird geprüft");
+        const konto = msalApp.getActiveAccount();
+        await App.datenLaden(konto);
+        App.importSchliessen();
+        View.liste();
+        return;
+      }
       try{
-        uebernommen.filter(u => u.modus === "neu")
-          .forEach(u => Import.anhaengen(Store.rezepteWorkbook, Store.rezepteSheetName, u.rz));
-        neueAliase.forEach(a => Import.aliasAnhaengen(Store.rohstoffeWorkbook, a.variante, a.ziel, heute));
-        await Data.writeWorkbook(CONFIG.rezeptePfad, Import.alsArrayBuffer(Store.rezepteWorkbook));
-        if(neueAliase.length) await Data.writeWorkbook(CONFIG.rohstoffePfad, Import.alsArrayBuffer(Store.rohstoffeWorkbook));
-        // Als Version angehaengte Rezepte (AP-0311) aendern nur rz.entwicklung einer bestehenden
-        // Zeile, keine neue Zeile — gezieltes Zell-Update statt eines weiteren Ganzdatei-PUT
-        // (Entscheid O-9), analog zu App.entwSpeichern().
-        const versionFehler = [];
-        for(const u of uebernommen.filter(x => x.modus === "version")){
-          if(!u.rz._raw){ versionFehler.push(u.rz.name + " (Zeilenposition unbekannt)"); continue; }
-          const header = u.rz._raw.spalten, zeileExcel = u.rz._raw.zeile + 1;
-          const addr = Model.zelladresse(header, "Entwicklung (JSON)", zeileExcel);
-          if(!addr){ versionFehler.push(u.rz.name + " (Spalte „Entwicklung (JSON)“ fehlt)"); continue; }
-          try{ await Data.updateCell(CONFIG.rezeptePfad, Store.rezepteSheetName, addr, JSON.stringify(u.rz.entwicklung)); }
-          catch(e){ versionFehler.push(u.rz.name + ": " + e.message); }
+        const ergebnis = await importSchreiben(Data, {
+          rezeptePfad: CONFIG.rezeptePfad, rezWorkbook: Store.rezepteWorkbook, rezSheetName: Store.rezepteSheetName,
+          neueRezepte: uebernommen.filter(u => u.modus === "neu").map(u => u.rz),
+          versionRezepte: uebernommen.filter(u => u.modus === "version"),
+          aktuellerRezepteETag: Store.rezepteETag,
+          rohstoffePfad: CONFIG.rohstoffePfad, rohWorkbook: Store.rohstoffeWorkbook,
+          neueAliase, aktuellerRohstoffeETag: Store.rohstoffeETag
+        });
+
+        if(ergebnis.ergebnis === "konflikt"){
+          const datei = ergebnis.stufe === "rohstoffe" ? "Rohstoffe.xlsx" : "Rezepte.xlsx";
+          View.meldung(datei + " wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. Bitte den "
+            + "Import erneut übernehmen. Es wurde nichts geschrieben.", "warn", "Konflikt erkannt");
+          const konto = msalApp.getActiveAccount();
+          await App.datenLaden(konto);
+        }else if(ergebnis.ergebnis === "fehler"){
+          View.meldung("In OneDrive schreiben fehlgeschlagen: " + ergebnis.meldung + " — im Bestand dieser Sitzung "
+            + "bleibt der Import trotzdem sichtbar.", "err", "Import teilweise übernommen");
+        }else{
+          // AP-0301/M15: Store.rohstoffeETag nach dem Alias-Schreiben nachfuehren — sonst
+          // meldet die naechste Recherche/Aliasaenderung einen Konflikt, der keiner ist.
+          Store.rezepteETag = ergebnis.neuerRezepteETag;
+          if(neueAliase.length) Store.rohstoffeETag = ergebnis.neuerRohstoffeETag;
+          View.meldung(uebernommen.length + " Rezept(e) importiert und nach OneDrive geschrieben."
+            + (ergebnis.versionFehler.length ? " Als Version angehängt, aber Entwicklung nicht gespeichert bei: "
+               + ergebnis.versionFehler.join("; ") + "." : ""),
+            ergebnis.versionFehler.length ? "warn" : "ok", "Import übernommen");
         }
-        try{ Store.rezepteETag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag; }
-        catch(e){ Store.rezepteETag = null; }
-        View.meldung(uebernommen.length + " Rezept(e) importiert und nach OneDrive geschrieben."
-          + (versionFehler.length ? " Als Version angehängt, aber Entwicklung nicht gespeichert bei: " + versionFehler.join("; ") + "." : ""),
-          versionFehler.length ? "warn" : "ok", "Import übernommen");
       }catch(e){
         View.meldung("In OneDrive schreiben fehlgeschlagen: " + e.message + " — im Bestand dieser Sitzung bleibt der Import trotzdem sichtbar.",
           "err", "Import teilweise übernommen");
@@ -8325,8 +8872,11 @@ const App = {
         for(const [spalte, wert] of felder){
           const addr = Model.zelladresse(header, spalte, zeileExcel);
           if(!addr) continue;
-          try{ await Data.updateCell(CONFIG.rohstoffePfad, Store.rohstoffeSheetName, addr, wert); }
-          catch(e){ fehlerListe.push(v.name + "/" + spalte + ": " + e.message); }
+          try{
+            await Data.updateCell(CONFIG.rohstoffePfad, Store.rohstoffeSheetName, addr, wert);
+            // AP-0301/K1, Umsetzungsschritt 4: In-Memory-Kopie nachfuehren.
+            workbookZelleNachfuehren(Store.rohstoffeWorkbook, Store.rohstoffeSheetName, addr, wert);
+          }catch(e){ fehlerListe.push(v.name + "/" + spalte + ": " + e.message); }
         }
         geschrieben++;
       }
@@ -8356,15 +8906,22 @@ const App = {
 // Muss vor App.start() laufen — die App darf in diesem Fenster gar nicht erst starten.
 document.addEventListener("DOMContentLoaded", () => {
   const bridge = window.msalRedirectBridge;
+  // AP-0305/H4: App.start() ist async und lief hier ohne jeden Fehlerfang — ein Wurf vor
+  // dessen eigenem try/catch (z.B. in Layout.init()) waere eine unhandled rejection
+  // geblieben, sichtbar nur in der Konsole, ohne Meldung fuer den Nutzer.
+  const starten = () => App.start().catch(e => {
+    console.error("App.start() abgebrochen:", e);
+    View.meldung("Start abgebrochen: " + e.message, "err", "App konnte nicht starten");
+  });
   if(Data.istAuthAntwortInUrl() && bridge && bridge.broadcastResponseToMainFrame){
     // Im Popup raeumt die Bridge die URL auf und schliesst das Fenster selbst. Bleibt es
     // offen — normaler Tab mit liegengebliebener Antwort, oder Bridge wirft bei fremdem
     // Zustand —, startet die App danach ganz normal weiter, damit kein totes Fenster
     // stehen bleibt. Data.bereinigeAuthAntwort() faengt einen Rest in der URL ab.
-    bridge.broadcastResponseToMainFrame().catch(() => {}).then(() => App.start());
+    bridge.broadcastResponseToMainFrame().catch(() => {}).then(starten);
     return;
   }
-  App.start();
+  starten();
 });
 </script>
 </body>
