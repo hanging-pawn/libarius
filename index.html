@@ -3732,25 +3732,86 @@ function korrekturenModul(ablage){
     const w = ablage.lesen();
     return (w && typeof w === "object" && !Array.isArray(w)) ? w : {};
   };
+  const leer = () => ({ zutaten:{}, notiz:"", uebernommen:[] });
+  const gleich = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+  // LIBAR-38: Stand jedes Eintrags, wie dieser Tab ihn zuletzt in der Ablage gesehen hat.
+  // Das ist die Grundlage des Dreiwege-Vergleichs in mischen(): nur was ICH gegenueber
+  // diesem Stand geaendert habe, ueberschreibt den fremden Stand.
+  const basis = {};
+  const merken = stand => Object.keys(stand).forEach(id => { basis[id] = JSON.stringify(stand[id]); });
+  const basisVon = id => { try{ return basis[id] ? JSON.parse(basis[id]) : leer(); }catch(e){ return leer(); } };
+  const start = lesen();
+  merken(start);
   const K = {
-    alle: lesen(),
+    alle: start,
     // Liefert IMMER ein Objekt mit zutaten/notiz/uebernommen, legt es bei Bedarf an —
     // Aufrufer muss nie auf undefined pruefen (gleiches Prinzip wie Store.einkaufslisteAbgehakt).
     // Das Anlegen bleibt im Arbeitsstand; in die Ablage kommt der Eintrag erst mit speichern(rezeptId).
     get(rezeptId){
-      if(!K.alle[rezeptId]) K.alle[rezeptId] = { zutaten:{}, notiz:"", uebernommen:[] };
+      if(!K.alle[rezeptId]) K.alle[rezeptId] = leer();
       return K.alle[rezeptId];
     },
-    // Ablage neu lesen, nur den Eintrag von rezeptId ersetzen, zurueckschreiben. Fremde Eintraege
-    // (auch solche, die ein anderer Tab seit dem Laden geschrieben hat) bleiben unveraendert und
-    // werden in den Arbeitsstand nachgezogen. Das eigene Eintragsobjekt behaelt seine Identitaet —
-    // View.korrekturen() haelt es im Notiz-Listener fest.
+    // LIBAR-38: Ist DASSELBE Rezept in zwei Tabs offen, ersetzte speichern() bis hierher den
+    // ganzen Eintrag dieses Rezepts mit dem eigenen, aelteren Arbeitsstand — Notiz oder
+    // Zutatenkorrekturen des anderen Tabs waren weg. Deshalb feldweiser Dreiwege-Vergleich:
+    // eigene Aenderung gegenueber "alt" gewinnt, sonst gilt die Ablage. Loeschen bleibt
+    // dadurch moeglich (korrekturLoeschen, korrekturenVerwerfen): ein Schluessel, der in alt
+    // stand und im Arbeitsstand fehlt, ist von mir geloescht und kehrt nicht zurueck. Und
+    // umgekehrt: hat der andere Tab einen Schluessel geloescht, den ich nicht angefasst habe,
+    // bleibt er geloescht — sonst springen Loeschungen zurueck.
+    mischen(mein, frisch, alt){
+      mein = mein || leer(); frisch = frisch || leer(); alt = alt || leer();
+      const mz = mein.zutaten || {}, fz = frisch.zutaten || {}, az = alt.zutaten || {};
+      const zutaten = {};
+      Object.keys(fz).forEach(key => {
+        const ichHabeGeloescht = az[key] !== undefined && mz[key] === undefined;
+        if(ichHabeGeloescht) return;
+        zutaten[key] = (mz[key] !== undefined && !gleich(mz[key], az[key])) ? mz[key] : fz[key];
+      });
+      Object.keys(mz).forEach(key => {
+        if(key in zutaten) return;
+        // unveraendert und in der Ablage nicht mehr vorhanden: der andere Tab hat geloescht
+        if(az[key] !== undefined && gleich(mz[key], az[key])) return;
+        zutaten[key] = mz[key];
+      });
+      const notiz = (mein.notiz || "") !== (alt.notiz || "") ? (mein.notiz || "") : (frisch.notiz || "");
+      // uebernommen ist ein Protokoll (§6.3): nie kuerzen, Eintraege beider Tabs behalten
+      const uebernommen = (frisch.uebernommen || []).slice();
+      const bekannt = new Set(uebernommen.map(e => JSON.stringify(e)));
+      (mein.uebernommen || []).forEach(e => {
+        const t = JSON.stringify(e);
+        if(!bekannt.has(t)){ uebernommen.push(e); bekannt.add(t); }
+      });
+      return { zutaten, notiz, uebernommen };
+    },
+    // Ablage neu lesen, den Eintrag von rezeptId feldweise mit dem fremden Stand mischen,
+    // zurueckschreiben. Fremde Eintraege bleiben unveraendert und werden in den Arbeitsstand
+    // nachgezogen. Das eigene Eintragsobjekt behaelt seine Identitaet — View.korrekturen()
+    // haelt es im Notiz-Listener fest, deshalb wird es befuellt und nicht ersetzt.
     speichern(rezeptId){
       if(rezeptId == null || !K.alle[rezeptId]) return;
       const frisch = lesen();
-      frisch[rezeptId] = K.alle[rezeptId];
+      const mein = K.alle[rezeptId];
+      const g = K.mischen(mein, frisch[rezeptId], basisVon(rezeptId));
+      mein.zutaten = g.zutaten; mein.notiz = g.notiz; mein.uebernommen = g.uebernommen;
+      frisch[rezeptId] = mein;
       ablage.schreiben(frisch);
       K.alle = frisch;
+      merken(frisch);
+    },
+    // LIBAR-38: Arbeitsstand aus der Ablage nachziehen, ohne zu schreiben — fuer das
+    // storage-Ereignis eines anderen Tabs. Schreibt nichts zurueck, damit ein blosses
+    // Nachziehen nie eine fremde Aenderung ueberschreibt.
+    nachziehen(){
+      const frisch = lesen();
+      Object.keys(K.alle).forEach(id => {
+        const mein = K.alle[id];
+        const g = K.mischen(mein, frisch[id], basisVon(id));
+        mein.zutaten = g.zutaten; mein.notiz = g.notiz; mein.uebernommen = g.uebernommen;
+        frisch[id] = mein;
+      });
+      K.alle = frisch;
+      merken(frisch);
     },
     // AP-0201 §3.4: die Rezeptliste in B1 markiert Rezepte mit offenen Korrekturen mit einem Punkt.
     hatOffene(rezeptId){
@@ -3763,6 +3824,21 @@ function korrekturenModul(ablage){
 const Korrekturen = korrekturenModul({
   lesen: () => Settings.get("korrekturen", {}),
   schreiben: wert => Settings.set("korrekturen", wert)
+});
+
+// LIBAR-38: Ist dasselbe Rezept in zwei Tabs offen, sieht dieser Tab die Aenderung des
+// anderen sonst erst beim naechsten Rendern — und sein Arbeitsstand bleibt bis dahin alt.
+// Das storage-Ereignis feuert nur in den ANDEREN Tabs, nie im schreibenden.
+window.addEventListener("storage", e => {
+  if(e.key !== Settings.schluessel("korrekturen")) return;
+  const rz = Store.aktuellesRezept;
+  const vorher = rz ? JSON.stringify(Korrekturen.alle[rz.id] || null) : null;
+  Korrekturen.nachziehen();
+  View.liste(); // Punktmarkierung offener Korrekturen (§3.4)
+  if(!rz) return;
+  // Ein fokussiertes Notizfeld nicht ueberschreiben — sonst verliert der Tippende seinen Text.
+  const notizFokus = document.activeElement && document.activeElement.id === "korrekturNotiz";
+  if(!notizFokus && JSON.stringify(Korrekturen.alle[rz.id] || null) !== vorher) View.rezept();
 });
 
 /* ---------- Entwurf: nicht gespeicherter Editor-Entwurf je Rezept (AP-0305/AP-0203 §4) ---
@@ -6275,6 +6351,59 @@ async function selfTest(){
             && nach2.NEU.notiz === "neu" && Object.keys(nach2).length === 3],
         ["LIBAR36-3 Arbeitsstand zieht fremde Eintraege nach, eigenes Objekt bleibt identisch",
           tabA.hatOffene("X") && tabA.hatOffene("Y") && tabC.get("NEU") === kxNeu]
+      ];
+    })(),
+    // LIBAR-38/M7: DASSELBE Rezept in zwei Tabs. Vor der Korrektur ersetzte speichern() den
+    // ganzen Eintrag dieses Rezepts — LIBAR38-1 und -3 waren rot (Notiz bzw. Zutat des
+    // anderen Tabs weg), LIBAR38-2 gruen (Loeschen ging schon vorher).
+    ...(() => {
+      const ablageMock = (start) => {
+        let roh = JSON.stringify(start);
+        return { lesen: () => JSON.parse(roh), schreiben: w => { roh = JSON.stringify(w); } };
+      };
+      // Fall 1 (Abnahmekriterium): Tab B aendert die Notiz von X, danach setzt Tab A eine
+      // Zutatenkorrektur in X. Beides muss stehen.
+      const ab1 = ablageMock({});
+      const a1 = korrekturenModul(ab1), b1 = korrekturenModul(ab1);
+      a1.get("X");                                      // A hat X offen, nichts geaendert
+      b1.get("X").notiz = "Notiz aus Tab B";
+      b1.speichern("X");
+      a1.get("X").zutaten["0/0"] = { ist: 510, einheit:"g" };
+      a1.speichern("X");
+      const f1 = ab1.lesen();
+      // Fall 2: Loeschen bleibt Loeschen. A loescht seine Zutatenkorrektur, B hat sie nicht
+      // angefasst und schreibt danach seine Notiz — die Korrektur kehrt nicht zurueck.
+      const ab2 = ablageMock({ X: { zutaten:{ "0/0": { ist: 7, einheit:"g" } }, notiz:"alt", uebernommen:[] } });
+      const a2 = korrekturenModul(ab2), b2 = korrekturenModul(ab2);
+      a2.get("X"); b2.get("X");
+      delete a2.get("X").zutaten["0/0"];
+      a2.speichern("X");
+      b2.get("X").notiz = "neu aus B";
+      b2.speichern("X");
+      const f2 = ab2.lesen();
+      // Fall 3: Protokoll uebernommen[] wird nie gekuerzt, und eine Zutatenkorrektur des
+      // anderen Tabs bleibt, wenn dieser Tab nur die Notiz aendert.
+      const ab3 = ablageMock({ X: { zutaten:{}, notiz:"", uebernommen:[{ ts:"2026-01-01", ziel:"Rezept" }] } });
+      const a3 = korrekturenModul(ab3), b3 = korrekturenModul(ab3);
+      a3.get("X"); b3.get("X");
+      b3.get("X").zutaten["1/2"] = { ist: 42, einheit:"g" };
+      b3.get("X").uebernommen.push({ ts:"2026-02-02", ziel:"Rezept" });
+      b3.speichern("X");
+      const kxA3 = a3.get("X");
+      kxA3.notiz = "nur Notiz aus A";
+      a3.speichern("X");
+      const f3 = ab3.lesen();
+      return [
+        ["LIBAR38-1 Gleiches Rezept in zwei Tabs: Notiz aus B und Zutat aus A bleiben beide",
+          !!f1.X && f1.X.notiz === "Notiz aus Tab B"
+            && !!(f1.X.zutaten || {})["0/0"] && f1.X.zutaten["0/0"].ist === 510
+            && Object.keys(f1).length === 1],
+        ["LIBAR38-2 Geloeschte Zutatenkorrektur kehrt beim Schreiben des anderen Tabs nicht zurueck",
+          !!f2.X && Object.keys(f2.X.zutaten || {}).length === 0 && f2.X.notiz === "neu aus B"],
+        ["LIBAR38-3 Fremde Zutat bleibt, uebernommen[] wird nicht gekuerzt, eigenes Objekt identisch",
+          !!f3.X && !!(f3.X.zutaten || {})["1/2"] && f3.X.zutaten["1/2"].ist === 42
+            && f3.X.notiz === "nur Notiz aus A"
+            && (f3.X.uebernommen || []).length === 2 && a3.get("X") === kxA3]
       ];
     })(),
     ["T1 Skalierung",       nah(Calc.mengeG({prozent:0.65}, 1000, 1.5), 975)],
