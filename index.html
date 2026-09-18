@@ -6470,13 +6470,16 @@ async function selfTest(){
         ["", "%", "1 Stk", "", "", "Teig"],
         ["Mehl", 1.0, 500, "g", "", 500],
         ["Eier", 0.004, 2, "Stk", "", 2],
+        ["Butter", 0.2, 100, "", "", 100],
         ["Papierförmchen", 1.8, 900, "Stk", "", 900]
       ];
       const { rezept, protokoll } = Import.excelBlattErkennen("Einheiten-Test", aoa, {});
       const eier = rezept && rezept.phasen[0].zutaten.find(z => z.name === "Eier");
-      return ["LIBAR34-2 M9 Einheitenspalte gilt: „Eier | 2 | Stk“ sind 2 Stück, eine Stückzahl wird nicht Basis-Rohstoff",
+      const butter = rezept && rezept.phasen[0].zutaten.find(z => z.name === "Butter");
+      return ["LIBAR34-2 M9 Einheitenspalte gilt: „Eier | 2 | Stk“ sind 2 Stück, eine Stückzahl wird nicht Basis-Rohstoff, fehlende Einheit bleibt Gramm",
         !!rezept && rezept.basisName === "Mehl" && rezept.basisMengeG === 500
           && !!eier && eier.einheit === "stk" && nah(eier.prozent * rezept.basisMengeG, 2)
+          && !!butter && butter.einheit === "g" && nah(butter.prozent * rezept.basisMengeG, 100)
           && protokoll.uebernommen.some(u => u.wert === "Eier: 2 stk")];
     })(),
     // M10: Eine unnummerierte Schrittzeile ("Teig kneten") wurde zur leeren Phase und von der
