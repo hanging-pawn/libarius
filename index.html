@@ -3124,6 +3124,19 @@ const Import = {
     // 3. Zutatenzeilen direkt nach der Kopfzeile: Name in Spalte A + Prozentwert 0–300% in
     //    Spalte B. Leerzeilen dazwischen werden uebersprungen, nicht als Tabellenende gewertet;
     //    die erste NICHT leere Zeile, die trotzdem nicht passt (Summenzeile, Text), beendet die Tabelle.
+    // LIBAR-34/M8: Eine Summenzeile ("Total", "Summe", "Mehlanteil gesamt") erfuellt die
+    // Zutatenbedingung ebenfalls (prozent < 3) und war damit zugleich Zutat UND - als
+    // schwerste "Zutat" - Basis-Rohstoff; die Baeckerprozente rechneten dann gegen die Summe
+    // statt gegen den Mehlanteil. Sie wird uebersprungen statt als Tabellenende gewertet
+    // (unter ihr koennen weitere Zutatenzeilen stehen) und steht mit Grund im Protokoll.
+    const SUMMENZEILE_RE = /(^|\s)(total|summe|zwischensumme|gesamt)(\s|:|$)/i;
+    // LIBAR-34/M9: Spalte C ist nur dann eine Menge in Gramm, wenn Spalte D eine Masseeinheit
+    // nennt. "Eier | 2 | Stk" sind 2 Stueck - die Zahl darf weder als Gewicht in den Vergleich
+    // um den Basis-Rohstoff eingehen noch im Protokoll als Gramm erscheinen. Fehlt Spalte D,
+    // bleibt es wie bisher bei Gramm. "menge" ist die Zahl in ihrer eigenen Einheit (Grundlage
+    // des Baeckerprozents, das sie ueber basisMengeG wieder exakt herstellt), "absMengeG" das
+    // daraus bekannte Gewicht - null, wo es keines gibt.
+    const MASSE_IN_G = { g:1, kg:1000 };
     const zutatenRoh = [];
     let naechsteZeile = headerZeile + 1;
     for(; naechsteZeile < aoa.length; naechsteZeile++){
@@ -3131,10 +3144,17 @@ const Import = {
       if(r.every(istLeer)) continue;
       const name = typeof r[0] === "string" ? r[0].trim() : "";
       const prozent = r[1];
+      if(name && SUMMENZEILE_RE.test(name)){
+        merkeOffen(naechsteZeile + 1, `Summenzeile "${name}" - weder Zutat noch Basis-Rohstoff, uebersprungen`);
+        continue;
+      }
       if(name && istZahl(prozent) && prozent > 0 && prozent < 3){
+        const einheit = typeof r[3] === "string" && r[3].trim() ? r[3].trim().toLowerCase() : "g";
+        const menge = istZahl(r[2]) ? r[2] : null;
+        const faktor = MASSE_IN_G[einheit];
         zutatenRoh.push({
-          zeileNr: naechsteZeile + 1, name, absMengeG: istZahl(r[2]) ? r[2] : null,
-          einheit: typeof r[3] === "string" && r[3].trim() ? r[3].trim().toLowerCase() : "g",
+          zeileNr: naechsteZeile + 1, name, menge, einheit,
+          absMengeG: (menge != null && faktor) ? menge * faktor : null,
           zellen: r
         });
       } else break;
@@ -3174,7 +3194,7 @@ const Import = {
           const wert = z.zellen[ps.index];
           if(istZahl(wert) && wert > 0){
             zutaten.push({ name: z.name, prozent: wert / basisMengeG, einheit: z.einheit });
-            merkeUebernommen(z.zeileNr, `Phase "${ps.name}"`, z.name + ": " + wert + " g");
+            merkeUebernommen(z.zeileNr, `Phase "${ps.name}"`, z.name + ": " + wert + " " + z.einheit);
           }
         });
         if(zutaten.length) phasen.push({ name: ps.name, zutaten, schritte: [] });
@@ -3184,9 +3204,9 @@ const Import = {
         if(!inPhase) merkeOffen(z.zeileNr, `Zutat "${z.name}" keiner erkannten Phase zuordenbar`);
       });
     } else {
-      const zutaten = zutatenRoh.filter(z => z.absMengeG != null)
-        .map(z => ({ name: z.name, prozent: z.absMengeG / basisMengeG, einheit: z.einheit }));
-      zutatenRoh.forEach(z => { if(z.absMengeG == null) merkeOffen(z.zeileNr, `Zutat "${z.name}" hat keine erkennbare Menge in Gramm (Spalte C)`); });
+      const zutaten = zutatenRoh.filter(z => z.menge != null)
+        .map(z => ({ name: z.name, prozent: z.menge / basisMengeG, einheit: z.einheit }));
+      zutatenRoh.forEach(z => { if(z.menge == null) merkeOffen(z.zeileNr, `Zutat "${z.name}" hat keine erkennbare Menge (Spalte C)`); });
       if(zutaten.length) phasen.push({ name: "Zutaten", zutaten, schritte: [] });
       merkeUebernommen(2, "Phasen", "keine Phasenspalten erkannt — eine generische Phase \"Zutaten\" angelegt");
     }
@@ -3205,6 +3225,24 @@ const Import = {
       return ph;
     };
     let aktuellePhase = null;
+    // LIBAR-34/M10: Eine einzelne kurze Zeile ist erst dann eine Phasenueberschrift, wenn
+    // darunter tatsaechlich Text folgt. Vorher wurde sofort eine Phase daraus; blieb sie leer -
+    // "Teig kneten" ist in Wahrheit ein unnummerierter Schritt, keine Ueberschrift -, verwarf
+    // sie die Bereinigung weiter unten stillschweigend und der Text war nur noch im Protokoll
+    // zu sehen. Jetzt bleibt sie zurueckgestellt und wird zum Schritt, wenn kein Inhalt folgt.
+    let offeneUeberschrift = null;
+    const schrittAnhaengen = (text) => {
+      if(!aktuellePhase) aktuellePhase = phaseHolen("Zubereitung");
+      aktuellePhase.schritte.push({ nr: aktuellePhase.schritte.length + 1, text });
+      return aktuellePhase;
+    };
+    const ueberschriftAlsSchritt = () => {
+      if(!offeneUeberschrift) return;
+      const ph = schrittAnhaengen(offeneUeberschrift.text);
+      merkeUebernommen(offeneUeberschrift.zeile, "Schritt (unnummerierte Zeile)",
+        offeneUeberschrift.text + " -> Phase \"" + ph.name + "\"");
+      offeneUeberschrift = null;
+    };
     for(let r = naechsteZeile; r < aoa.length; r++){
       const row = zeile(r);
       const nichtleer = row.filter(v => !istLeer(v));
@@ -3214,18 +3252,24 @@ const Import = {
       }
       const zeilen = row[0].trim().split(/\r?\n/).map(s => s.trim()).filter(Boolean);
       if(zeilen.length > 1 && UEBERSCHRIFT_RE.test(zeilen[0])){
+        ueberschriftAlsSchritt();
         aktuellePhase = phaseHolen(zeilen[0]);
         zeilen.slice(1).forEach(s => aktuellePhase.schritte.push({ nr: aktuellePhase.schritte.length + 1, text: s }));
         merkeUebernommen(r + 1, "Phase + Schritte aus Text", zeilen[0] + " (" + (zeilen.length - 1) + " Schritt(e))");
       }else if(zeilen.length === 1 && UEBERSCHRIFT_RE.test(zeilen[0])){
-        aktuellePhase = phaseHolen(zeilen[0]);
-        merkeUebernommen(r + 1, "Phasenueberschrift", zeilen[0]);
+        ueberschriftAlsSchritt();
+        offeneUeberschrift = { text: zeilen[0], zeile: r + 1 };
       }else{
-        if(!aktuellePhase) aktuellePhase = phaseHolen("Zubereitung");
-        zeilen.forEach(s => aktuellePhase.schritte.push({ nr: aktuellePhase.schritte.length + 1, text: s }));
+        if(offeneUeberschrift){
+          aktuellePhase = phaseHolen(offeneUeberschrift.text);
+          merkeUebernommen(offeneUeberschrift.zeile, "Phasenueberschrift", offeneUeberschrift.text);
+          offeneUeberschrift = null;
+        }
+        zeilen.forEach(s => schrittAnhaengen(s));
         merkeUebernommen(r + 1, "Schritte", zeilen.length + " Zeile(n) zu Phase \"" + aktuellePhase.name + "\"");
       }
     }
+    ueberschriftAlsSchritt();
 
     // Ueberschriften-Phasen ohne Inhalt (z.B. "ANLEITUNG" als reiner Abschnittstitel) verwerfen.
     const phasenBereinigt = phasen.filter(ph => ph.zutaten.length || ph.schritte.length);
@@ -6397,6 +6441,60 @@ async function selfTest(){
     // der Erkenner kennt diese Kategorie bewusst nur als (immer leeren) Kontrollpunkt.
     ["AP0316-4 Prinzip eingehalten: geraten bleibt in jedem Fall leer",
                             Import.excelBlattErkennen("x", [["Sollgewicht"]], {}).protokoll.geraten.length === 0],
+    // ---- LIBAR-34 Erkennerfehler beim Einlesen der 31 Excel-Altdateien — Testblock (3 Fälle) ----
+    // M8: Die Summenzeile "Total | 1.72 | 1720" erfüllt prozent < 3 und war damit Zutat und —
+    // als schwerste Zeile — Basis-Rohstoff; die Bäckerprozente rechneten gegen 1720 statt gegen
+    // den Mehlanteil.
+    (() => {
+      const aoa = [
+        ["Sollgewicht", 10, "Zopf", "a", 100, "g", 1000],
+        ["", "%", "1 Leib", "", "", "Teig"],
+        ["Mehl", 1.0, 1000, "g", "", 1000],
+        ["Wasser", 0.6, 600, "g", "", 600],
+        ["Total", 1.72, 1720, "g", "", ""]
+      ];
+      const { rezept, protokoll } = Import.excelBlattErkennen("Summe-Test", aoa, {});
+      const zutaten = rezept ? rezept.phasen.reduce((a, p) => a.concat(p.zutaten), []) : [];
+      const wasser = zutaten.find(z => z.name === "Wasser");
+      return ["LIBAR34-1 M8 Summenzeile wird weder Zutat noch Basis-Rohstoff — Bäckerprozent bleibt auf dem Mehlanteil",
+        !!rezept && rezept.basisName === "Mehl" && rezept.basisMengeG === 1000
+          && !zutaten.some(z => z.name === "Total") && !!wasser && nah(wasser.prozent, 0.6)
+          && protokoll.nicht_zugeordnet.some(n => /Summenzeile/.test(n.grund))];
+    })(),
+    // M9: Spalte C wurde immer als Gramm gelesen und die Einheitenspalte D ignoriert — eine
+    // Stückzahl ging damit als Gewicht in die Wahl des Basis-Rohstoffs ein und stand im
+    // Protokoll als Gramm.
+    (() => {
+      const aoa = [
+        ["Sollgewicht", 12, "Brioche", "a", 80, "g", 960],
+        ["", "%", "1 Stk", "", "", "Teig"],
+        ["Mehl", 1.0, 500, "g", "", 500],
+        ["Eier", 0.004, 2, "Stk", "", 2],
+        ["Papierförmchen", 1.8, 900, "Stk", "", 900]
+      ];
+      const { rezept, protokoll } = Import.excelBlattErkennen("Einheiten-Test", aoa, {});
+      const eier = rezept && rezept.phasen[0].zutaten.find(z => z.name === "Eier");
+      return ["LIBAR34-2 M9 Einheitenspalte gilt: „Eier | 2 | Stk“ sind 2 Stück, eine Stückzahl wird nicht Basis-Rohstoff",
+        !!rezept && rezept.basisName === "Mehl" && rezept.basisMengeG === 500
+          && !!eier && eier.einheit === "stk" && nah(eier.prozent * rezept.basisMengeG, 2)
+          && protokoll.uebernommen.some(u => u.wert === "Eier: 2 stk")];
+    })(),
+    // M10: Eine unnummerierte Schrittzeile ("Teig kneten") wurde zur leeren Phase und von der
+    // Bereinigung stillschweigend verworfen — der Text war weg, sichtbar nur im Protokoll.
+    (() => {
+      const aoa = [
+        ["Sollgewicht", 10, "Zopf", "a", 100, "g", 1000],
+        ["", "%", "1 Leib", "", "", "Teig"],
+        ["Mehl", 1.0, 1000, "g", "", 1000],
+        ["Teig kneten", "", "", "", "", ""],
+        ["Teig ruhen lassen", "", "", "", "", ""]
+      ];
+      const { rezept } = Import.excelBlattErkennen("Schritt-Test", aoa, {});
+      const schritte = rezept ? rezept.phasen.reduce((a, p) => a.concat(p.schritte.map(x => x.text)), []) : [];
+      return ["LIBAR34-3 M10 unnummerierte Schrittzeilen landen als Text im Rezept statt als leere Phase verworfen zu werden",
+        !!rezept && schritte.includes("Teig kneten") && schritte.includes("Teig ruhen lassen")
+          && Import.pruefen({ format:"rezept/1", rezepte:[rezept] }).fehler.every(f => !/schritte/.test(f.pfad))];
+    })(),
     // ---- AP-0305 Backprotokoll + Speichern — Testblock (2 Fälle) ----
     // Produktive Rezepte.xlsx traegt aktuell in jeder Zeile denselben unausgefuellten
     // Platzhalter (Datum "YYYY-MM-DD", Felder soll_g/ist_g statt sollG/istG) — Model.parseRezepte
