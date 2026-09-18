@@ -3645,21 +3645,48 @@ Object.defineProperty(Store, "aktuellesRezept", {
    Datenmodell kennt keine eigenen Phasen-/Zutaten-IDs (auch Store.offenePhasen und
    details.phase[data-i] arbeiten schon mit dem Index), ein zusaetzliches ID-Feld
    waere hier eine eigene Abweichung vom bestehenden Modell. */
-const Korrekturen = {
-  alle: Settings.get("korrekturen", {}),
-  // Liefert IMMER ein Objekt mit zutaten/notiz/uebernommen, legt es bei Bedarf an —
-  // Aufrufer muss nie auf undefined pruefen (gleiches Prinzip wie Store.einkaufslisteAbgehakt).
-  get(rezeptId){
-    if(!Korrekturen.alle[rezeptId]) Korrekturen.alle[rezeptId] = { zutaten:{}, notiz:"", uebernommen:[] };
-    return Korrekturen.alle[rezeptId];
-  },
-  speichern(){ Settings.set("korrekturen", Korrekturen.alle); },
-  // AP-0201 §3.4: die Rezeptliste in B1 markiert Rezepte mit offenen Korrekturen mit einem Punkt.
-  hatOffene(rezeptId){
-    const k = Korrekturen.alle[rezeptId];
-    return !!(k && (Object.keys(k.zutaten).length || (k.notiz && k.notiz.trim())));
-  }
-};
+// LIBAR-36/M12: als Fabrik mit austauschbarer Ablage, damit selfTest() zwei Browser-Tabs als
+// zwei Instanzen ueber derselben Ablage nachstellen kann. "alle" ist nur noch der Arbeitsstand
+// dieses Tabs — geschrieben wird nie der ganze Arbeitsstand, sondern immer nur EIN Rezepteintrag
+// in den frisch gelesenen Speicherstand (sonst Last Writer Wins zwischen zwei Tabs, und die
+// Korrekturen des anderen Tabs waeren weg — Hausregel: niemals Daten loeschen).
+function korrekturenModul(ablage){
+  const lesen = () => {
+    const w = ablage.lesen();
+    return (w && typeof w === "object" && !Array.isArray(w)) ? w : {};
+  };
+  const K = {
+    alle: lesen(),
+    // Liefert IMMER ein Objekt mit zutaten/notiz/uebernommen, legt es bei Bedarf an —
+    // Aufrufer muss nie auf undefined pruefen (gleiches Prinzip wie Store.einkaufslisteAbgehakt).
+    // Das Anlegen bleibt im Arbeitsstand; in die Ablage kommt der Eintrag erst mit speichern(rezeptId).
+    get(rezeptId){
+      if(!K.alle[rezeptId]) K.alle[rezeptId] = { zutaten:{}, notiz:"", uebernommen:[] };
+      return K.alle[rezeptId];
+    },
+    // Ablage neu lesen, nur den Eintrag von rezeptId ersetzen, zurueckschreiben. Fremde Eintraege
+    // (auch solche, die ein anderer Tab seit dem Laden geschrieben hat) bleiben unveraendert und
+    // werden in den Arbeitsstand nachgezogen. Das eigene Eintragsobjekt behaelt seine Identitaet —
+    // View.korrekturen() haelt es im Notiz-Listener fest.
+    speichern(rezeptId){
+      if(rezeptId == null || !K.alle[rezeptId]) return;
+      const frisch = lesen();
+      frisch[rezeptId] = K.alle[rezeptId];
+      ablage.schreiben(frisch);
+      K.alle = frisch;
+    },
+    // AP-0201 §3.4: die Rezeptliste in B1 markiert Rezepte mit offenen Korrekturen mit einem Punkt.
+    hatOffene(rezeptId){
+      const k = K.alle[rezeptId];
+      return !!(k && (Object.keys(k.zutaten).length || (k.notiz && k.notiz.trim())));
+    }
+  };
+  return K;
+}
+const Korrekturen = korrekturenModul({
+  lesen: () => Settings.get("korrekturen", {}),
+  schreiben: wert => Settings.set("korrekturen", wert)
+});
 
 /* ---------- Entwurf: nicht gespeicherter Editor-Entwurf je Rezept (AP-0305/AP-0203 §4) ---
    Eigener localStorage-Schluessel ("libarius.entwurf.v1", ausserhalb von Settings, weil er
@@ -4029,7 +4056,7 @@ const View = {
 
     el("#korrekturNotiz").addEventListener("input", e => {
       kx.notiz = e.target.value;
-      Korrekturen.speichern();
+      Korrekturen.speichern(rz.id);
     });
     box.querySelectorAll("[data-korrektur]").forEach(inp =>
       inp.addEventListener("change", e => {
@@ -7503,7 +7530,7 @@ const App = {
       faktorBeiEingabe: Store.faktor,
       ts: new Date().toISOString()
     };
-    Korrekturen.speichern();
+    Korrekturen.speichern(rezeptId);
     View.rezept();
     View.liste(); // AP-0201 §3.4: Punktmarkierung offener Korrekturen in der Navigation
   },
@@ -7511,7 +7538,7 @@ const App = {
   korrekturLoeschen(rezeptId, key){
     const kx = Korrekturen.get(rezeptId);
     delete kx.zutaten[key];
-    Korrekturen.speichern();
+    Korrekturen.speichern(rezeptId);
     View.rezept();
     View.liste();
   },
@@ -7522,7 +7549,7 @@ const App = {
     if(!Object.keys(kx.zutaten).length && !kx.notiz.trim()) return;
     if(!confirm("Alle Korrekturen und die Notiz dieses Rezepts verwerfen? Das lässt sich nicht rückgängig machen.")) return;
     kx.zutaten = {}; kx.notiz = "";
-    Korrekturen.speichern();
+    Korrekturen.speichern(rezeptId);
     View.rezept();
     View.liste();
   },
@@ -7598,7 +7625,7 @@ const App = {
       // AP-0201 §3.5/§6.4: nie loeschen — die uebernommenen Korrekturen wandern archiviert.
       kx.uebernommen = [...(kx.uebernommen || []), { ts: new Date().toISOString(), ziel: "Rezept", werte: kx.zutaten }];
       kx.zutaten = {};
-      Korrekturen.speichern();
+      Korrekturen.speichern(rz.id);
       Store.korrekturUebernehmenOffen = false;
       View.meldung(keys.length + " Korrektur(en) ins Rezept übernommen, Backup angelegt.", "ok", "Übernommen");
       View.rezept();
