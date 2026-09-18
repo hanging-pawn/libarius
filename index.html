@@ -1339,8 +1339,12 @@ body.vollbild ol.schritte li{max-width:none}
      ergaebe das eine leere Bedienzeile im Overlay - top:0 haelt das Overlay
      bei K wieder auf Ganzer Hoehe wie vor der Schicht.
      R-14: max-width:none hebt die alte 420-px-Deckelung (Zeile ~76) auf,
-     die width:min(62vw,520px) sonst weiter auf 420 px begrenzt. */
-  .rail{top:0;width:min(62vw,520px);max-width:none;
+     die width:min(62vw,520px) sonst weiter auf 420 px begrenzt.
+     LIBAR-33 (Codereview 12.09.2026, M20): max-height:none dazu - ohne das
+     blieb die Zeile 499 (max-height:calc(100vh - var(--lb-bedien)), fuer die
+     sticky Schiene auf W/M gedacht) auch hier wirksam und schnitt das
+     Overlay 56 px (--lb-bedien) ueber dem unteren Rand ab. */
+  .rail{top:0;width:min(62vw,520px);max-width:none;max-height:none;
     padding:var(--lb-bedien) var(--lb-rand) var(--lb-zeile);
     background:var(--bg);border-radius:0}
   table.zutaten td:first-child{text-align:left;padding-right:8px}
