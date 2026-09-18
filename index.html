@@ -31,7 +31,10 @@ header.app h1{font-size:1.05rem;margin:0;font-weight:650;letter-spacing:-.01em}
 header.app .badge{font-size:.72rem;color:var(--muted);border:1px solid var(--line);
   border-radius:99px;padding:.15rem .55rem}
 .spacer{flex:1}
-.railtoggle{display:none;background:transparent;color:var(--ink);border:1px solid var(--line);
+/* AP-0601, R-08: fruehere Regel `display:none` entfernt — sie war seit AP-0307 folgenlos,
+   weil `header.app button{display:inline-flex}` (Zeile ~448) sie ueberschreibt und jeder
+   .railtoggle in header.app steht. Damit faellt auch die Gegenregel in der Medienabfrage weg. */
+.railtoggle{background:transparent;color:var(--ink);border:1px solid var(--line);
   border-radius:8px;min-width:44px;min-height:44px;align-items:center;justify-content:center;
   font-size:1.05rem}
 #btnVollbildEnde{display:none;position:fixed;top:.6rem;right:.6rem;z-index:11;min-height:44px}
@@ -69,7 +72,6 @@ main#hauptraster{display:grid;grid-template-columns:auto minmax(0,1fr) auto;
 .scrim[hidden]{display:none}
 
 @media (max-width:1279px){
-  .railtoggle{display:inline-flex}
   body[data-links="zu"] .rail--links,
   body[data-rechts="zu"] .rail--rechts{display:none}
 }
@@ -697,7 +699,13 @@ ol.schritte li::before{content:counter(schritt) ".";position:absolute;left:0;top
 details.metablock,details.metablock:last-child{border-bottom:0}
 details.metablock > summary{padding:0;height:var(--lb-bedien);font-size:15px;
   font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink);gap:8px}
-details.metablock > summary:hover{background:transparent;color:var(--rot)}
+/* AP-0601, R-45: Hover war Rot (vierte Rolle). Der Name traegt Text, darum
+   Unterstreichung in Nebentext wie `.lb-bedienzeile:hover > .nm` in libarius.css —
+   nur auf dem Namen, nicht auf Kurzwert und Pfeil (darum der eigene Traeger
+   `.metaname`, den View.metaBlock() setzt). */
+details.metablock > summary:hover{background:transparent;color:var(--ink)}
+details.metablock > summary:hover > .metaname{text-decoration:underline;
+  text-decoration-color:var(--muted)}
 /* AP-0303 (libarius-gestaltung), R-25: Pfeil wandert von ::before nach ::after,
    Kurzwert steht davor - alte Regel (Zeile ~209) setzt ::before-Inhalt, hier
    auf "none" neutralisiert statt geloescht. Der Auto-Abstand (frueher auf dem
@@ -839,8 +847,10 @@ footer.app{max-width:none;padding:0 var(--lb-rand) var(--lb-zeile);font-size:13p
 .entw-overlay-kopf-rechts{display:flex;align-items:flex-end;gap:var(--lb-gasse)}
 .entw-overlay-kopf-rechts .lb-neben{font-size:13px;color:var(--muted);
   padding-bottom:var(--lb-linie-y);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#btnEntwSchliessen,#btnRezeplisteSchliessen{flex:none;padding:var(--lb-zeile) 0 0;font-size:17px;color:var(--muted)}
-#btnEntwSchliessen:hover,#btnRezeplisteSchliessen:hover{color:var(--rot)}
+#btnEntwSchliessen,#btnRezeplisteSchliessen{flex:none;padding:var(--lb-zeile) 0 0;font-size:17px;color:var(--ink)}
+/* AP-0601, R-45: Hover war Rot (vierte Rolle). Reines Symbol ohne Text, darum
+   dieselbe Abstufung wie `.lb-schliessen:hover` in libarius.css: Graphit -> Nebentext. */
+#btnEntwSchliessen:hover,#btnRezeplisteSchliessen:hover{color:var(--muted)}
 
 /* -------------------------- Rezeptliste als Blendover ueber der linken Schiene (B-1) --
    AP-0314 (libarius-gestaltung), AP-0204 §6: dieselbe Machart wie #panelEntwicklung oben
@@ -1455,8 +1465,11 @@ button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)
    (auf dem iPad gibt es kein Hover, §4.2). */
 .lb-tab-schliessen{flex:none;width:var(--lb-zeile);height:var(--lb-bedien);
   min-width:var(--lb-zeile);min-height:var(--lb-bedien);
-  background:transparent;border:0;padding:0;color:var(--muted);font-size:13px;cursor:pointer}
-.lb-tab-schliessen:hover{color:var(--rot)}
+  background:transparent;border:0;padding:0;color:var(--ink);font-size:13px;cursor:pointer}
+/* AP-0601, R-45: Hover war Rot (vierte Rolle). Reines Symbol, darum Graphit -> Nebentext
+   wie `.lb-schliessen:hover`. Nicht in der Fundstellenliste des Tickets, faellt aber unter
+   das Abnahmekriterium "keine :hover-Regel mit color:var(--rot)". */
+.lb-tab-schliessen:hover{color:var(--muted)}
 /* Aktiv: doppelt starke Graphitlinie ueber die volle Zeilenbreite ("hier bist du", §4.3) —
    keine Farbflaeche, derselbe Zustand wie :focus-visible auf .lb-bedienzeile. */
 .lb-tab--aktiv .lb-tab-eintrag .lb-bedienzeile{
@@ -5204,7 +5217,7 @@ const View = {
     // "kurz" steht rechts in der Zusammenfassung und ist bereits fertiges HTML.
     const metaBlock = (id, titel, kurz, inhalt) => `
       <details class="metablock" data-block="${id}"${Layout.metaOffen(id) ? " open" : ""}>
-        <summary>${esc(titel)}<span class="metakurz">${kurz}</span></summary>
+        <summary><span class="metaname">${esc(titel)}</span><span class="metakurz">${kurz}</span></summary>
         <div class="metabody">${inhalt}</div>
       </details>`;
 
