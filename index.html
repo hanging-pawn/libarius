@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <title>libarius — Rezeptverwaltung</title>
 <style>
 :root{
@@ -587,6 +587,12 @@ input[type=checkbox]{height:12px;min-height:12px;width:12px;padding:0;
   background-image:none;flex:none}
 input[type=checkbox]:checked{background:var(--ink);
   box-shadow:inset 0 0 0 2px var(--bg)}
+/* LIBAR-33 (Codereview 12.09.2026, M20): Checkbox und Range haben keine Grundlinie,
+   auf der die Graphitlinie von input:focus oben sichtbar waere (bei Checkbox verdeckt
+   sie appearance:none; beim Range-Track liegt sie unter der nativen Bedienelement-Grafik) —
+   darum hier ein echter Outline statt der Baseline-Verstaerkung, in derselben Graphitfarbe. */
+input[type=checkbox]:focus-visible,input[type=range]:focus-visible{
+  outline:var(--lb-fokus-staerke) solid var(--ink);outline-offset:2px}
 button,label.ghost{background:transparent;color:var(--ink);border:0;border-radius:0;
   padding:0 var(--lb-gasse) 0 0;height:var(--lb-bedien);min-height:var(--lb-bedien);
   font-weight:400;font-size:15px;
@@ -1629,7 +1635,7 @@ button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)
     </div>
     <div class="railinhalt">
       <div class="filters">
-        <input id="suche" type="search" placeholder="Rezept suchen…" autocomplete="off">
+        <input id="suche" type="search" placeholder="Rezept suchen…" aria-label="Rezept suchen" autocomplete="off">
       </div>
       <button type="button" class="lb-bedienzeile" id="btnRezeptOeffnen"><span class="nm">Rezept öffnen…</span></button>
       <!-- AP-0204 §4: Tabschiene, siehe View.tabs() -->
@@ -2369,10 +2375,19 @@ const Calc = {
   // Schweizer Kurzformat "TT.MM.JJJJ" oder den Text "unbekannt" in die Spalte "… Stand".
   // Weder ein fehlender Wert noch "unbekannt" lassen sich in Tage umrechnen — beides liefert
   // null (heisst in der Anzeige "kein Datum", nicht "0 Tage alt").
+  // AP-0604/M4: Excel liest diese Spalte mit cellDates:true — ein echtes Datum kommt darum
+  // als Date-Objekt an, nicht als "TT.MM.JJJJ"-Text; String(Date) traf die Regex nie und
+  // liess ein gueltiges Datum als "kein Datum" verschwinden. Zusaetzlich zum CH-Text jetzt
+  // auch ein Date-Objekt und ISO-Text ("JJJJ-MM-TT", z. B. aus einer von Hand bearbeiteten
+  // Datei) erkannt — beides ohne Zeitzonen-Verschiebung ueber Jahr/Monat/Tag statt Timestamp.
   parseDatumCH(s){
-    const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(s || "").trim());
-    if(!m) return null;
-    return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    if(s instanceof Date) return isNaN(s) ? null : new Date(s.getFullYear(), s.getMonth(), s.getDate());
+    const str = String(s || "").trim();
+    let m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(str);
+    if(m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+    m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(str);
+    if(m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return null;
   },
   preisAlterTage(standStr, heute){
     const d = Calc.parseDatumCH(standStr);
@@ -3310,14 +3325,28 @@ const EntwModell = {
       // basisMengeG nur schreiben, wenn gesetzt (AP0308-3 verlangt Verlustfreiheit fuer
       // Bestand ohne dieses Feld — eine immer vorhandene, aber leere/null Eigenschaft waere
       // bereits ein Verlust: das Feld existierte im Original schlicht nicht).
+      // LIBAR-37/M7: "eingeklappt" wird bewusst NICHT mehr geschrieben — das ist geraetelokales
+      // Layout (haengt vollstaendig in EntwEntwurf/localStorage, siehe App.entwPersistieren),
+      // kein Datenfeld der geteilten Rezeptur. Vorher landete der Einklappzustand eines Geraets
+      // ueber "Varianten sichern"/"Übernehmen" in der geteilten Spalte "Entwicklung (JSON)" und
+      // damit auf jedem anderen Geraet.
       versionen: zustand.spalten.map(s => {
         const v = { v: s.v, datum: s.datum, notiz: s.notiz, herkunft: s.herkunft,
-          eingeklappt: s.eingeklappt, phasen: Import.phasenExport(s.phasen) };
+          phasen: Import.phasenExport(s.phasen) };
         if(s.basisMengeG != null) v.basisMengeG = s.basisMengeG;
         return v;
       }),
       versuche: zustand.spalten.flatMap(s => (s.versuche || []).map(x => ({ ...x, version: s.v })))
     };
+  },
+
+  // LIBAR-37/M6: darf "v" eingeklappt werden, ohne dass am Ende keine einzige Spalte mehr
+  // offen ist? Reine Pruefung auf den Spalten (kein Store/DOM), damit selfTest() sie direkt
+  // belegen kann. Wiederoeffnen (sp.eingeklappt bereits true) ist immer erlaubt.
+  kannEinklappen(spalten, v){
+    const sp = spalten.find(s => s.v === v);
+    if(!sp || sp.eingeklappt) return true;
+    return spalten.filter(s => !s.eingeklappt).length > 1;
   }
 };
 
@@ -6404,6 +6433,13 @@ async function selfTest(){
     ["AP0318-4 Preisalter bei „unbekannt“ ist null, nicht 0",
                             Calc.preisAlterTage("unbekannt", new Date()) === null
                               && Calc.preisAlterTage(null, new Date()) === null],
+    // AP-0604/M4: Excel liefert "Preis Stand" bei cellDates:true als Date-Objekt statt als
+    // "TT.MM.JJJJ"-Text — String(Date) traf die alte Regex nie, ein gueltiges Datum verschwand
+    // als "kein Datum". Ohne die Korrektur (parseDatumCH ohne Date-/ISO-Zweig) beide rot.
+    ["AP0604-1 Preisalter aus Excel-Datum (Date-Objekt, cellDates:true)",
+                            Calc.preisAlterTage(new Date(2025,11,1), new Date(2027,0,5)) === 400],
+    ["AP0604-2 Preisalter aus ISO-Textdatum (von Hand bearbeitete Datei)",
+                            Calc.preisAlterTage("2025-12-01", new Date(2027,0,5)) === 400],
     // ---- AP-0311 Entwicklungsmodus — Versionen + Versuchsprotokoll — Testblock (6 Fälle) ----
     // Spalte "Entwicklung (JSON)" wird gelesen; fehlt sie in der Datei (aeltere Rezepte.xlsx-
     // Stände), bleibt entwicklung null statt einen Ladefehler zu werfen (Abnahmekriterium 3).
@@ -6907,11 +6943,14 @@ async function selfTest(){
     // gesetzt, Versuche vorhanden) — Grundlage jedes Schreibvorgangs (entwVariantenSichern/
     // entwUebernehmenBestaetigt) und der Excel-Lesbarkeit nach der Aenderung.
     (() => {
+      // LIBAR-37/M7: "eingeklappt" absichtlich NICHT im Fixture — das Feld ist geraetelokal
+      // und gehoert seit M7 nicht mehr zu den Feldern, die dehydrieren() verlustfrei zurueckgibt
+      // (eigener Testfall AP0308-7 unten). Diese Pruefung bleibt fuer alle uebrigen Felder gueltig.
       const original = { status:"entwicklung", zielwerte:{ hydration_pct:0.68 }, aktivV:2,
         versionen:[
-          { v:1, datum:"2026-09-01", notiz:"Start", herkunft:"produktiv", eingeklappt:false,
+          { v:1, datum:"2026-09-01", notiz:"Start", herkunft:"produktiv",
             phasen:[{name:"P",zutaten:[{name:"Mehl",prozent:1,einheit:"g"}],schritte:[]}] },
-          { v:2, datum:"2026-09-02", notiz:"Hydration erhöht", herkunft:{ausV:1}, eingeklappt:false,
+          { v:2, datum:"2026-09-02", notiz:"Hydration erhöht", herkunft:{ausV:1},
             phasen:[{name:"P",zutaten:[{name:"Mehl",prozent:1,einheit:"g"}],schritte:[]}] }
         ],
         versuche:[
@@ -6927,6 +6966,22 @@ async function selfTest(){
           && JSON.stringify(zurueck.versuche.find(v => v.version === 1)) === JSON.stringify(original.versuche[0])
           && JSON.stringify(zurueck.versuche.find(v => v.version === 2)) === JSON.stringify(original.versuche[1])];
     })(),
+    // ---- LIBAR-37 (AP-0606) M6/M7: Entwicklungsspalten ohne Sackgasse, Einklappzustand
+    // geraetelokal — Testblock (2 Faelle) ----
+    // M6, Befund Codereview ~4348-4431: auch die letzte offene Spalte liess sich einklappen,
+    // dann verschwand mit ihr "+ Variante" und der Streifen zum Wiederoeffnen (Sackgasse).
+    // EntwModell.kannEinklappen ist der Waechter dahinter (App.entwSpalteEinklappen).
+    ["AP0308-7/LIBAR-37 M6 kannEinklappen verweigert die letzte offene Spalte, erlaubt sonst jede Aktion",
+                            EntwModell.kannEinklappen([{ v:1, eingeklappt:false }, { v:2, eingeklappt:true }], 1) === false
+                              && EntwModell.kannEinklappen([{ v:1, eingeklappt:false }, { v:2, eingeklappt:true }], 2) === true
+                              && EntwModell.kannEinklappen([{ v:1, eingeklappt:false }, { v:2, eingeklappt:false }], 1) === true],
+    // M7, Befund Codereview ~3273/~3302: das Feld "eingeklappt" wanderte ueber dehydrieren()
+    // in die geteilte Spalte "Entwicklung (JSON)" — geraetelokales Layout landete so in
+    // geteilten Daten. dehydrieren() darf es seither nicht mehr schreiben.
+    ["AP0308-8/LIBAR-37 M7 dehydrieren() schreibt kein „eingeklappt“ mehr nach „Entwicklung (JSON)“",
+                            !("eingeklappt" in EntwModell.dehydrieren({ status:"entwicklung", zielwerte:{}, aktivV:1,
+                              spalten:[{ v:1, datum:"2026-09-18", notiz:"", herkunft:"produktiv", eingeklappt:true,
+                                phasen:[], versuche:[] }] }).versionen[0])],
     // §8.3 Leseregel: soll_g/ist_g (Bestand) und sollG/istG (ab AP-0308 neu geschrieben) werden
     // beide gelesen — Calc.versuchSollG/IstG ist die einzige Stelle, die das aufloest.
     ["AP0308-4 Dual-Read soll_g/ist_g UND sollG/istG liefern denselben Wert",
@@ -8152,6 +8207,10 @@ const App = {
   entwSpalteEinklappen(v){
     const z = Store.entw, sp = z && z.spalten.find(s => s.v === v);
     if(!sp) return;
+    // LIBAR-37/M6: die letzte offene Spalte bleibt offen — sonst zeigen entwRahmenKopf/-fuss
+    // (View.rezept()) bei null offenen Spalten gar nichts mehr, weder Streifen noch
+    // "+ Variante", und der Zustand liesse sich nicht mehr aufklappen (Sackgasse).
+    if(!EntwModell.kannEinklappen(z.spalten, v)) return;
     sp.eingeklappt = !sp.eingeklappt;
     // AP-0315-Nacharbeit (§1.4): "ein Klick tauscht eine eingeklappte gegen eine offene
     // Spalte" — ohne diese Vormerkung wuerde Layout.entwSpaltenAutoEinklappen() die gerade

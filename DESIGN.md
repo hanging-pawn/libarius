@@ -400,8 +400,12 @@ Noch **nicht** übernommen, mit Grund:
 `Projekte/libarius-gestaltung/05_abschluss/projektabschluss.md`. Was weiterhin offen ist, steht
 jetzt in `Projekte/rezeptverwaltung/entscheide.md`, nicht mehr nur hier:
 
-- Zwei Rot-Hover-Reste aus R-45 sowie der Aufräumpunkt R-08 — **entscheide.md O-21**
-  (kleine Korrektur, Claude Code, kein Entscheid nötig).
+- ~~Zwei Rot-Hover-Reste aus R-45 sowie der Aufräumpunkt R-08 — **entscheide.md O-21**~~
+  **erledigt 18.09.2026 (LIBAR-32, AP-0601):** beide Hover-Stellen (Zeile 700, 843) auf
+  Unterstreichung in Nebentext bzw. Graphit → Nebentext umgestellt, dazu die im Register nicht
+  vermerkte dritte Stelle `.lb-tab-schliessen:hover`; keine `:hover`-Regel enthält mehr
+  `color:var(--rot)`. R-08: `display:none` aus `.railtoggle` entfernt samt Gegenregel in der
+  Medienabfrage — Schalter auf Stufe W, M und K unverändert sichtbar (im Browser nachgemessen).
 - Schrift lokal ablegen, falls die App ohne Netz in Fira Sans starten soll — weiterhin offen,
   unverändert seit DESIGN.md-Entscheid 3 (09.09.2026).
 - Dunkelmodus entscheiden — Backlog, unverändert.
