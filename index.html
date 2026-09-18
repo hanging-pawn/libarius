@@ -6152,6 +6152,54 @@ async function selfTest(){
         rezepte.length === 1 && rezepte[0].id === "OK1"
           && fehlerhaft.length === 1 && fehlerhaft[0].id === "BAD1"];
     })(),
+    // LIBAR-36/M12: zwei Tabs = zwei korrekturenModul()-Instanzen ueber derselben Ablage.
+    // Vor der Korrektur schrieb speichern() den ganzen Arbeitsstand — alle drei Faelle rot.
+    ...(() => {
+      const ablageMock = (start) => {
+        let roh = JSON.stringify(start);
+        return { lesen: () => JSON.parse(roh), schreiben: w => { roh = JSON.stringify(w); } };
+      };
+      const eintrag = (ist, notiz) => ({ zutaten: ist == null ? {} : { "0/0": { ist, einheit:"g" } }, notiz: notiz || "", uebernommen: [] });
+      // Fall 1: Stand A laedt, B schreibt Rezept X, danach schreibt A Rezept Y.
+      const ab1 = ablageMock({});
+      const tabA = korrekturenModul(ab1);
+      const tabB = korrekturenModul(ab1);
+      tabA.get("X");                                   // A hat X nur angesehen (leerer Arbeitseintrag)
+      tabB.get("X").zutaten["0/0"] = { ist: 510, einheit:"g" };
+      tabB.get("X").notiz = "Notiz aus Tab B";
+      tabB.speichern("X");
+      tabA.get("Y").zutaten["0/0"] = { ist: 42, einheit:"g" };
+      tabA.speichern("Y");
+      const nach1 = ab1.lesen();
+      // Fall 2: Bestand bleibt bei der Umstellung unangetastet, auch uebernommen[] und ein
+      // nur angesehenes (im Arbeitsstand leer angelegtes) Rezept leert nichts.
+      const bestand = { ALT1: { zutaten:{ "1/2": { ist: 7, einheit:"g" } }, notiz:"alt", uebernommen:[{ ts:"2026-01-01", ziel:"Rezept", werte:{} }] },
+                        ALT2: eintrag(99, "zwei") };
+      const ab2 = ablageMock(bestand);
+      const tabC = korrekturenModul(ab2);
+      tabC.get("ALT1"); tabC.get("ALT2");              // C hat beide geladen und angesehen
+      const tabD = korrekturenModul(ab2);              // zweiter Tab ergaenzt ALT2, nachdem C geladen hat
+      tabD.get("ALT2").notiz = "zwei, ergaenzt in Tab D";
+      tabD.speichern("ALT2");
+      bestand.ALT2.notiz = "zwei, ergaenzt in Tab D";  // erwarteter Stand
+      const kxNeu = tabC.get("NEU"); kxNeu.notiz = "neu";
+      tabC.speichern("NEU");
+      tabC.speichern();                                // ohne Rezept-ID: kein Schreibvorgang
+      const nach2 = ab2.lesen();
+      // Fall 3: nach dem Speichern kennt der Arbeitsstand die fremden Eintraege, das eigene
+      // Eintragsobjekt bleibt dasselbe (Notiz-Listener haelt es fest).
+      return [
+        ["LIBAR36-1 Zwei Tabs: B schreibt X, danach A schreibt Y — beide vorhanden",
+          !!nach1.X && nach1.X.notiz === "Notiz aus Tab B" && nach1.X.zutaten["0/0"].ist === 510
+            && !!nach1.Y && nach1.Y.zutaten["0/0"].ist === 42],
+        ["LIBAR36-2 Bestehende Eintraege bleiben beim Speichern unveraendert",
+          JSON.stringify(nach2.ALT1) === JSON.stringify(bestand.ALT1)
+            && JSON.stringify(nach2.ALT2) === JSON.stringify(bestand.ALT2)
+            && nach2.NEU.notiz === "neu" && Object.keys(nach2).length === 3],
+        ["LIBAR36-3 Arbeitsstand zieht fremde Eintraege nach, eigenes Objekt bleibt identisch",
+          tabA.hatOffene("X") && tabA.hatOffene("Y") && tabC.get("NEU") === kxNeu]
+      ];
+    })(),
     ["T1 Skalierung",       nah(Calc.mengeG({prozent:0.65}, 1000, 1.5), 975)],
     ["T2 Stückzahl",        nah(Calc.alsStueck(120, idx.get("vollei")).stueck, 2)],
     ["T3 Schwund",          nah(Calc.schwundEintrag(2400, 2180), 0.09167, 0.0001)],
