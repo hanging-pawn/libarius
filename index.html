@@ -4780,7 +4780,7 @@ const View = {
     const zuckerarten = Store.rohstoffe.filter(r => r.suesskraft);
     return `<div class="scrim noprint" data-entw-b7-schliessen></div>
     <div class="entw-overlay entw-overlay-b7 noprint">
-      <div class="entw-b7-kopf"><h3>Zielwerte — bezogen auf v${sp ? sp.v : "—"} (aktiv)</h3>
+      <div class="entw-b7-kopf"><h3>Zielwerte — bezogen auf v${sp ? esc(sp.v) : "—"} (aktiv)</h3>
         <button type="button" class="lb-schliessen" data-entw-b7-schliessen aria-label="Schliessen">×</button></div>
       <table class="log">
         <tr><th>Kennzahl</th><th class="num">Ziel</th><th class="num">Ist</th><th>Ampel</th></tr>
@@ -4860,7 +4860,7 @@ const View = {
 
     return `<div class="scrim noprint" data-entw-b7-schliessen></div>
     <div class="entw-overlay entw-overlay-b7 noprint">
-      <div class="entw-b7-kopf"><h3>Referenz-Vergleich — v${sp ? sp.v : "—"} (aktiv)</h3>
+      <div class="entw-b7-kopf"><h3>Referenz-Vergleich — v${sp ? esc(sp.v) : "—"} (aktiv)</h3>
         <button type="button" class="lb-schliessen" data-entw-b7-schliessen aria-label="Schliessen">×</button></div>
       ${refs.length ? `<div class="refchips">${refs.map(r => `<span class="refchip">${esc(r.name)}
         <button class="ghost" data-ref-del="${esc(r.id)}" title="Referenz entfernen">✕</button></span>`).join("")}</div>` : ""}
@@ -7337,7 +7337,25 @@ async function selfTest(){
     // K2: esc() entschaerft jeden HTML-Sonderzeichen — Grundlage aller neu escapten
     // Entwicklungs-Ausgaben (sp.v), belegt hier direkt an der Funktion.
     ["AP0303-9 K2 esc() entschaerft spitze Klammern/Anführungszeichen (Grundlage für sp.v-Escaping)",
-                            !esc('<img src=x onerror=alert(1)>').includes("<") && !esc('<img src=x onerror=alert(1)>').includes(">")]
+                            !esc('<img src=x onerror=alert(1)>').includes("<") && !esc('<img src=x onerror=alert(1)>').includes(">")],
+    // K2/Nachbesserung 18.09.2026: die beiden B7-Overlays gaben "sp.v" als einzige Stellen
+    // noch roh in HTML aus (Zielwerte- und Referenz-Kopf). hydrieren() laesst fuer "v" einen
+    // String bis 40 Zeichen zu, "<img src=x onerror=alert(1)>" passt hinein — der Wert landete
+    // damit ungefiltert im DOM. Hier gegen die echten View-Vorlagen belegt, nicht gegen esc().
+    (() => {
+      const boese = '<img src=x onerror=alert(1)>';
+      const entw = { status:"entwicklung", zielwerte:{}, aktivV:boese, versuche:[],
+        versionen:[{ v:boese, datum:"2026-01-01", notiz:"", herkunft:"produktiv",
+                     eingeklappt:false, phasen:[] }] };
+      const z = EntwModell.hydrieren(entw);
+      const rz = { id:"T-B7", name:"Test", basisMengeG:1000, portionen:1, protokoll:[], phasen:[] };
+      let html = "", warf = false;
+      try{
+        html = View.entwOverlayZielwerte(rz, z, {}) + View.entwOverlayReferenz(rz, z, {});
+      }catch(e){ warf = true; }
+      return ["AP0303-10 K2 B7-Overlays (Zielwerte, Referenz-Vergleich) escapen sp.v — kein rohes <img> im HTML",
+        !warf && html.length > 0 && !html.includes("<img") && html.includes("&lt;img")];
+    })()
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
   return { anzahl:t.length, fehler };
