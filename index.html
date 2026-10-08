@@ -2008,6 +2008,46 @@ const Model = {
     rohstoffe.forEach(r => m.set(Model.nameKey(r.name), r));
     return m;
   },
+  // LIBAR-47: Regel-Aufloesung ueber die Spalten «Mehltyp» und «Kakaoanteil (%)» aus
+  // Rohstoffe.xlsx. Greift NUR, wenn weder exakter Name noch Alias (eingebaut CONFIG.aliase,
+  // Blatt «Aliase» — beide stecken nach dem Laden in CONFIG.aliase) einen Rohstoff liefern.
+  // Rueckgabe { rohstoff, regel } oder null; regel ist der Hinweistext fuer die Rezeptansicht.
+  MEHL_GENERISCH: ["mehl", "farina", "flour"],
+  SCHOKO_RE: /schokolade|kuvert(?:ü|ue|u)re|couverture|cioccolato|chocolate/i,
+  regelZuordnung(name, rohstoffe){
+    const k = Model.normKey(name);
+    const liste = rohstoffe || [];
+    // Regel 2: Mehl ohne Typangabe -> Rohstoff mit Mehltyp "Weissmehl", bei mehreren die
+    // tiefste Rohstoff-ID (numerisch sortiert, damit RS-2 vor RS-10 kommt).
+    if(Model.MEHL_GENERISCH.includes(k)){
+      const kand = liste.filter(r => r.mehltyp && Model.normKey(r.mehltyp) === "weissmehl")
+        .sort((a, b) => String(a.id).localeCompare(String(b.id), "de", { numeric: true }));
+      return kand.length ? { rohstoff: kand[0], regel: "Mehltyp Weissmehl" } : null;
+    }
+    // Regel 3: Schokoladenwort + Prozentangabe -> Schokoladen-Rohstoff (Name mit
+    // Schokoladenwort, Kakaoanteil gepflegt) mit naechstem Kakaoanteil; Gleichstand -> hoeherer.
+    // Ohne Prozentangabe bleibt die Zutat unaufgeloest (wie bisher).
+    const pm = /(\d+(?:[.,]\d+)?)\s*%/.exec(k);
+    if(Model.SCHOKO_RE.test(k) && pm){
+      const ziel = Number(pm[1].replace(",", "."));
+      let best = null;
+      for(const r of liste){
+        if(typeof r.kakaoanteil !== "number" || !Model.SCHOKO_RE.test(String(r.name || ""))) continue;
+        const d = Math.abs(r.kakaoanteil - ziel);
+        if(!best || d < best.d || (d === best.d && r.kakaoanteil > best.r.kakaoanteil)) best = { r, d };
+      }
+      return best ? { rohstoff: best.r, regel: "nächster Kakaoanteil " + String(Math.round(best.r.kakaoanteil * 10) / 10) + " %" } : null;
+    }
+    return null;
+  },
+  // Vorrang (LIBAR-47 Regel 4): exakter Name / Alias ueber den Index, dann Regeln 2-3.
+  // Die Regeln sehen dieselbe Rohstoffliste wie der Index (idx.values()).
+  rohstoffAufloesen(name, idx){
+    const r = idx.get(Model.nameKey(name));
+    if(r) return { rohstoff: r, regel: null };
+    const t = Model.regelZuordnung(name, [...new Set(idx.values())]);
+    return t || { rohstoff: null, regel: null };
+  },
   // verknüpft jede Zutat einmalig mit ihrem Rohstoff (FR-306/FR-307).
   // idxOverride: optional vorgebauter Index (AP-0315 Import-Vorschau ueberlagert den reellen
   // Bestand mit den im Dialog gewaehlten, noch nicht gespeicherten Zuordnungen).
@@ -2031,7 +2071,10 @@ const Model = {
           if(!Array.isArray(ph.zutaten)) throw new Error('Phase "' + (ph.name || "?") + '" ohne Zutaten');
           ph.zutaten.forEach(z => {
             z.nameKey  = Model.nameKey(z.name);
-            z.rohstoff = idx.get(z.nameKey) || null;
+            const t = Model.rohstoffAufloesen(z.name, idx);
+            z.rohstoff = t.rohstoff;
+            // LIBAR-47: Laufzeitfeld wie nameKey/rohstoff (Export/Normalisierung lassen es weg).
+            if(t.regel) z.regel = t.regel; else delete z.regel;
           });
         });
         ok.push(rz);
@@ -2179,6 +2222,24 @@ const Model = {
   zelladresse(header, spaltenname, zeileExcel){
     const i = header.indexOf(spaltenname);
     return i === -1 ? null : XLSX.utils.encode_col(i) + zeileExcel;
+  },
+
+  // Zellen, die "Recherche uebernehmen" je Rohstoff schreibt (zellweise, App.rechercheUebernehmen):
+  // nur Preis- und Naehrwertspalten samt Quelle/Stand. LIBAR-47: «Mehltyp» und «Kakaoanteil (%)»
+  // sind handgepflegt und stehen bewusst nie in dieser Liste (selfTest LIBAR47-12).
+  rechercheFelder(v, heute){
+    const felder = [];
+    if(v.kostenProKg != null)
+      felder.push(["Kosten/kg (CHF)", v.kostenProKg], ["Preis Quelle", v.quelle || "KI-Recherche"], ["Preis Stand", v.stand || heute]);
+    if(v.naehrwerte){
+      const n = v.naehrwerte, vorher = felder.length;
+      if(n.kcal != null) felder.push(["kcal/100g", n.kcal]);
+      if(n.eiweiss != null) felder.push(["Eiweiss g/100g", n.eiweiss]);
+      if(n.fett != null) felder.push(["Fett g/100g", n.fett]);
+      if(n.kh != null) felder.push(["KH g/100g", n.kh]);
+      if(felder.length > vorher) felder.push(["Nährwert Quelle", v.quelle || "KI-Recherche"], ["Nährwert Stand", v.stand || heute]);
+    }
+    return felder;
   },
 
   // Blatt «Aliase» in Rohstoffe.xlsx (AP-0315 Schritt 4): geraeteuebergreifend gelernte
@@ -2984,7 +3045,7 @@ const Import = {
     const idx = Model.rohstoffIndex(rohstoffe);
     const namen = new Set();
     rezepteIntern.forEach(rz => rz.phasen.forEach(ph => ph.zutaten.forEach(z => {
-      if(!idx.has(Model.nameKey(z.name))) namen.add(z.name);
+      if(!Model.rohstoffAufloesen(z.name, idx).rohstoff) namen.add(z.name);
     })));
     return [...namen].sort((a,b) => a.localeCompare(b, "de"));
   },
@@ -3515,7 +3576,7 @@ const Editor = {
     const idx = Model.rohstoffIndex(Store.rohstoffe);
     const unbekannt = new Set();
     phasen.forEach(ph => (ph.zutaten || []).forEach(z => {
-      if(z.name && !idx.get(Model.nameKey(z.name))) unbekannt.add(z.name);
+      if(z.name && !Model.rohstoffAufloesen(z.name, idx).rohstoff) unbekannt.add(z.name);
     }));
     if(unbekannt.size) add(warnen, "Zutat",
       `${unbekannt.size} Zutat(en) sind keinem Rohstoff zugeordnet — Kosten und Nährwerte bleiben für diese Zeilen leer: ${[...unbekannt].join(", ")}`);
@@ -4395,7 +4456,8 @@ const View = {
       name: ph.name,
       zutaten: (ph.zutaten || []).map(z => {
         const nameKey = Model.nameKey(z.name);
-        return { ...z, nameKey, rohstoff: idx.get(nameKey) || null };
+        const t = Model.rohstoffAufloesen(z.name, idx);
+        return { ...z, nameKey, rohstoff: t.rohstoff, regel: t.regel || undefined };
       })
     }));
     return { basisMengeG: rz.basisMengeG, portionen: rz.portionen, protokoll: rz.protokoll, phasen };
@@ -7509,7 +7571,59 @@ async function selfTest(){
              && nah(Model.parseRohstoffe([kopf, ["RS-9","Couverture X","Schokolade","g",1,null,0.7]])[0].kakaoanteil, 70)),
         fall("LIBAR47-2 Rohstoffe ohne beide Spalten: kein Fehler, mehltyp/kakaoanteil null, übrige Felder unverändert",
           () => rohOhne.length === 2 && rohOhne.every(r => r.mehltyp === null && r.kakaoanteil === null)
-             && rohOhne[0].kostenProKg === 2.2 && rohOhne[1].kategorie === "Schokolade")
+             && rohOhne[0].kostenProKg === 2.2 && rohOhne[1].kategorie === "Schokolade"),
+        // K2: Regeln und Vorrang. aufl(name, liste) = Rezept mit einer Zutat durch Model.aufloesen.
+        ...(() => {
+          const aufl = (name, liste) => {
+            const rz = { id:"T47", name:"T", basisMengeG:1000, portionen:1, protokoll:[],
+              phasen:[{ name:"P", zutaten:[{ name, prozent:1, einheit:"g" }] }] };
+            return Model.aufloesen([rz], liste).rezepte[0].phasen[0].zutaten[0];
+          };
+          const id = (name, liste) => { const z = aufl(name, liste); return z.rohstoff ? z.rohstoff.id : null; };
+          return [
+            fall("LIBAR47-3 «Farina»/«Flour»/«Mehl» ohne Alias → Mehltyp Weissmehl, tiefste Rohstoff-ID (RS-002)",
+              () => id("Farina", rohMit) === "RS-002" && id("flour", rohMit) === "RS-002" && id("Mehl", rohMit) === "RS-002"
+                 && aufl("Farina", rohMit).regel === "Mehltyp Weissmehl"),
+            fall("LIBAR47-4 «Dunkle Schokolade 60%» mit 56/70 → Couverture dunkel 56%",
+              () => id("Dunkle Schokolade 60%", rohMit) === "RS-021"
+                 && aufl("Dunkle Schokolade 60%", rohMit).regel === "nächster Kakaoanteil 56 %"),
+            fall("LIBAR47-5 «dunkle Kuvertüre 68%» → 70; «Cioccolato (70%)» → 70; Kakao 100% ist keine Schokolade",
+              () => id("dunkle Kuvertüre 68%", rohMit) === "RS-022" && id("Cioccolato (70%)", rohMit) === "RS-022"
+                 && id("Chocolate 95 %", rohMit) === "RS-022"),
+            fall("LIBAR47-6 Gleichstand (63 % zwischen 56 und 70) → höherer Anteil (70)",
+              () => id("Schokolade 63%", rohMit) === "RS-022"),
+            fall("LIBAR47-7 «Cioccolato fondente» ohne Prozent bleibt unaufgelöst",
+              () => { const z = aufl("Cioccolato fondente", rohMit); return z.rohstoff === null && !z.regel; }),
+            fall("LIBAR47-8 Blatt-Alias schlägt die Regel (Schokolade 60% → Couverture dunkel 70% statt 56%)",
+              () => {
+                const vorher = CONFIG.aliase;
+                try{
+                  CONFIG.aliase = Object.assign({}, vorher, Model.parseAliase([["Variante","Zielname"],
+                    ["Dunkle Schokolade 60%","Couverture dunkel 70%"], ["Farina","Ruchmehl"]]));
+                  const z = aufl("Dunkle Schokolade 60%", rohMit);
+                  return z.rohstoff && z.rohstoff.id === "RS-022" && !z.regel && id("Farina", rohMit) === "RS-011";
+                }finally{ CONFIG.aliase = vorher; }
+              }),
+            fall("LIBAR47-9 exakter Name und eingebauter Alias vor Regel («Ruchmehl» → Ruchmehl, «Mehl 00» → Weissmehl 00 ohne Regelhinweis)",
+              () => id("Ruchmehl", rohMit) === "RS-011" && id("Mehl 00", rohMit) === "RS-010" && !aufl("Mehl 00", rohMit).regel),
+            fall("LIBAR47-10 ohne die beiden Spalten unverändert: «Farina»/«Schokolade 60%» unaufgelöst, exakte Namen wie bisher",
+              () => id("Farina", rohOhne) === null && id("Schokolade 60%", rohOhne) === null
+                 && id("Couverture dunkel 70%", rohOhne) === "RS-022" && id("Weissmehl 00", rohOhne) === "RS-010"),
+            fall("LIBAR47-11 unbekannteNamen() kennt die Regel-Zuordnung (nur «Cioccolato fondente» bleibt unbekannt)",
+              () => {
+                const rzI = { phasen:[{ zutaten:[{ name:"Farina" }, { name:"Cioccolato fondente" }] }] };
+                const unb = Import.unbekannteNamen([rzI], rohMit);
+                return unb.length === 1 && unb[0] === "Cioccolato fondente";
+              }),
+            fall("LIBAR47-12 Preis-Recherche schreibt nur Preis-/Nährwertzellen, nie Mehltyp oder Kakaoanteil (%)",
+              () => {
+                const f = Model.rechercheFelder({ kostenProKg:3.1, naehrwerte:{ kcal:350, eiweiss:12, fett:1, kh:70 } }, "08.10.2026");
+                const spalten = f.map(x => x[0]);
+                return spalten.length === 9 && spalten.includes("Kosten/kg (CHF)")
+                  && !spalten.includes("Mehltyp") && !spalten.includes("Kakaoanteil (%)");
+              })
+          ];
+        })()
       ];
     })()
   ];
@@ -9431,17 +9545,7 @@ const App = {
         const rohstoff = Store.rohstoffe.find(r => Model.normKey(r.name) === Model.normKey(v.name));
         if(!rohstoff || !rohstoff._raw){ fehlerListe.push(v.name + " (Zeile unbekannt)"); continue; }
         const header = rohstoff._raw.spalten, zeileExcel = rohstoff._raw.zeile + 1;
-        const felder = [];
-        if(v.kostenProKg != null)
-          felder.push(["Kosten/kg (CHF)", v.kostenProKg], ["Preis Quelle", v.quelle || "KI-Recherche"], ["Preis Stand", v.stand || heute]);
-        if(v.naehrwerte){
-          const n = v.naehrwerte, vorher = felder.length;
-          if(n.kcal != null) felder.push(["kcal/100g", n.kcal]);
-          if(n.eiweiss != null) felder.push(["Eiweiss g/100g", n.eiweiss]);
-          if(n.fett != null) felder.push(["Fett g/100g", n.fett]);
-          if(n.kh != null) felder.push(["KH g/100g", n.kh]);
-          if(felder.length > vorher) felder.push(["Nährwert Quelle", v.quelle || "KI-Recherche"], ["Nährwert Stand", v.stand || heute]);
-        }
+        const felder = Model.rechercheFelder(v, heute);
         for(const [spalte, wert] of felder){
           const addr = Model.zelladresse(header, spalte, zeileExcel);
           if(!addr) continue;
