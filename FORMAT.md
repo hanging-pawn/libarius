@@ -159,11 +159,28 @@ Quelle → parsen → prüfen (Schema) → Rohstoffe auflösen → VORSCHAU → 
   als unbekannt übernehmen. Zuordnungen landen im Blatt **«Aliase»** in `Rohstoffe.xlsx`
   (Spalten `Variante`, `Zielname`, `Gelernt am`) — nicht in `localStorage`, damit sie
   geräteübergreifend wirken.
+- **Regel-Auflösung** (LIBAR-47): findet sich weder über den exakten Namen noch über einen
+  Alias (Vorrang: exakter Name → eingebaute `CONFIG.aliase` → Blatt «Aliase») ein Rohstoff,
+  greifen zwei Regeln über optionale Spalten in `Rohstoffe.xlsx` (siehe unten). Die
+  Rezeptansicht zeigt eine so getroffene Zuordnung als Hinweis (z. B. «Mehltyp Weissmehl»,
+  «nächster Kakaoanteil 70 %»).
 - **Namenskonflikt** (FR-1205): trifft der Import auf ein Rezept mit demselben Namen wie ein
   bestehendes, fragt die App nach — neu anlegen (eigene ID) oder als Version an das bestehende
   Rezept anhängen. Nie wird stillschweigend überschrieben.
 - **Vorschau**: zeigt das Rezept genau so, wie es danach in der Rezeptansicht erscheint,
   inklusive berechneter Mengen. Ohne Vorschau kein Übernehmen (FR-1203).
+
+### Rohstoffe.xlsx: Spalten für die Regel-Auflösung (LIBAR-47)
+
+Beide Spalten sind optional und werden über den Kopfnamen gelesen; fehlt eine Spalte oder ist
+die Zelle leer, gilt der Wert als `null` (keine Regel, Laden ohne Fehler). Von Hand gepflegt —
+die App schreibt sie nie (auch nicht beim Übernehmen recherchierter Preise/Nährwerte, das nur
+Preis- und Nährwertzellen samt Quelle/Stand schreibt).
+
+| Spalte | Typ | Bedeutung |
+|---|---|---|
+| `Mehltyp` | Text: `Weissmehl`, `Halbweissmehl`, `Ruchmehl`, `Roggenmehl`, `Dinkelmehl`, `Hartweizen` | Auf allen Zeilen der Kategorie Mehl. Eine Zutat, die Mehl ohne Typ nennt (`Mehl`, `Farina`, `Flour`, Gross-/Kleinschreibung egal), wird dem Rohstoff mit Mehltyp `Weissmehl` zugeordnet; bei mehreren die tiefste Rohstoff-ID. |
+| `Kakaoanteil (%)` | Zahl (z. B. `70`; als Excel-Prozentformat `0.7` wird auf `70` normiert) | Auf Schokoladen-/Kakaozeilen. Eine Zutat mit Schokoladenwort (`Schokolade`, `Kuvertüre`, `Couverture`, `Cioccolato`, `Chocolate`) **und** Prozentangabe wird dem Schokoladen-Rohstoff (Name enthält ein Schokoladenwort) mit dem nächsten Kakaoanteil zugeordnet; bei Gleichstand dem höheren. Ohne Prozentangabe bleibt sie unaufgelöst. |
 
 ## Export
 
