@@ -4896,14 +4896,24 @@ const View = {
      "Übernehmen" legt wie "Rahmen herleiten" eine NEUE Variante im lokalen Entwurf an statt
      sofort zu schreiben (R4) — Original bleibt unangetastet, exakt wie vor AP-0308. */
   entwOverlaySubstitution(rz, z, ov){
-    const kandidaten = Store.rohstoffe.filter(r => r.kategorie === ov.altKategorie && r.id !== ov.altRohstoffId);
+    // Ersatz darf aus JEDER Kategorie kommen (Rohrzucker leer -> Kristallzucker, auch wenn die
+    // Kategorie in Rohstoffe.xlsx abweicht); gleiche Kategorie steht oben, der Rest darunter.
+    const kandidaten = Store.rohstoffe.filter(r => r.id !== ov.altRohstoffId);
     const kandidat = kandidaten.find(r => r.id === ov.kandidatId);
+    const optHtml = r => `<option value="${esc(r.id)}"${r.id===ov.kandidatId?" selected":""}>
+            ${esc(r.name)} — Süsskraft ${r.suesskraft ?? "—"} · FODMAP ${r.fodmap ?? "—"} · CHF ${r.kostenProKg ?? "—"}/kg</option>`;
+    const gleiche = kandidaten.filter(r => r.kategorie === ov.altKategorie);
+    const andere = kandidaten.filter(r => r.kategorie !== ov.altKategorie);
+    const kannUmrechnen = !!(kandidat && ov.altSuesskraft && kandidat.suesskraft);
+    const modus = ov.modus === "gleich" || !kannUmrechnen ? "gleich" : "umrechnen";
     let rechnungHtml = "";
     if(kandidat){
-      const umrechnung = Calc.substitutionsMenge(ov.altMengeG, ov.altSuesskraft, kandidat.suesskraft || 0);
-      rechnungHtml = umrechnung.hinweis
-        ? `<div class="hint"><span class="warn-inline">${esc(umrechnung.hinweis)}</span> — neue Menge: ${Calc.runden(umrechnung.menge, ov.altEinheit)}.</div>`
-        : `<div class="hint">Rechnung: ${Calc.runden(ov.altMengeG,"g")} × (${ov.altSuesskraft} ÷ ${kandidat.suesskraft}) = ${Calc.runden(umrechnung.menge,"g")}</div>`;
+      if(modus === "gleich"){
+        rechnungHtml = `<div class="hint">Menge bleibt gleich: ${Calc.runden(ov.altMengeG, ov.altEinheit)}${kannUmrechnen ? "" : ' — <span class="warn-inline">Süsskraft nicht hinterlegt, keine Umrechnung möglich</span>'}.</div>`;
+      } else {
+        const umrechnung = Calc.substitutionsMenge(ov.altMengeG, ov.altSuesskraft, kandidat.suesskraft || 0);
+        rechnungHtml = `<div class="hint">Rechnung: ${Calc.runden(ov.altMengeG,"g")} × (${ov.altSuesskraft} ÷ ${kandidat.suesskraft}) = ${Calc.runden(umrechnung.menge,"g")}</div>`;
+      }
     }
     return `<div class="scrim noprint" data-entw-b7-schliessen></div>
     <div class="entw-overlay entw-overlay-b7 noprint">
@@ -4913,8 +4923,18 @@ const View = {
       <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Ersatzprodukt</span>
         <select id="substKandidat">
           <option value="">— wählen —</option>
-          ${kandidaten.map(r => `<option value="${esc(r.id)}"${r.id===ov.kandidatId?" selected":""}>
-            ${esc(r.name)} — Süsskraft ${r.suesskraft ?? "—"} · FODMAP ${r.fodmap ?? "—"} · CHF ${r.kostenProKg ?? "—"}/kg</option>`).join("")}
+          ${gleiche.length ? `<optgroup label="${esc(ov.altKategorie || "Gleiche Kategorie")}">${gleiche.map(optHtml).join("")}</optgroup>` : ""}
+          ${andere.length ? `<optgroup label="Andere Kategorien">${andere.map(optHtml).join("")}</optgroup>` : ""}
+        </select></label>
+      <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Menge</span>
+        <select id="substModus">
+          <option value="umrechnen"${modus==="umrechnen"?" selected":""}${kannUmrechnen?"":" disabled"}>nach Süsskraft umrechnen</option>
+          <option value="gleich"${modus==="gleich"?" selected":""}>gleiche Menge übernehmen</option>
+        </select></label>
+      <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Wo</span>
+        <select id="substUmfang">
+          <option value="eine"${ov.umfang!=="alle"?" selected":""}>nur diese Zeile</option>
+          <option value="alle"${ov.umfang==="alle"?" selected":""}>überall in dieser Variante (alle Phasen)</option>
         </select></label>
       ${rechnungHtml}
       <div class="actions noprint">
@@ -5052,6 +5072,8 @@ const View = {
     }
     if(ov && ov.typ === "substitution"){
       el("#substKandidat").addEventListener("change", e => App.entwSubstitutionKandidatWaehlen(e.target.value));
+      el("#substModus").addEventListener("change", e => App.entwSubstitutionOption("modus", e.target.value));
+      el("#substUmfang").addEventListener("change", e => App.entwSubstitutionOption("umfang", e.target.value));
       el("#btnEntwSubstUebernehmen") && el("#btnEntwSubstUebernehmen").addEventListener("click", () => App.entwSubstitutionUebernehmen());
     }
   },
@@ -8773,6 +8795,13 @@ const App = {
     View.rezept();
   },
 
+  entwSubstitutionOption(feld, wert){
+    const ov = Store.entw && Store.entw.overlay;
+    if(!ov || ov.typ !== "substitution" || (feld !== "modus" && feld !== "umfang")) return;
+    ov[feld] = wert;
+    View.rezept();
+  },
+
   entwSubstitutionUebernehmen(){
     const rz = Store.aktuellesRezept, z = Store.entw, ov = z && z.overlay;
     if(!rz || !z || !ov || ov.typ !== "substitution") return;
@@ -8781,14 +8810,24 @@ const App = {
     const sp = z.spalten.find(s => s.v === ov.v);
     const alt = sp && sp.phasen[ov.phaseIdx] && sp.phasen[ov.phaseIdx].zutaten[ov.zutatIdx];
     if(!alt) return;
-    const umrechnung = Calc.substitutionsMenge(ov.altMengeG, ov.altSuesskraft, kandidat.suesskraft || 0);
-    const neuesProzent = umrechnung.menge / rz.basisMengeG;
+    const umrechnen = ov.modus !== "gleich" && ov.altSuesskraft && kandidat.suesskraft;
+    const faktor = umrechnen ? ov.altSuesskraft / kandidat.suesskraft : 1;
     const phasenKopie = JSON.parse(JSON.stringify(sp.phasen));
-    phasenKopie[ov.phaseIdx].zutaten[ov.zutatIdx] = { name: kandidat.name, prozent: neuesProzent, einheit: alt.einheit };
+    // "überall": jede Zeile mit demselben Rohstoff in der Variante, Menge je Zeile mit demselben Faktor.
+    const altKey = Model.nameKey(alt.name);
+    let anzahl = 0;
+    phasenKopie.forEach((ph, pi) => ph.zutaten.forEach((zu, zi) => {
+      const treffer = ov.umfang === "alle" ? Model.nameKey(zu.name) === altKey : (pi === ov.phaseIdx && zi === ov.zutatIdx);
+      if(!treffer) return;
+      anzahl++;
+      zu.name = kandidat.name;
+      if(zu.prozent != null) zu.prozent = zu.prozent * faktor;
+    }));
     const heute = new Date().toISOString().slice(0, 10);
     const naechsteV = z.spalten.reduce((m, s) => Math.max(m, s.v || 0), 0) + 1;
     const notiz = "Substitution: " + alt.name + " → " + kandidat.name
-      + (umrechnung.hinweis ? " (" + umrechnung.hinweis + ")" : "");
+      + (anzahl > 1 ? " (" + anzahl + "×)" : "")
+      + (umrechnen ? ", nach Süsskraft umgerechnet" : ", gleiche Menge");
     z.spalten.push({ v: naechsteV, datum: heute, notiz, herkunft: { ausV: sp.v }, eingeklappt: false, phasen: phasenKopie, versuche: [] });
     z.aktivV = naechsteV;
     z.overlay = null;
