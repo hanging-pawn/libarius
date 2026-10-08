@@ -8820,8 +8820,9 @@ const App = {
       const treffer = ov.umfang === "alle" ? Model.nameKey(zu.name) === altKey : (pi === ov.phaseIdx && zi === ov.zutatIdx);
       if(!treffer) return;
       anzahl++;
-      zu.name = kandidat.name;
-      if(zu.prozent != null) zu.prozent = zu.prozent * faktor;
+      // ganzes Objekt ersetzen (wie vor der Erweiterung): nameKey/rohstoff des alten Rohstoffs
+      // sind Laufzeitfelder und duerfen nicht am neuen Namen haengen bleiben.
+      ph.zutaten[zi] = { name: kandidat.name, prozent: zu.prozent * faktor, einheit: zu.einheit };
     }));
     const heute = new Date().toISOString().slice(0, 10);
     const naechsteV = z.spalten.reduce((m, s) => Math.max(m, s.v || 0), 0) + 1;
