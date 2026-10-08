@@ -679,7 +679,7 @@ table.zutaten td.pct{width:64px;font-size:13px;padding-right:16px}
 /* Kleinere Schriftgrade in einer 28-px-Zeile (FODMAP-Punkt, Warnung, durchgestrichene
    Sollmenge) machen die Zeile sonst 29 px hoch — ihre Grundlinienausrichtung zieht das
    Zeilenkaestchen auf. Als inline-block mit fester Hoehe bleibt das Raster stehen. */
-.fodmap-ampel,.warn-inline,.korrektur-soll{display:inline-block;
+.fodmap-ampel,.warn-inline,.regel-inline,.korrektur-soll{display:inline-block;
   height:var(--lb-zeile);line-height:var(--lb-zeile);vertical-align:top}
 /* Korrektur (rote Rolle 3): neuer Wert rot, Sollmenge durchgestrichen daneben. */
 .korrektur-soll{font-size:15px;color:var(--muted)}
@@ -690,6 +690,8 @@ table.zutaten td.menge:not(:has(.korrektur-soll)){color:var(--ink)}
    einer "!"-Glyphe genuegt, keine der drei roten Rollen betroffen. */
 .warn-inline{font-size:13px;color:var(--ink)}
 .warn-inline::before{content:"! "}
+/* LIBAR-47: Hinweis auf eine Regel-Zuordnung (Mehltyp/Kakaoanteil) — leiser Nebentext. */
+.regel-inline{font-size:13px;color:var(--muted);margin-left:.4rem}
 /* AP-0303 (libarius-gestaltung), R-26: Nummern zurueck (O-20) als 13-px-Neben-
    text vor dem Schritt statt der von list-style:none entfernten Browser-Zahl -
    Zeilenhoehe bleibt dabei 28 px. Ueber counter() statt list-style, damit der
@@ -4395,6 +4397,11 @@ const View = {
   zutatenzeileTeile(z, rz, faktor, korrektur){
     const g = Calc.mengeG(z, rz.basisMengeG, faktor);
     const unbekannt = z.rohstoff ? "" : '<span class="warn-inline">unbekannter Rohstoff</span>';
+    // LIBAR-47 Regel 5: per Regel (Mehltyp/Kakaoanteil) statt per Name/Alias zugeordnet ->
+    // leiser Hinweis, welcher Rohstoff gewaehlt wurde und warum.
+    const regelHtml = (z.rohstoff && z.regel)
+      ? `<span class="regel-inline" title="Regel-Zuordnung: ${esc(z.rohstoff.name)} (${esc(z.regel)})">→ ${esc(z.rohstoff.name)} · ${esc(z.regel)}</span>`
+      : "";
     // AP-0314/§6: FODMAP-Ampel je Zutat, in Normal- UND Entwicklungsmodus sichtbar (beide
     // nutzen diese Funktion). Sichere Portion (g) nur als Tooltip — fliesst nirgends in eine
     // Rechnung ein (Spec-Vorgabe "nicht verrechnet").
@@ -4417,7 +4424,7 @@ const View = {
       menge = prozentGueltig ? View.mengeText(g, z.einheit, z.rohstoff) : "—";
       pct = prozentGueltig ? z.prozent * 100 : null;
     }
-    return { nameHtml: `${esc(z.name)}${unbekannt}${fodmapHtml}`, pctText: pct != null ? pct.toFixed(1) + " %" : "—", mengeHtml: menge };
+    return { nameHtml: `${esc(z.name)}${unbekannt}${regelHtml}${fodmapHtml}`, pctText: pct != null ? pct.toFixed(1) + " %" : "—", mengeHtml: menge };
   },
 
   // AP-0315 (libarius-gestaltung): entwZellenHtml (optional) haengt fertig gerenderte
@@ -7621,6 +7628,15 @@ async function selfTest(){
                 const spalten = f.map(x => x[0]);
                 return spalten.length === 9 && spalten.includes("Kosten/kg (CHF)")
                   && !spalten.includes("Mehltyp") && !spalten.includes("Kakaoanteil (%)");
+              }),
+            fall("LIBAR47-13 Rezeptansicht zeigt den Regelhinweis («Mehltyp Weissmehl», «nächster Kakaoanteil 70 %»)",
+              () => {
+                const h1 = View.zutatenzeileTeile(aufl("Farina", rohMit), { basisMengeG:1000 }, 1, null).nameHtml;
+                const h2 = View.zutatenzeileTeile(aufl("dunkle Kuvertüre 68%", rohMit), { basisMengeG:1000 }, 1, null).nameHtml;
+                const h3 = View.zutatenzeileTeile(aufl("Ruchmehl", rohMit), { basisMengeG:1000 }, 1, null).nameHtml;
+                return h1.includes("Mehltyp Weissmehl") && !h1.includes("unbekannter Rohstoff")
+                  && h2.includes("nächster Kakaoanteil 70 %") && h2.includes("Couverture dunkel 70%")
+                  && !h3.includes("regel-inline");
               })
           ];
         })()
