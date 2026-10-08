@@ -692,6 +692,10 @@ table.zutaten td.menge:not(:has(.korrektur-soll)){color:var(--ink)}
 .warn-inline::before{content:"! "}
 /* LIBAR-47: Hinweis auf eine Regel-Zuordnung (Mehltyp/Kakaoanteil) — leiser Nebentext. */
 .regel-inline{font-size:13px;color:var(--muted);margin-left:.4rem}
+/* LIBAR-44: Formular "Batch definieren" im Entwicklungsmodus — Vorschau als schmale Tabelle. */
+.entw-batchform{margin-top:.6rem;display:flex;flex-direction:column;gap:.4rem}
+.entw-batchform .bf-fehler{height:auto;margin-left:0}
+.entw-batchform .bf-vorschau{max-width:28rem}
 /* AP-0303 (libarius-gestaltung), R-26: Nummern zurueck (O-20) als 13-px-Neben-
    text vor dem Schritt statt der von list-style:none entfernten Browser-Zahl -
    Zeilenhoehe bleibt dabei 28 px. Ueber counter() statt list-style, damit der
@@ -2252,6 +2256,26 @@ const Model = {
     return { zellen: [{ spalte:"Portionen", neu: v, alt: rz.portionen }] };
   },
 
+  // LIBAR-44: Pruefung + Vorschau des Definitionsformulars (Entwicklungsmodus). Rein, kein
+  // Schreiben: liefert Fehlertexte oder die Plaene aus LIBAR-43 samt Vorschau alt/neu je Zutat.
+  batchFormPruefen(rz, batchG, portionen, schwund){
+    const fehler = [];
+    const plan = Model.batchPlan(rz, batchG, schwund);
+    if(!plan) fehler.push("Batchgrösse: bitte eine Zahl grösser 0 eingeben (g Fertiggewicht).");
+    const portionenPlan = Model.portionenPlan(rz, portionen);
+    if(!portionenPlan) fehler.push("Portionen pro Batch: bitte eine Zahl grösser 0 eingeben.");
+    if(fehler.length) return { ok:false, fehler };
+    const faktor = plan.faktor;
+    const vorschau = Calc.zutatenFlach(rz).map(z => {
+      const altG = Calc.mengeG(z, rz.basisMengeG, 1);
+      return { name: z.name, einheit: z.einheit, altG, neuG: altG * faktor };
+    });
+    const soll = plan.zellen.find(z => z.spalte === "Sollgewicht (g)");
+    return { ok:true, fehler, plan, portionenPlan, faktor, vorschau,
+      sollAlt: soll ? soll.alt : null, sollNeu: soll ? soll.neu : null,
+      portionsgroesseG: Number(batchG) / Number(portionen) };
+  },
+
   // Zellen, die "Recherche uebernehmen" je Rohstoff schreibt (zellweise, App.rechercheUebernehmen):
   // nur Preis- und Naehrwertspalten samt Quelle/Stand. LIBAR-47: «Mehltyp» und «Kakaoanteil (%)»
   // sind handgepflegt und stehen bewusst nie in dieser Liste (selfTest LIBAR47-12).
@@ -3794,6 +3818,9 @@ const Store = {
   // AP-0308: g oder % — Anzeige-Umschalter fuer alle Wertespalten gleichzeitig (AP-0204 §4.2:
   // "Umschalter g ⇄ % wie im Zutaten-Editor"), sitzungslokal, kein Feld des Datenmodells.
   entwEinheit:"g",
+  // LIBAR-44: Formular "Batch definieren" ({ rezeptId, batchG, portionen, speichert }) —
+  // sitzungslokal, nie in localStorage/Entwicklung (JSON); null = geschlossen.
+  batchForm:null,
   // AP-0308/§5.2 R8: localStorage fuer den Entwicklungsmodus-Entwurf nicht verfuegbar/voll —
   // einmalige Warnkachel IN DER SCHIENE (nicht global), Bereich arbeitet sitzungslokal weiter.
   entwFehler:false,
@@ -4603,6 +4630,37 @@ const View = {
       <label>Batches<input id="entwBatches" type="number" min="0" step="0.1" value="${Math.round(f * 100) / 100}"></label>
       <span class="lb-neben" id="entwFertiggewicht">Fertiggewicht ${fertigG != null ? Math.round(fertigG) + " g" : "—"} · ${schwundText}</span>
       ${View.aufrundenSichtbar(f) ? '<button class="ghost" id="btnAufBatch" type="button">auf vollen Batch aufrunden</button>' : ""}
+      <button class="ghost" id="btnBatchDef" type="button" title="Batchgrösse und Portionen pro Batch dauerhaft festlegen">Batch definieren …</button>
+    </div>`;
+  },
+
+  // LIBAR-44: Formular "Batch definieren" (Store.batchForm, sitzungslokal). Vorschau alt/neu
+  // je Zutat und Sollgewicht; Speichern ruft App.batchDefinitionSpeichern (LIBAR-43). Waehrend
+  // des Schreibens sind beide Knoepfe gesperrt (kein Doppel-Absenden, vgl. LIBAR-27).
+  batchFormular(rz, schwund, form){
+    const r = Model.batchFormPruefen(rz, form.batchG, form.portionen, schwund);
+    const s = Calc.schwundSicher(schwund);
+    const schwundText = schwund == null ? "Schwund unbekannt, 0 % angenommen" : "Schwund " + (Math.round(s * 1000) / 10) + " %";
+    const g = v => v == null || !Number.isFinite(v) ? "—" : (Math.round(v * 10) / 10) + " g";
+    const gesperrt = form.speichert ? " disabled" : "";
+    const vorschau = r.ok ? `
+      <table class="zutaten bf-vorschau">
+        <tr><th>Zutat</th><th class="num">bisher</th><th class="num">neu</th></tr>
+        ${r.vorschau.map(v => `<tr><td>${esc(v.name)}</td><td class="num">${g(v.altG)}</td><td class="num">${g(v.neuG)}</td></tr>`).join("")}
+        <tr><td>Sollgewicht</td><td class="num">${g(r.sollAlt)}</td><td class="num">${g(r.sollNeu)}</td></tr>
+      </table>` : "";
+    return `<div class="entw-batchform noprint" id="batchForm">
+      <div class="scaler">
+        <label>Batch (g fertig, inkl. Schwund)<input id="bfBatch" type="number" min="0" step="10" value="${esc(form.batchG == null ? "" : String(form.batchG))}"${gesperrt}></label>
+        <label>Portionen pro Batch<input id="bfPortionen" type="number" min="0" step="1" value="${esc(form.portionen == null ? "" : String(form.portionen))}"${gesperrt}></label>
+        <span class="lb-neben">${schwundText}${r.ok ? " · Portion " + g(r.portionsgroesseG) + " · Faktor ×" + nf(r.faktor, 2) : ""}</span>
+      </div>
+      ${r.ok ? "" : `<div class="bf-fehler warn-inline">${r.fehler.map(esc).join(" ")}</div>`}
+      ${vorschau}
+      <div class="actions">
+        <button id="bfSpeichern" type="button"${r.ok && !form.speichert ? "" : " disabled"}>${form.speichert ? "Speichert …" : "Batch speichern"}</button>
+        <button id="bfAbbrechen" class="ghost" type="button"${gesperrt}>Abbrechen</button>
+      </div>
     </div>`;
   },
 
@@ -5656,6 +5714,7 @@ const View = {
             // LIBAR-42: statt der gesperrten Skalierung Portionen/Batches (Fertiggewicht inkl.
             // Schwund). Nur Ansicht: Varianten-Zellen bleiben bei 1 Batch, nichts wird geschrieben.
             ? `${View.batchSteuerung(rz, f, schwund)}
+            ${Store.batchForm && Store.batchForm.rezeptId === rz.id ? View.batchFormular(rz, schwund, Store.batchForm) : ""}
             ${entwSpaltenOffen.length ? `
             <!-- AP-0315-Nacharbeit (§3.2/§4.3): Basismenge ist das einzige Kopffeld, das je
                  Variante eine eigene Zelle bekommt — dieselbe Spaltenschablone wie Zutaten-/
@@ -5790,6 +5849,12 @@ const View = {
     if(el("#entwBatches")) el("#entwBatches").addEventListener("input", e => {
       const v = Number(e.target.value); if(v > 0 && Number.isFinite(v)) App.skalieren(Calc.faktorAusBatches(v)); });
     if(el("#btnAufBatch")) el("#btnAufBatch").addEventListener("click", () => App.skalieren(Calc.aufrundenAufBatch(Store.faktor)));
+    // LIBAR-44: Formular "Batch definieren".
+    if(el("#btnBatchDef")) el("#btnBatchDef").addEventListener("click", () => App.batchFormOeffnen());
+    if(el("#bfBatch")) el("#bfBatch").addEventListener("input", e => App.batchFormEingabe("batchG", e.target.value));
+    if(el("#bfPortionen")) el("#bfPortionen").addEventListener("input", e => App.batchFormEingabe("portionen", e.target.value));
+    if(el("#bfAbbrechen")) el("#bfAbbrechen").addEventListener("click", () => { Store.batchForm = null; View.rezept(); });
+    if(el("#bfSpeichern")) el("#bfSpeichern").addEventListener("click", () => App.batchFormSpeichern());
     // AP-0306: alle Phasen vor dem Druckdialog aufklappen (details.phase[open], nicht nur
     // die CSS-Regel unten) — moderne Browser rendern den Inhalt eines geschlossenen <details>
     // per content-visibility, das eine reine display:block-Regel auf .phasebody NICHT
@@ -7804,6 +7869,37 @@ async function selfTest(){
         fall("LIBAR43-9 ungültige Eingaben (0, negativ, NaN, leer) → kein Plan (null)",
           () => l43.planUngueltig.every(p => p === null))
       ];
+    })(),
+    // ---- LIBAR-44 Formular Batch-/Portionen-Definition (Pruefung + Vorschau, reine Funktionen).
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, fn() === true]; }catch(e){ return [name, false]; } };
+      const rz = { id:"T44", basisMengeG:800, sollgewichtG:1200, portionen:10, einheit:"Stk",
+        phasen:[{ name:"P", zutaten:[{ name:"Mehl", prozent:1, einheit:"g" }, { name:"Wasser", prozent:0.5, einheit:"g" }] }] };
+      const pr = (b, p, s) => Model.batchFormPruefen(rz, b, p, s);
+      const form = (b, p, s, extra) => View.batchFormular(rz, s, { rezeptId:"T44", batchG:b, portionen:p, ...(extra || {}) });
+      return [
+        fall("LIBAR44-1 Vorgaben: Batch fertig 1080 g (1200 × 0.9), 10 Portionen → Portion 108 g, gültig",
+          () => { const r = pr(1080, 10, 0.1); return r.ok && nah(r.portionsgroesseG, 108) && nah(r.faktor, 1); }),
+        fall("LIBAR44-2 ungültig: Batch 0, negativ, leer → Fehlermeldung, kein Plan",
+          () => [0, -100, "", null, "abc"].every(b => { const r = pr(b, 10, 0.1); return !r.ok && r.fehler.length > 0 && !r.plan; })),
+        fall("LIBAR44-3 ungültig: Portionen 0, negativ, leer → Fehlermeldung",
+          () => [0, -2, "", null].every(p => { const r = pr(1080, p, 0.1); return !r.ok && r.fehler.some(f => /Portionen/.test(f)); })),
+        fall("LIBAR44-4 Vorschau: 2160 g → je Zutat alt/neu (Mehl 800 → 1600 g), Sollgewicht 1200 → 2400 g",
+          () => { const r = pr(2160, 10, 0.1);
+            return r.ok && nah(r.faktor, 2) && r.vorschau.length === 2 && nah(r.vorschau[0].altG, 800) && nah(r.vorschau[0].neuG, 1600)
+              && nah(r.sollAlt, 1200) && nah(r.sollNeu, 2400); }),
+        fall("LIBAR44-5 Formular-HTML: Felder, Schwund-Text, Portionsgrösse, Vorschau alt/neu, Sollgewicht",
+          () => { const h = form(2160, 10, 0.1);
+            return h.includes('id="bfBatch"') && h.includes('id="bfPortionen"') && h.includes("Schwund 10 %")
+              && h.includes("216 g") && h.includes("800 g") && h.includes("1600 g") && h.includes("2400 g")
+              && /id="bfSpeichern"(?![^>]*disabled)/.test(h); }),
+        fall("LIBAR44-6 Schwund unbekannt → «unbekannt, 0 % angenommen»; ungültige Eingabe → Meldung, Speichern gesperrt",
+          () => { const h1 = form(1200, 10, null), h2 = form(0, 10, null);
+            return h1.includes("unbekannt, 0 % angenommen") && /id="bfSpeichern"[^>]*disabled/.test(h2) && h2.includes("bf-fehler"); }),
+        fall("LIBAR44-7 während des Schreibens: Speichern und Abbrechen gesperrt (kein Doppel-Absenden)",
+          () => { const h = form(2160, 10, 0.1, { speichert:true });
+            return /id="bfSpeichern"[^>]*disabled/.test(h) && /id="bfAbbrechen"[^>]*disabled/.test(h); })
+      ];
     })()
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
@@ -8548,6 +8644,43 @@ const App = {
       ...(Object.keys(felder).length ? { felder } : {})
     };
     await App.protokollSpeichern(rz, neuerEintrag);
+  },
+
+  // LIBAR-44: Formular "Batch definieren" — Vorgaben aus der aktuellen Definition (LIBAR-41).
+  batchFormOeffnen(){
+    const rz = Store.aktuellesRezept;
+    if(!rz) return;
+    const fertig = Calc.gesamtmengeFertigG(rz, Calc.schwundAktuell(rz.protokoll), 1);
+    Store.batchForm = { rezeptId: rz.id, batchG: fertig != null ? Math.round(fertig) : "",
+      portionen: rz.portionen != null ? rz.portionen : "", speichert:false };
+    View.rezept();
+  },
+  batchFormEingabe(feld, wert){
+    if(!Store.batchForm || Store.batchForm.speichert) return;
+    const aktiv = document.activeElement;
+    const id = aktiv && aktiv.id, pos = aktiv && aktiv.selectionStart;
+    Store.batchForm[feld] = wert;
+    View.rezept();
+    if(id){
+      const neu = document.getElementById(id);
+      if(neu){ neu.focus(); try{ neu.setSelectionRange(pos,pos); }catch(e){} }
+    }
+  },
+  // Speichern genau einmal: speichert-Sperre VOR dem ersten await; bei Konflikt/Fehler bleibt
+  // das Formular mit den Eingaben offen (Meldung kommt aus batchDefinitionSpeichern).
+  async batchFormSpeichern(){
+    const form = Store.batchForm, rz = Store.aktuellesRezept;
+    if(!form || form.speichert || !rz || rz.id !== form.rezeptId) return;
+    const r = Model.batchFormPruefen(rz, form.batchG, form.portionen, Calc.schwundAktuell(rz.protokoll));
+    if(!r.ok){ View.meldung(r.fehler.join(" ") + " Nichts gespeichert.", "err", "Eingabe prüfen"); View.rezept(); return; }
+    form.speichert = true;
+    View.rezept();
+    let ok = false;
+    try{ ok = await App.batchDefinitionSpeichern(rz, { batchFertigG: Number(form.batchG), portionen: Number(form.portionen) }); }
+    catch(e){ View.meldung("Speichern fehlgeschlagen: " + e.message, "err", "Fehler beim Speichern"); }
+    form.speichert = false;
+    if(ok){ Store.batchForm = null; Store.faktor = 1; }
+    if(Store.aktuellesRezept) View.rezept();
   },
 
   // LIBAR-43: Batch (Fertiggewicht g) und/oder Portionen pro Batch dauerhaft nach Rezepte.xlsx.
