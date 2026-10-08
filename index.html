@@ -4560,6 +4560,26 @@ const View = {
     return false;
   },
 
+  // LIBAR-42 (M8): im Entwicklungsmodus Portionen ODER Batches eingeben — das jeweils andere
+  // Feld und alle Mengen der produktiven Rezeptur folgen (Store.faktor, reine Ansicht, kein
+  // Schreiben). 1 Batch = Faktor 1; Gewicht = Fertiggewicht inkl. Schwund (Calc, LIBAR-41).
+  aufrundenSichtbar(f){ return typeof f === "number" && Number.isFinite(f) && Calc.aufrundenAufBatch(f) !== f; },
+  batchSteuerung(rz, f, schwund){
+    const portionen = Calc.portionenAusBatches(f, rz);
+    const fertigG = Calc.gesamtmengeFertigG(rz, schwund, f);
+    const s = Calc.schwundSicher(schwund);
+    const schwundText = schwund == null
+      ? "Schwund unbekannt, 0 % angenommen"
+      : "inkl. Schwund " + (Math.round(s * 1000) / 10) + " %";
+    return `<div class="scaler noprint entw-batch">
+      <label>Portionen<input id="entwPortionen" type="number" min="0" step="1"
+        value="${portionen != null ? Math.round(portionen * 10) / 10 : ""}"${portionen == null ? ' disabled title="Rezept ohne Portionenzahl"' : ""}></label>
+      <label>Batches<input id="entwBatches" type="number" min="0" step="0.1" value="${Math.round(f * 100) / 100}"></label>
+      <span class="lb-neben" id="entwFertiggewicht">Fertiggewicht ${fertigG != null ? Math.round(fertigG) + " g" : "—"} · ${schwundText}</span>
+      ${View.aufrundenSichtbar(f) ? '<button class="ghost" id="btnAufBatch" type="button">auf vollen Batch aufrunden</button>' : ""}
+    </div>`;
+  },
+
   entwZelle(sp, r, rz, basisPhasen){
     if(r.typ === "phase") return `<div class="entw-zelle entw-phase">&nbsp;</div>`;
     const ph = sp.phasen[r.pi];
@@ -5607,7 +5627,9 @@ const View = {
             // AP-0205 §6: waehrend der Entwicklung ist die Skalierung stillgelegt (sie
             // verschiebt genau die Zahlen, gegen die Varianten gerechnet werden) — der Faktor
             // bleibt als Nebentext ablesbar, ohne Eingabefeld (dasselbe Mittel wie K-17).
-            ? `<div class="scaler noprint"><span class="lb-neben">Skalierung ×${nf(f,2)} — gesperrt während der Entwicklung</span></div>
+            // LIBAR-42: statt der gesperrten Skalierung Portionen/Batches (Fertiggewicht inkl.
+            // Schwund). Nur Ansicht: Varianten-Zellen bleiben bei 1 Batch, nichts wird geschrieben.
+            ? `${View.batchSteuerung(rz, f, schwund)}
             ${entwSpaltenOffen.length ? `
             <!-- AP-0315-Nacharbeit (§3.2/§4.3): Basismenge ist das einzige Kopffeld, das je
                  Variante eine eigene Zelle bekommt — dieselbe Spaltenschablone wie Zutaten-/
@@ -5735,6 +5757,13 @@ const View = {
     if(el("#zielPortionen")) el("#zielPortionen").addEventListener("input", e => {
       const v = Number(e.target.value); if(v > 0) App.skalieren(Calc.faktorAusPortionen(v, rz)); });
     if(el("#btnReset")) el("#btnReset").addEventListener("click", () => App.skalieren(1));
+    // LIBAR-42: Portionen/Batches im Entwicklungsmodus — nur Store.faktor, kein Schreibpfad.
+    if(el("#entwPortionen")) el("#entwPortionen").addEventListener("input", e => {
+      const v = Number(e.target.value); const fz = v > 0 ? Calc.batchesAusPortionen(v, rz) : null;
+      if(fz > 0 && Number.isFinite(fz)) App.skalieren(fz); });
+    if(el("#entwBatches")) el("#entwBatches").addEventListener("input", e => {
+      const v = Number(e.target.value); if(v > 0 && Number.isFinite(v)) App.skalieren(Calc.faktorAusBatches(v)); });
+    if(el("#btnAufBatch")) el("#btnAufBatch").addEventListener("click", () => App.skalieren(Calc.aufrundenAufBatch(Store.faktor)));
     // AP-0306: alle Phasen vor dem Druckdialog aufklappen (details.phase[open], nicht nur
     // die CSS-Regel unten) — moderne Browser rendern den Inhalt eines geschlossenen <details>
     // per content-visibility, das eine reine display:block-Regel auf .phasebody NICHT
@@ -7640,6 +7669,32 @@ async function selfTest(){
               })
           ];
         })()
+      ];
+    })(),
+    // ---- LIBAR-42 Portion/Batch-Eingabe im Entwicklungsmodus (reine Ansicht, kein Schreiben).
+    // Mengen = Fertiggewicht inkl. Schwund (Calc aus LIBAR-41). Faelle fangen Ausnahmen selbst.
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, fn() === true]; }catch(e){ return [name, false]; } };
+      const rzB = { id:"T42", basisMengeG:1000, sollgewichtG:1200, portionen:10, einheit:"Stk", phasen:[] };
+      const html = (rz, f, s) => View.batchSteuerung(rz, f, s);
+      return [
+        fall("LIBAR42-1 Aufrunden-Regel: sichtbar nur unter einem Batch (0.5 ja; 1, 1.3, 0 nein)",
+          () => View.aufrundenSichtbar(0.5) === true && View.aufrundenSichtbar(0.99) === true
+             && View.aufrundenSichtbar(1) === false && View.aufrundenSichtbar(1.3) === false
+             && View.aufrundenSichtbar(0) === false && View.aufrundenSichtbar(null) === false),
+        fall("LIBAR42-2 Knopf «auf vollen Batch aufrunden» im HTML nur bei < 1 Batch",
+          () => html(rzB, 0.5, 0.1).includes('id="btnAufBatch"') && html(rzB, 0.5, 0.1).includes("auf vollen Batch aufrunden")
+             && !html(rzB, 1, 0.1).includes('id="btnAufBatch"') && !html(rzB, 1.3, 0.1).includes('id="btnAufBatch"')),
+        fall("LIBAR42-3 verknüpfte Felder: 0.5 Batch = 5 Portionen, Fertiggewicht 540 g (1200 g × 0.9 × 0.5)",
+          () => { const h = html(rzB, 0.5, 0.1);
+            return /id="entwPortionen"[^>]*value="5"/.test(h) && /id="entwBatches"[^>]*value="0.5"/.test(h)
+              && h.includes("540 g") && h.includes("Fertiggewicht"); }),
+        fall("LIBAR42-4 Label: «inkl. Schwund 10 %» bzw. «Schwund unbekannt, 0 % angenommen»",
+          () => html(rzB, 1, 0.1).includes("inkl. Schwund 10 %") && html(rzB, 1, null).includes("Schwund unbekannt, 0 % angenommen")
+             && html(rzB, 1, null).includes("1200 g") && !html(rzB, 1, 0.1).includes("Schwund unbekannt")),
+        fall("LIBAR42-5 Portionen null: Portionenfeld gesperrt, kein NaN/Infinity, Rezept unverändert",
+          () => { const rz = { ...rzB, portionen:null }; const vorher = JSON.stringify(rz); const h = html(rz, 0.5, 0.1);
+            return /id="entwPortionen"[^>]*disabled/.test(h) && !/NaN|Infinity/.test(h) && JSON.stringify(rz) === vorher; })
       ];
     })()
   ];
