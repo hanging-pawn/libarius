@@ -2212,6 +2212,55 @@ const Calc = {
   faktorAusBasis(zielBasisG, rezept){ return zielBasisG / rezept.basisMengeG; },
   faktorAusPortionen(zielPortionen, rezept){ return zielPortionen / rezept.portionen; },
 
+  // LIBAR-41 (M8 Portion und Batch): Batch- und Portionsmengen beziehen sich auf die
+  // Gesamtmenge inkl. Schwund, also das Fertiggewicht — NICHT auf die Basis-Menge
+  // (Entscheid 08.10.2026, LIBAR-39). Reine Funktionen, kein UI, kein Schreibpfad.
+  // Schwund wie in Calc.kosten abgesichert: null/unbekannt, <0 oder >=1 gilt als 0.
+  schwundSicher(schwund){
+    return (typeof schwund === "number" && Number.isFinite(schwund) && schwund >= 0 && schwund < 1) ? schwund : 0;
+  },
+  // Gesamtteig bei Faktor 1: Sollgewicht, sonst Summe aller Zutatengramme. null, wenn keine
+  // positive endliche Menge bestimmbar ist.
+  gesamtteigG(rezept){
+    const soll = rezept.sollgewichtG;
+    if(typeof soll === "number" && Number.isFinite(soll) && soll > 0) return soll;
+    const summe = Calc.zutatenFlach(rezept).reduce((a, z) => a + Calc.mengeG(z, rezept.basisMengeG, 1), 0);
+    return (Number.isFinite(summe) && summe > 0) ? summe : null;
+  },
+  gesamtmengeFertigG(rezept, schwund, faktor){
+    const teig = Calc.gesamtteigG(rezept);
+    if(teig == null) return null;
+    const f = (faktor == null ? 1 : faktor);
+    const g = teig * (1 - Calc.schwundSicher(schwund)) * f;
+    return Number.isFinite(g) ? g : null;
+  },
+  portionsgroesseG(rezept, schwund){
+    const p = rezept.portionen;
+    if(!(typeof p === "number" && Number.isFinite(p) && p > 0)) return null;
+    const batch = Calc.gesamtmengeFertigG(rezept, schwund, 1);
+    return batch == null ? null : batch / p;
+  },
+  // Schwund kuerzt sich im Faktor heraus; eingegeben/angezeigt wird aber Fertiggewicht.
+  faktorAusGesamtmenge(zielFertigG, rezept, schwund){
+    const batch = Calc.gesamtmengeFertigG(rezept, schwund, 1);
+    if(!batch) return null;
+    const f = zielFertigG / batch;
+    return Number.isFinite(f) ? f : null;
+  },
+  faktorAusBatches(n){ return n; },
+  batchesAusPortionen(zielPortionen, rezept){
+    const p = rezept.portionen;
+    if(!(typeof p === "number" && Number.isFinite(p) && p > 0)) return null;
+    return Calc.faktorAusPortionen(zielPortionen, rezept);
+  },
+  portionenAusBatches(n, rezept){
+    const p = rezept.portionen;
+    if(!(typeof p === "number" && Number.isFinite(p) && p > 0)) return null;
+    return n * p;
+  },
+  // Weniger als ein Batch wird auf einen ganzen Batch aufgerundet; ab 1 bleibt der Faktor.
+  aufrundenAufBatch(faktor){ return (faktor > 0 && faktor < 1) ? 1 : faktor; },
+
   alsStueck(g, rohstoff){
     if(!rohstoff || !rohstoff.einheitsgroesse || rohstoff.standardeinheit !== "stk") return null;
     return { stueck: g / rohstoff.einheitsgroesse, g };
@@ -7377,6 +7426,56 @@ async function selfTest(){
       }catch(e){ warf = true; }
       return ["AP0303-10 K2 B7-Overlays (Zielwerte, Referenz-Vergleich) escapen sp.v — kein rohes <img> im HTML",
         !warf && html.length > 0 && !html.includes("<img") && html.includes("&lt;img")];
+    })(),
+    // ---- LIBAR-41 Portion und Batch (M8): Mengen beziehen sich auf das Fertiggewicht inkl.
+    // Schwund (Entscheid 08.10.2026), nicht auf die Basis-Menge. Jeder Fall faengt Ausnahmen
+    // selbst, damit eine fehlende/kaputte Funktion den Fall rot macht statt selfTest() zu werfen.
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, fn() === true]; }catch(e){ return [name, false]; } };
+      const endlichOderNull = v => v === null || Number.isFinite(v);
+      // Gesamtteig 1200 g (Sollgewicht), 10 Portionen; Zutatensumme bei Faktor 1 = 1000*(1+0.6) = 1600 g.
+      const rzB = { basisMengeG:1000, sollgewichtG:1200, portionen:10, phasen:[{zutaten:[
+          {name:"Mehl",prozent:1.0,nameKey:"weissmehl 00",rohstoff:idx.get("weissmehl 00")},
+          {name:"Wasser",prozent:0.6,nameKey:"wasser",rohstoff:idx.get("wasser")}]}] };
+      const rzOhneSoll = { ...rzB, sollgewichtG:null };
+      const rzKg = { basisMengeG:500, sollgewichtG:1000, portionen:10, phasen:[] };
+      return [
+        fall("LIBAR41-1 Batch fertig = 1200 g × (1−0.10) = 1080 g",
+          () => nah(Calc.gesamtmengeFertigG(rzB, 0.10, 1), 1080)),
+        fall("LIBAR41-2 Portionsgrösse = 1080 g / 10 = 108 g",
+          () => nah(Calc.portionsgroesseG(rzB, 0.10), 108)),
+        fall("LIBAR41-3 Ziel 540 g fertig → Faktor 0.5 (Schwund kürzt sich)",
+          () => nah(Calc.faktorAusGesamtmenge(540, rzB, 0.10), 0.5)),
+        fall("LIBAR41-4 Schwund unbekannt (null) → 0, Batch fertig = Gesamtteig 1200 g",
+          () => nah(Calc.gesamtmengeFertigG(rzB, null, 1), 1200)),
+        fall("LIBAR41-5 Schwund 1.2 oder negativ → 0, kein NaN/Infinity",
+          () => nah(Calc.gesamtmengeFertigG(rzB, 1.2, 1), 1200) && nah(Calc.gesamtmengeFertigG(rzB, -0.3, 1), 1200)
+             && nah(Calc.portionsgroesseG(rzB, 1.2), 120) && nah(Calc.faktorAusGesamtmenge(600, rzB, -0.3), 0.5)),
+        fall("LIBAR41-6 Sollgewicht null → Zutatensumme (1600 g) als Gesamtteig",
+          () => nah(Calc.gesamtmengeFertigG(rzOhneSoll, 0, 1), 1600) && nah(Calc.portionsgroesseG(rzOhneSoll, 0.10), 144)),
+        fall("LIBAR41-7 Faktor skaliert die Fertigmenge (Faktor 2 → 2160 g)",
+          () => nah(Calc.gesamtmengeFertigG(rzB, 0.10, 2), 2160)),
+        fall("LIBAR41-8 1 kg Batch, 10 Portionen: 5 Portionen = 0.5 Batch, 1 Batch = 10 Portionen, Portion 100 g",
+          () => nah(Calc.batchesAusPortionen(5, rzKg), 0.5) && nah(Calc.portionenAusBatches(1, rzKg), 10)
+             && nah(Calc.portionsgroesseG(rzKg, null), 100) && nah(Calc.faktorAusBatches(1.5), 1.5)),
+        fall("LIBAR41-9 aufrundenAufBatch: 0.5 → 1, 1 und 1.3 unverändert",
+          () => Calc.aufrundenAufBatch(0.5) === 1 && Calc.aufrundenAufBatch(1) === 1 && Calc.aufrundenAufBatch(1.3) === 1.3),
+        fall("LIBAR41-10 Portionen null oder 0 → null, kein NaN/Infinity",
+          () => Calc.portionsgroesseG({ ...rzB, portionen:null }, 0.1) === null
+             && Calc.portionsgroesseG({ ...rzB, portionen:0 }, 0.1) === null
+             && Calc.batchesAusPortionen(5, { ...rzB, portionen:0 }) === null
+             && Calc.portionenAusBatches(1, { ...rzB, portionen:null }) === null
+             && endlichOderNull(Calc.faktorAusGesamtmenge(500, { basisMengeG:null, sollgewichtG:null, portionen:1, phasen:[] }, 0))),
+        fall("LIBAR41-11 Faktor aus Fertigmenge lässt Stückzutaten und Bäckerprozente unberührt",
+          () => {
+            const f = Calc.faktorAusGesamtmenge(540, rzB, 0.10);
+            const ei = idx.get("vollei");
+            const s1 = Calc.alsStueck(Calc.mengeG({prozent:0.06}, 1000, 1), ei).stueck;
+            const sF = Calc.alsStueck(Calc.mengeG({prozent:0.06}, 1000, f), ei).stueck;
+            const k1 = Calc.kennzahlen(rzB, 1), kF = Calc.kennzahlen(rzB, f);
+            return nah(sF, s1 * 0.5) && nah(kF.hydration, k1.hydration) && rzB.phasen[0].zutaten[1].prozent === 0.6;
+          })
+      ];
     })()
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
