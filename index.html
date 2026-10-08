@@ -2226,6 +2226,32 @@ const Model = {
     return i === -1 ? null : XLSX.utils.encode_col(i) + zeileExcel;
   },
 
+  // LIBAR-43 (M8): Batch neu definieren = Rezept dauerhaft umskalieren. Eingabe ist das neue
+  // Fertiggewicht inkl. Schwund (LIBAR-41); faktor = neu / aktuell. "Phasen (JSON)" traegt
+  // Baeckerprozente relativ zur Basis-Menge — jede Zutatenmenge (Basis-Menge × Prozent) skaliert
+  // darum allein ueber "Basis-Menge (g)", die Prozente bleiben unveraendert. "Sollgewicht (g)"
+  // skaliert mit; ist es leer, bleibt die Zelle unberuehrt (nie leeren). Schwund wird nicht
+  // geschrieben. Rueckgabe { faktor, zellen:[{spalte, neu, alt}] } oder null bei ungueltiger Eingabe.
+  batchPlan(rz, neuFertigG, schwund){
+    const ziel = Number(neuFertigG);
+    if(neuFertigG === "" || neuFertigG == null || !Number.isFinite(ziel) || ziel <= 0) return null;
+    const faktor = Calc.faktorAusGesamtmenge(ziel, rz, schwund);
+    if(!(faktor > 0) || !Number.isFinite(faktor)) return null;
+    const r2 = v => Math.round(v * 100) / 100;
+    const zellen = [];
+    if(typeof rz.basisMengeG === "number" && rz.basisMengeG > 0)
+      zellen.push({ spalte:"Basis-Menge (g)", neu: r2(rz.basisMengeG * faktor), alt: rz.basisMengeG });
+    if(typeof rz.sollgewichtG === "number" && rz.sollgewichtG > 0)
+      zellen.push({ spalte:"Sollgewicht (g)", neu: r2(rz.sollgewichtG * faktor), alt: rz.sollgewichtG });
+    return zellen.length ? { faktor, zellen } : null;
+  },
+  // Portionen pro Batch neu: nur die Zelle "Portionen" (Portionsgroesse = Batch fertig / Portionen).
+  portionenPlan(rz, n){
+    const v = Number(n);
+    if(n === "" || n == null || !Number.isFinite(v) || v <= 0) return null;
+    return { zellen: [{ spalte:"Portionen", neu: v, alt: rz.portionen }] };
+  },
+
   // Zellen, die "Recherche uebernehmen" je Rohstoff schreibt (zellweise, App.rechercheUebernehmen):
   // nur Preis- und Naehrwertspalten samt Quelle/Stand. LIBAR-47: «Mehltyp» und «Kakaoanteil (%)»
   // sind handgepflegt und stehen bewusst nie in dieser Liste (selfTest LIBAR47-12).
@@ -6468,6 +6494,46 @@ async function selfTest(){
       && aliaseNachLadeConfig["burro"] === "butter"
       && aliaseNachLadeConfig["ganz neuer alias"] === "butter";
 
+  // LIBAR-43: Batch-/Portionen-Definition persistieren. Eigene Mock-Schicht, die neben dem
+  // Aufruf auch den geschriebenen WERT protokolliert (Beleg fuer Rollback und "nichts geleert").
+  // Alles in try, damit fehlende Funktionen die Faelle rot machen statt selfTest() zu werfen.
+  const l43 = {};
+  try{
+    const kopf43 = ["Rezept-ID","Name","Basis-Menge (g)","Sollgewicht (g)","Portionen","Phasen (JSON)",
+      "Entwicklung (JSON)","Protokoll (JSON)","Schwund (%)","Geändert"];
+    const mock43 = (eTag, wirftBei) => {
+      const log = [];
+      return { log,
+        async getItemMeta(){ log.push(["meta"]); return { eTag }; },
+        async backup(){ log.push(["backup"]); return "b.xlsx"; },
+        async updateCell(pfad, sheet, addr, wert){
+          if(wirftBei && wirftBei.addr === addr && wirftBei.mal-- > 0){ log.push(["fehl", addr]); throw new Error("mock " + addr); }
+          log.push(["cell", addr, wert]); return true; } };
+    };
+    const rz43 = { id:"RZ43", basisMengeG:800, sollgewichtG:1200, portionen:10,
+      phasen:[{ name:"P", zutaten:[{ name:"Mehl", prozent:1, einheit:"g" }, { name:"Ei", prozent:0.075, einheit:"stk" }] }],
+      entwicklung:{ status:"entwicklung" }, protokoll:[{ datum:"2026-10-01", sollG:1200, istG:1080 }] };
+    const basis43 = { rezeptePfad:"/T/Rezepte.xlsx", sheetName:"Rezepte", header:kopf43, zeileExcel:4, aktuellerETag:"E1" };
+    l43.addr = sp => Model.zelladresse(kopf43, sp, 4);
+    l43.rz = rz43;
+    l43.planMit = Model.batchPlan(rz43, 2160, 0.10);
+    l43.planOhne = Model.batchPlan(rz43, 2400, null);
+    l43.planPort = Model.portionenPlan(rz43, 12);
+    l43.planOhneSoll = Model.batchPlan({ ...rz43, sollgewichtG:null }, Calc.gesamtteigG({ ...rz43, sollgewichtG:null }) * 2 * 0.9, 0.10);
+    l43.planUngueltig = [Model.batchPlan(rz43, 0, 0.1), Model.batchPlan(rz43, -5, 0.1), Model.batchPlan(rz43, NaN, 0.1),
+      Model.portionenPlan(rz43, 0), Model.portionenPlan(rz43, "")];
+    l43.gwMit = mock43("E1");
+    l43.ergMit = await batchDefinitionSchreiben(l43.gwMit, { ...basis43, zellen:l43.planMit.zellen });
+    l43.gwPort = mock43("E1");
+    l43.ergPort = await batchDefinitionSchreiben(l43.gwPort, { ...basis43, zellen:l43.planPort.zellen });
+    l43.gwKonflikt = mock43("E2");
+    l43.ergKonflikt = await batchDefinitionSchreiben(l43.gwKonflikt, { ...basis43, zellen:l43.planMit.zellen });
+    l43.gwOhneETag = mock43("E1");
+    l43.ergOhneETag = await batchDefinitionSchreiben(l43.gwOhneETag, { ...basis43, aktuellerETag:null, zellen:l43.planMit.zellen });
+    l43.gwRollback = mock43("E1", { addr: l43.addr("Sollgewicht (g)"), mal: 1 });
+    l43.ergRollback = await batchDefinitionSchreiben(l43.gwRollback, { ...basis43, zellen:l43.planMit.zellen });
+  }catch(e){ l43.fehler = e; }
+
   const t = [
     ["AP0305-H1 ladeConfig() behaelt eingebaute Aliase und ergaenzt config.json-Aliase, statt sie zu ersetzen",
       h1AliaseNachConfigErhalten],
@@ -7696,6 +7762,48 @@ async function selfTest(){
           () => { const rz = { ...rzB, portionen:null }; const vorher = JSON.stringify(rz); const h = html(rz, 0.5, 0.1);
             return /id="entwPortionen"[^>]*disabled/.test(h) && !/NaN|Infinity/.test(h) && JSON.stringify(rz) === vorher; })
       ];
+    })(),
+    // ---- LIBAR-43 Batch/Portionen persistent (Werte oben vor t asynchron ermittelt, l43).
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, !l43.fehler && fn() === true]; }catch(e){ return [name, false]; } };
+      const zell = log => log.filter(x => x[0] === "cell");
+      const spalten = plan => plan.zellen.map(z => z.spalte).sort().join("|");
+      const neu = (plan, sp) => (plan.zellen.find(z => z.spalte === sp) || {}).neu;
+      return [
+        fall("LIBAR43-1 Neuer Batch 2160 g fertig bei Soll 1200 g, Schwund 10 % → Faktor 2; Basis-Menge und Sollgewicht verdoppelt",
+          () => nah(l43.planMit.faktor, 2) && neu(l43.planMit, "Basis-Menge (g)") === 1600 && neu(l43.planMit, "Sollgewicht (g)") === 2400
+             && spalten(l43.planMit) === "Basis-Menge (g)|Sollgewicht (g)"),
+        fall("LIBAR43-2 Zutatenmengen verdoppeln sich, Bäckerprozente bleiben (Phasen-Prozente unverändert)",
+          () => { const vor = Calc.mengeG(l43.rz.phasen[0].zutaten[1], l43.rz.basisMengeG, 1);
+            const nach = Calc.mengeG(l43.rz.phasen[0].zutaten[1], neu(l43.planMit, "Basis-Menge (g)"), 1);
+            return nah(nach, vor * 2) && l43.rz.phasen[0].zutaten[1].prozent === 0.075 && l43.rz.basisMengeG === 800; }),
+        fall("LIBAR43-3 Schwund unbekannt → 0: Ziel 2400 g fertig bei Soll 1200 g → Faktor 2",
+          () => nah(l43.planOhne.faktor, 2) && neu(l43.planOhne, "Sollgewicht (g)") === 2400),
+        fall("LIBAR43-4 nur Portionen pro Batch → genau eine Zelle «Portionen» (+ «Geändert») geschrieben",
+          () => spalten(l43.planPort) === "Portionen" && l43.ergPort.ergebnis === "ok"
+             && zell(l43.gwPort.log).map(x => x[1]).join(",") === [l43.addr("Portionen"), l43.addr("Geändert")].join(",")
+             && zell(l43.gwPort.log)[0][2] === 12),
+        fall("LIBAR43-5 Backup vor jedem Schreiben; Batch schreibt Basis-Menge, Sollgewicht, Geändert — nie Phasen/Entwicklung/Protokoll/Schwund",
+          () => { const log = l43.gwMit.log; const iB = log.findIndex(x => x[0] === "backup"), iC = log.findIndex(x => x[0] === "cell");
+            const addrs = zell(log).map(x => x[1]);
+            return l43.ergMit.ergebnis === "ok" && iB > -1 && iB < iC
+              && addrs.join(",") === [l43.addr("Basis-Menge (g)"), l43.addr("Sollgewicht (g)"), l43.addr("Geändert")].join(",")
+              && !["Phasen (JSON)","Entwicklung (JSON)","Protokoll (JSON)","Schwund (%)"].some(sp => addrs.includes(l43.addr(sp))); }),
+        fall("LIBAR43-6 eTag-Konflikt (fremd oder fehlend) → «konflikt», kein Backup, keine Zelle",
+          () => l43.ergKonflikt.ergebnis === "konflikt" && l43.ergOhneETag.ergebnis === "konflikt"
+             && [l43.gwKonflikt, l43.gwOhneETag].every(g => g.log.every(x => x[0] === "meta"))),
+        fall("LIBAR43-7 Fehler bei zweiter Kernzelle → erste Zelle auf alten Wert zurückgerollt, Ergebnis «fehler»",
+          () => { const c = zell(l43.gwRollback.log);
+            return l43.ergRollback.ergebnis === "fehler" && l43.ergRollback.zurueckgerollt === true
+              && c.length === 2 && c[0][1] === l43.addr("Basis-Menge (g)") && c[0][2] === 1600
+              && c[1][1] === l43.addr("Basis-Menge (g)") && c[1][2] === 800; }),
+        fall("LIBAR43-8 Rezept ohne Definition / ohne Sollgewicht: nichts geleert, Sollgewicht-Zelle bleibt unberührt",
+          () => spalten(l43.planOhneSoll) === "Basis-Menge (g)" && nah(l43.planOhneSoll.faktor, 2)
+             && l43.planOhneSoll.zellen.every(z => z.neu != null && z.neu !== "")
+             && nah(Calc.faktorAusGesamtmenge(Calc.gesamtmengeFertigG(l43.rz, 0.1, 1), l43.rz, 0.1), 1)),
+        fall("LIBAR43-9 ungültige Eingaben (0, negativ, NaN, leer) → kein Plan (null)",
+          () => l43.planUngueltig.every(p => p === null))
+      ];
     })()
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
@@ -7740,6 +7848,53 @@ async function editorSchreiben(gateway, { rezeptePfad, sheetName, header, zeileE
   try{ neuerETag = (await gateway.getItemMeta(rezeptePfad)).eTag; }catch(e){ neuerETag = null; }
 
   return { ergebnis:"ok", neuerETag, nebenfehler };
+}
+
+// LIBAR-43: Schreibkern fuer Batch-/Portionen-Definition (Model.batchPlan/portionenPlan) —
+// gleiches Prinzip wie protokollSchreiben: eTag pruefen (fehlend = Konflikt) -> Backup ->
+// Kernzellen der Reihe nach -> "Geändert" (nicht fatal) -> eTag neu. Scheitert eine Kernzelle,
+// werden die bereits geschriebenen auf ihren alten Wert zurueckgesetzt (Rollback), damit Basis-
+// Menge und Sollgewicht nie auseinanderlaufen. Schreibt nie Phasen/Entwicklung/Protokoll/Schwund.
+async function batchDefinitionSchreiben(gateway, { rezeptePfad, sheetName, header, zeileExcel, aktuellerETag, zellen }){
+  const erlaubt = ["Basis-Menge (g)", "Sollgewicht (g)", "Portionen"];
+  if(!Array.isArray(zellen) || !zellen.length || zellen.some(z => !erlaubt.includes(z.spalte)))
+    return { ergebnis:"fehler", stufe:"plan", meldung:"Ungültige Batch-Definition" };
+  let meta;
+  try{ meta = await gateway.getItemMeta(rezeptePfad); }
+  catch(e){ return { ergebnis:"fehler", stufe:"eTag", meldung: e.message }; }
+  if(!aktuellerETag || meta.eTag !== aktuellerETag) return { ergebnis:"konflikt" };
+
+  // Adressen vorab — fehlt eine Spalte, wird gar nichts geschrieben (auch kein Backup noetig).
+  const ziele = zellen.map(z => ({ ...z, addr: Model.zelladresse(header, z.spalte, zeileExcel) }));
+  const fehlt = ziele.find(z => !z.addr);
+  if(fehlt) return { ergebnis:"fehler", stufe:"spalte", meldung:'Spalte "' + fehlt.spalte + '" fehlt in Rezepte.xlsx' };
+
+  try{ await gateway.backup(rezeptePfad); }
+  catch(e){ return { ergebnis:"fehler", stufe:"backup", meldung: e.message }; }
+
+  const geschrieben = [];
+  for(const z of ziele){
+    try{ await gateway.updateCell(rezeptePfad, sheetName, z.addr, z.neu); geschrieben.push({ addr: z.addr, wert: z.neu, alt: z.alt }); }
+    catch(e){
+      let zurueckgerollt = true;
+      for(const g of geschrieben.slice().reverse()){
+        try{ await gateway.updateCell(rezeptePfad, sheetName, g.addr, g.alt == null ? "" : g.alt); }
+        catch(e2){ zurueckgerollt = false; }
+      }
+      return { ergebnis:"fehler", stufe: z.spalte, meldung: e.message, zurueckgerollt };
+    }
+  }
+
+  let nebenfehler = false;
+  const addrGeaendert = Model.zelladresse(header, "Geändert", zeileExcel);
+  if(addrGeaendert){
+    const heute = heutigesDatumLokal();
+    try{ await gateway.updateCell(rezeptePfad, sheetName, addrGeaendert, heute); geschrieben.push({ addr: addrGeaendert, wert: heute }); }
+    catch(e){ nebenfehler = true; }
+  }
+  let neuerETag = null;
+  try{ neuerETag = (await gateway.getItemMeta(rezeptePfad)).eTag; }catch(e){ neuerETag = null; }
+  return { ergebnis:"ok", geschrieben, neuerETag, nebenfehler };
 }
 
 // AP-0307: reiner Schreibkern des Verfahrensprotokoll-Formulars — gleiches Prinzip wie
@@ -8393,6 +8548,67 @@ const App = {
       ...(Object.keys(felder).length ? { felder } : {})
     };
     await App.protokollSpeichern(rz, neuerEintrag);
+  },
+
+  // LIBAR-43: Batch (Fertiggewicht g) und/oder Portionen pro Batch dauerhaft nach Rezepte.xlsx.
+  // Aufrufer (Formular LIBAR-44) uebergibt { batchFertigG } und/oder { portionen }. Liefert true
+  // bei Erfolg. Store wird erst NACH erfolgreichem Schreiben nachgefuehrt; Konflikt -> dieselbe
+  // Konfliktmeldung wie beim Protokoll, Bestand neu laden. Schwund bleibt unberuehrt.
+  async batchDefinitionSpeichern(rz, { batchFertigG, portionen } = {}){
+    const schwund = Calc.schwundAktuell(rz.protokoll);
+    const zellen = [];
+    if(batchFertigG != null){
+      const plan = Model.batchPlan(rz, batchFertigG, schwund);
+      if(!plan){ View.meldung("Batchgrösse ungültig — bitte eine Zahl grösser 0 eingeben. Nichts gespeichert.", "err", "Eingabe prüfen"); return false; }
+      if(Math.abs(plan.faktor - 1) > 1e-9) zellen.push(...plan.zellen);
+    }
+    if(portionen != null){
+      const plan = Model.portionenPlan(rz, portionen);
+      if(!plan){ View.meldung("Portionen pro Batch ungültig — bitte eine Zahl grösser 0 eingeben. Nichts gespeichert.", "err", "Eingabe prüfen"); return false; }
+      if(plan.zellen[0].neu !== rz.portionen) zellen.push(...plan.zellen);
+    }
+    if(!zellen.length) return true;
+    const verbunden = Store.rezepteWorkbook && Data.verfuegbar() && msalApp && msalApp.getActiveAccount();
+    if(!verbunden){
+      View.meldung("Keine OneDrive-Verbindung — Batch-Definition nicht gespeichert.", "warn", "Nicht gespeichert");
+      return false;
+    }
+    if(!rz._raw || !Store.rezepteETag){
+      View.meldung("Der Stand von Rezepte.xlsx konnte zuletzt nicht bestätigt werden — der Bestand wird neu geladen. "
+        + "Bitte danach erneut speichern.", "warn", "Stand wird geprüft");
+      await App.datenLaden(msalApp.getActiveAccount());
+      App.rezeptOeffnen(rz.id);
+      return false;
+    }
+    const ergebnis = await batchDefinitionSchreiben(Data, {
+      rezeptePfad: CONFIG.rezeptePfad, sheetName: Store.rezepteSheetName,
+      header: rz._raw.spalten, zeileExcel: rz._raw.zeile + 1, aktuellerETag: Store.rezepteETag, zellen
+    });
+    if(ergebnis.ergebnis === "konflikt"){
+      View.meldung("Rezepte.xlsx wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. "
+        + "Eintrag bitte erneut erfassen.", "warn", "Konflikt erkannt");
+      await App.datenLaden(msalApp.getActiveAccount());
+      App.rezeptOeffnen(rz.id);
+      return false;
+    }
+    if(ergebnis.ergebnis === "fehler"){
+      View.meldung("Speichern fehlgeschlagen: " + ergebnis.meldung
+        + (ergebnis.zurueckgerollt === false ? " — Rücksetzen unvollständig, bitte Backup prüfen." : " — Rezepte.xlsx nicht verändert."),
+        "err", "Fehler beim Speichern");
+      return false;
+    }
+    ergebnis.geschrieben.forEach(g => workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, g.addr, g.wert));
+    Store.rezepteETag = ergebnis.neuerETag;
+    zellen.forEach(z => {
+      if(z.spalte === "Basis-Menge (g)") rz.basisMengeG = z.neu;
+      if(z.spalte === "Sollgewicht (g)") rz.sollgewichtG = z.neu;
+      if(z.spalte === "Portionen") rz.portionen = z.neu;
+    });
+    View.meldung("Batch-Definition gespeichert, Backup in " + (CONFIG.backupOrdner || "/Backups") + " angelegt."
+      + (ergebnis.nebenfehler ? " Hinweis: Spalte «Geändert» konnte nicht mitaktualisiert werden." : ""),
+      ergebnis.nebenfehler ? "warn" : "ok", "Gespeichert");
+    View.rezept();
+    return true;
   },
 
   // Schreibt den Eintrag in Store (sofort sichtbar, an rz.protokoll angehaengt — das ist
