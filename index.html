@@ -2057,7 +2057,11 @@ const Model = {
           // die Vorbelegung im Recherche-Dialog. Fehlt eine Spalte (aeltere Dateien), bleibt der
           // Wert schlicht null statt eines Ladefehlers.
           iPreisQuelle=i("Preis Quelle"), iPreisStand=i("Preis Stand"),
-          iNaehrwertQuelle=i("Nährwert Quelle"), iNaehrwertStand=i("Nährwert Stand");
+          iNaehrwertQuelle=i("Nährwert Quelle"), iNaehrwertStand=i("Nährwert Stand"),
+          // LIBAR-47: zwei optionale, von Hand gepflegte Spalten fuer die Regel-Aufloesung
+          // (Model.regelZuordnung). Fehlt die Spalte oder ist die Zelle leer -> null.
+          iMehltyp=i("Mehltyp"), iKakao=i("Kakaoanteil (%)");
+    const textOderNull = v => (v == null || String(v).trim() === "") ? null : String(v).trim();
     const rohstoffe = [];
     for(let r = 1; r < aoa.length; r++){
       const row = aoa[r];
@@ -2078,6 +2082,9 @@ const Model = {
         preisStand: iPreisStand > -1 ? (row[iPreisStand] || null) : null,
         naehrwertQuelle: iNaehrwertQuelle > -1 ? (row[iNaehrwertQuelle] || null) : null,
         naehrwertStand: iNaehrwertStand > -1 ? (row[iNaehrwertStand] || null) : null,
+        mehltyp: iMehltyp > -1 ? textOderNull(row[iMehltyp]) : null,
+        // Als Excel-Prozentformat gepflegt steht 70 % als 0.7 in der Zelle -> auf 70 normiert.
+        kakaoanteil: (k => (k != null && k > 0 && k <= 1) ? k * 100 : k)(iKakao > -1 ? zahlOderNull(row[iKakao]) : null),
         _raw: { zeile: r, spalten: header, werte: row }
       });
     }
@@ -7475,6 +7482,34 @@ async function selfTest(){
             const k1 = Calc.kennzahlen(rzB, 1), kF = Calc.kennzahlen(rzB, f);
             return nah(sF, s1 * 0.5) && nah(kF.hydration, k1.hydration) && rzB.phasen[0].zutaten[1].prozent === 0.6;
           })
+      ];
+    })(),
+    // ---- LIBAR-47 Mehltyp und Kakaoanteil aus Rohstoffe.xlsx: Regel-Aufloesung fuer generisches
+    // Mehl und Schokolade mit Prozentangabe. Faelle fangen Ausnahmen selbst (rot statt Abbruch).
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, fn() === true]; }catch(e){ return [name, false]; } };
+      const kopf = ["Rohstoff-ID","Name","Kategorie","Standardeinheit","Kosten/kg (CHF)","Mehltyp","Kakaoanteil (%)"];
+      const rohMit = Model.parseRohstoffe([kopf,
+        ["RS-010","Weissmehl 00","Mehl","g",2.2,"Weissmehl",null],
+        ["RS-002","Weissmehl Typ 550","Mehl","g",1.9,"Weissmehl",null],
+        ["RS-011","Ruchmehl","Mehl","g",2.0,"Ruchmehl",null],
+        ["RS-020","Kakao 100%","Kakao","g",18,null,100],
+        ["RS-021","Couverture dunkel 56%","Schokolade","g",14,"",56],
+        ["RS-022","Couverture dunkel 70%","Schokolade","g",16,null,70],
+        ["RS-030","Butter","Fett","g",15.5,"",""]]);
+      const rohOhne = Model.parseRohstoffe([kopf.slice(0, 5),
+        ["RS-010","Weissmehl 00","Mehl","g",2.2],
+        ["RS-022","Couverture dunkel 70%","Schokolade","g",16]]);
+      const nachName = (liste, n) => liste.find(r => r.name === n);
+      return [
+        fall("LIBAR47-1 parseRohstoffe liest Mehltyp und Kakaoanteil (%) per Kopfname, leere Zelle → null",
+          () => nachName(rohMit, "Ruchmehl").mehltyp === "Ruchmehl" && nachName(rohMit, "Couverture dunkel 70%").kakaoanteil === 70
+             && nachName(rohMit, "Couverture dunkel 56%").mehltyp === null && nachName(rohMit, "Butter").kakaoanteil === null
+             && nachName(rohMit, "Weissmehl 00").kakaoanteil === null
+             && nah(Model.parseRohstoffe([kopf, ["RS-9","Couverture X","Schokolade","g",1,null,0.7]])[0].kakaoanteil, 70)),
+        fall("LIBAR47-2 Rohstoffe ohne beide Spalten: kein Fehler, mehltyp/kakaoanteil null, übrige Felder unverändert",
+          () => rohOhne.length === 2 && rohOhne.every(r => r.mehltyp === null && r.kakaoanteil === null)
+             && rohOhne[0].kostenProKg === 2.2 && rohOhne[1].kategorie === "Schokolade")
       ];
     })()
   ];
