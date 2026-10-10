@@ -2250,13 +2250,13 @@ const Model = {
     return zellen.length ? { faktor, zellen } : null;
   },
   // LIBAR-48: Das Formular belegt die Batch-Vorgabe mit dem auf ganze g gerundeten aktuellen
-  // Fertiggewicht. Liegt die Eingabe innerhalb dieser Rundung (< 0.5 g) um den aktuellen Wert,
+  // Fertiggewicht. Liegt die Eingabe innerhalb dieser Rundung (<= 0.5 g, LIBAR-49: Math.round rundet X.5 auf) um den aktuellen Wert,
   // ist der Batch nicht veraendert: kein Batch-Plan, Basis-Menge und Sollgewicht bleiben unberuehrt.
   batchUnveraendert(rz, neuFertigG, schwund){
     const ziel = Number(neuFertigG);
     if(neuFertigG === "" || neuFertigG == null || !Number.isFinite(ziel)) return false;
     const fertig = Calc.gesamtmengeFertigG(rz, schwund, 1);
-    return fertig != null && Number.isFinite(fertig) && Math.abs(ziel - fertig) < 0.5;
+    return fertig != null && Number.isFinite(fertig) && Math.abs(ziel - fertig) <= 0.5 + 1e-9;
   },
   // Portionen pro Batch neu: nur die Zelle "Portionen" (Portionsgroesse = Batch fertig / Portionen).
   portionenPlan(rz, n){
@@ -7895,8 +7895,15 @@ async function selfTest(){
             return Math.abs(fert - 1119.79) < 0.01
               && Model.batchUnveraendert(r48, Math.round(fert), s48) === true
               && Model.batchUnveraendert(r48, 1200, s48) === false
-              && Model.batchUnveraendert(r48, fert + 0.5, s48) === false
+              && Model.batchUnveraendert(r48, fert + 0.6, s48) === false
               && Model.batchUnveraendert(r48, "", s48) === false; }),
+        fall("LIBAR49-1 Fertiggewicht X.5 (1120.5): Vorgabe Math.round = 1121 → Batch unverändert, kein Drift; 1122 weiterhin geplant",
+          () => { const r49 = { ...rz, basisMengeG:800, sollgewichtG:1250 };
+            const s49 = 1 - 1120.5 / 1250, fert = Calc.gesamtmengeFertigG(r49, s49, 1);
+            return Math.abs(fert - 1120.5) < 1e-6 && Math.round(fert) === 1121
+              && Model.batchUnveraendert(r49, Math.round(fert), s49) === true
+              && Model.batchUnveraendert(r49, 1120, s49) === true
+              && Model.batchUnveraendert(r49, 1122, s49) === false; }),
         fall("LIBAR44-2 ungültig: Batch 0, negativ, leer → Fehlermeldung, kein Plan",
           () => [0, -100, "", null, "abc"].every(b => { const r = pr(b, 10, 0.1); return !r.ok && r.fehler.length > 0 && !r.plan; })),
         fall("LIBAR44-3 ungültig: Portionen 0, negativ, leer → Fehlermeldung",
