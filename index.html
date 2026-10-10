@@ -2249,6 +2249,15 @@ const Model = {
       zellen.push({ spalte:"Sollgewicht (g)", neu: r2(rz.sollgewichtG * faktor), alt: rz.sollgewichtG });
     return zellen.length ? { faktor, zellen } : null;
   },
+  // LIBAR-48: Das Formular belegt die Batch-Vorgabe mit dem auf ganze g gerundeten aktuellen
+  // Fertiggewicht. Liegt die Eingabe innerhalb dieser Rundung (< 0.5 g) um den aktuellen Wert,
+  // ist der Batch nicht veraendert: kein Batch-Plan, Basis-Menge und Sollgewicht bleiben unberuehrt.
+  batchUnveraendert(rz, neuFertigG, schwund){
+    const ziel = Number(neuFertigG);
+    if(neuFertigG === "" || neuFertigG == null || !Number.isFinite(ziel)) return false;
+    const fertig = Calc.gesamtmengeFertigG(rz, schwund, 1);
+    return fertig != null && Number.isFinite(fertig) && Math.abs(ziel - fertig) < 0.5;
+  },
   // Portionen pro Batch neu: nur die Zelle "Portionen" (Portionsgroesse = Batch fertig / Portionen).
   portionenPlan(rz, n){
     const v = Number(n);
@@ -7880,6 +7889,14 @@ async function selfTest(){
       return [
         fall("LIBAR44-1 Vorgaben: Batch fertig 1080 g (1200 × 0.9), 10 Portionen → Portion 108 g, gültig",
           () => { const r = pr(1080, 10, 0.1); return r.ok && nah(r.portionsgroesseG, 108) && nah(r.faktor, 1); }),
+        fall("LIBAR48-1 gerundete Vorgabe (1120 bei Fertiggewicht 1119.79) → Batch unverändert, kein Drift; echte Änderung (1200) und Grenze 0.5 weiterhin geplant",
+          () => { const r48 = { ...rz, basisMengeG:800, sollgewichtG:1250 };
+            const s48 = 1 - 1119.79 / 1250, fert = Calc.gesamtmengeFertigG(r48, s48, 1);
+            return Math.abs(fert - 1119.79) < 0.01
+              && Model.batchUnveraendert(r48, Math.round(fert), s48) === true
+              && Model.batchUnveraendert(r48, 1200, s48) === false
+              && Model.batchUnveraendert(r48, fert + 0.5, s48) === false
+              && Model.batchUnveraendert(r48, "", s48) === false; }),
         fall("LIBAR44-2 ungültig: Batch 0, negativ, leer → Fehlermeldung, kein Plan",
           () => [0, -100, "", null, "abc"].every(b => { const r = pr(b, 10, 0.1); return !r.ok && r.fehler.length > 0 && !r.plan; })),
         fall("LIBAR44-3 ungültig: Portionen 0, negativ, leer → Fehlermeldung",
@@ -8693,7 +8710,7 @@ const App = {
     if(batchFertigG != null){
       const plan = Model.batchPlan(rz, batchFertigG, schwund);
       if(!plan){ View.meldung("Batchgrösse ungültig — bitte eine Zahl grösser 0 eingeben. Nichts gespeichert.", "err", "Eingabe prüfen"); return false; }
-      if(Math.abs(plan.faktor - 1) > 1e-9) zellen.push(...plan.zellen);
+      if(Math.abs(plan.faktor - 1) > 1e-9 && !Model.batchUnveraendert(rz, batchFertigG, schwund)) zellen.push(...plan.zellen);
     }
     if(portionen != null){
       const plan = Model.portionenPlan(rz, portionen);
