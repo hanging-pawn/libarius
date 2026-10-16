@@ -2338,6 +2338,27 @@ const Calc = {
   // wird nie mutiert (der Ursprung bleibt rekonstruierbar, AP-0201 §3.3).
   korrekturAktuell(korrektur, faktor){ return korrektur.ist * faktor / korrektur.faktorBeiEingabe; },
 
+  // LIBAR-54: Aendert sich die Basis-Menge dauerhaft (Batch-Umdefinition, LIBAR-43), muss jede
+  // offene Kochkorrektur (erfasst gegen die ALTE Basis) mitwandern: "ist" bleibt die absolute
+  // Messung, aber Bezugspunkt und Soll werden auf die neue Basis umgerechnet. Mit r = neu/alt gilt
+  // faktorBeiEingabe /= r, sollBeiEingabe *= r — dann ist ist/(neueBasis*faktorBeiEingabe) das
+  // alte Prozent; korrekturAktuell(k,1) wird ist*r, das Verhaeltnis ist/Soll bleibt
+  // erhalten. Reine Funktion; liefert die Zahl der angepassten Eintraege, mutiert kx.zutaten.
+  korrekturenNachBasisAenderung(kx, alteBasisG, neueBasisG){
+    if(!kx || !kx.zutaten) return 0;
+    if(!(alteBasisG > 0) || !(neueBasisG > 0) || alteBasisG === neueBasisG) return 0;
+    const r = neueBasisG / alteBasisG;
+    let n = 0;
+    Object.keys(kx.zutaten).forEach(key => {
+      const k = kx.zutaten[key];
+      if(!k || !(k.faktorBeiEingabe > 0)) return;
+      k.faktorBeiEingabe = k.faktorBeiEingabe / r;
+      if(typeof k.sollBeiEingabe === "number") k.sollBeiEingabe = k.sollBeiEingabe * r;
+      n++;
+    });
+    return n;
+  },
+
   faktorAusBasis(zielBasisG, rezept){ return zielBasisG / rezept.basisMengeG; },
   faktorAusPortionen(zielPortionen, rezept){ return zielPortionen / rezept.portionen; },
 
@@ -7876,7 +7897,18 @@ async function selfTest(){
              && l43.planOhneSoll.zellen.every(z => z.neu != null && z.neu !== "")
              && nah(Calc.faktorAusGesamtmenge(Calc.gesamtmengeFertigG(l43.rz, 0.1, 1), l43.rz, 0.1), 1)),
         fall("LIBAR43-9 ungültige Eingaben (0, negativ, NaN, leer) → kein Plan (null)",
-          () => l43.planUngueltig.every(p => p === null))
+          () => l43.planUngueltig.every(p => p === null)),
+        // LIBAR-54: Basis 800 g → 1600 g mit offener Korrektur Mehl ist 540 g (Soll 520 g, Faktor 1):
+        // danach muss "Ins Rezept übernehmen" weiter 0.675 liefern (nicht 0.3375) und die Ansicht 1080 g.
+        fall("LIBAR54-1 Basis-Umdefinition 800 → 1600 g führt offene Korrektur nach: Prozent 0.675, aktuell 1080 g, Soll 1040 g",
+          () => { const kx = { zutaten:{ "0/0":{ ist:540, sollBeiEingabe:520, faktorBeiEingabe:1 } }, notiz:"" };
+            const n = Calc.korrekturenNachBasisAenderung(kx, 800, 1600); const k = kx.zutaten["0/0"];
+            return n === 1 && nah(k.ist / (1600 * k.faktorBeiEingabe), 0.675) && nah(Calc.korrekturAktuell(k, 1), 1080)
+              && nah(k.sollBeiEingabe, 1040) && k.ist === 540; }),
+        fall("LIBAR54-2 gleiche/ungültige Basis lässt Korrekturen unverändert",
+          () => { const kx = { zutaten:{ "0/0":{ ist:540, sollBeiEingabe:520, faktorBeiEingabe:1 } } };
+            return Calc.korrekturenNachBasisAenderung(kx, 800, 800) === 0 && Calc.korrekturenNachBasisAenderung(kx, 0, 900) === 0
+              && Calc.korrekturenNachBasisAenderung(null, 800, 900) === 0 && kx.zutaten["0/0"].faktorBeiEingabe === 1; })
       ];
     })(),
     // ---- LIBAR-44 Formular Batch-/Portionen-Definition (Pruefung + Vorschau, reine Funktionen).
@@ -8756,6 +8788,9 @@ const App = {
     }
     ergebnis.geschrieben.forEach(g => workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, g.addr, g.wert));
     Store.rezepteETag = ergebnis.neuerETag;
+    // LIBAR-54: offene Kochkorrekturen auf die neue Basis-Menge nachfuehren (vor dem Umsetzen von rz).
+    const basisZelle = zellen.find(z => z.spalte === "Basis-Menge (g)");
+    if(basisZelle && Calc.korrekturenNachBasisAenderung(Korrekturen.get(rz.id), rz.basisMengeG, basisZelle.neu)) Korrekturen.speichern(rz.id);
     zellen.forEach(z => {
       if(z.spalte === "Basis-Menge (g)") rz.basisMengeG = z.neu;
       if(z.spalte === "Sollgewicht (g)") rz.sollgewichtG = z.neu;
