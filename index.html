@@ -2998,6 +2998,50 @@ async function loadWorkbooks(){
   return { rohstoffe, rezepte, fehlerhaft, geladeneAliase, rezWb, rezSheetName, rohWb, rohSheetName };
 }
 
+/* ---------- Bring: Einkaufsliste als Bring!-Importseite (LIBAR-58, M9) -----------------
+   Reine Funktionen, kein DOM, kein Netz. Bring! laedt die Seite serverseitig, parst das
+   schema.org-Recipe-Microdata und fuehrt KEIN JavaScript aus (Spike LIBAR-57) — darum ein
+   fertiger HTML-String. Zeilenformat «Menge Einheit Name» trennt Bring! sauber in Artikel und
+   Menge (Spike: «Name Menge» landet ganz im Artikelnamen). Eingabe ist die Postenliste aus
+   Calc.einkaufsliste, nicht ein Rezept — so passt derselbe Kern spaeter auf die Menueliste. */
+const Bring = {
+  // Mengentext aus View.mengeText (gleiche Rundung wie die Einkaufsliste), aber ohne den
+  // grauen Gramm-Zusatz in <span>, den mengeText bei Stueckzutaten anhaengt: "3 Stk".
+  zeile(p){
+    const menge = View.mengeText(p.g, p.einheit, p.rohstoff).replace(/\s*<[\s\S]*$/, "");
+    return `${menge} ${p.name}`;
+  },
+
+  titel(name, faktor){
+    return (faktor == null || faktor === 1) ? String(name)
+      : `${name} ×${Number(Number(faktor).toFixed(2))}`;
+  },
+
+  // abgehakt (optional): Set der Posten-Keys aus Store.einkaufslisteAbgehakt — abgehakt heisst
+  // «schon im Haus», geht also nicht nach Bring!. Korrigierte Posten tragen in g bereits den Ist-Wert.
+  seite(posten, titel, abgehakt){
+    const offen = posten.filter(p => !(abgehakt && abgehakt.has(p.key)));
+    const t = esc(titel);
+    return `<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="robots" content="noindex"><title>${t}</title></head>
+<body><div itemscope itemtype="https://schema.org/Recipe">
+<h1 itemprop="name">${t}</h1>
+<span itemprop="author">Libarius</span>
+<meta itemprop="recipeYield" content="1">
+<ul>
+${offen.map(p => `<li itemprop="recipeIngredient">${esc(Bring.zeile(p))}</li>`).join("\n")}
+</ul>
+</div></body></html>
+`;
+  },
+
+  // Mengen schon skaliert → Bring! soll nicht noch einmal skalieren (base = requested = 1).
+  deeplink(url){
+    return "https://api.getbring.com/rest/bringrecipes/deeplink?url=" + encodeURIComponent(url)
+      + "&source=web&baseQuantity=1&requestedQuantity=1";
+  }
+};
+
 /* ---------- Import: Austauschformat rezept/1, Pruefung, Vorschau, Uebernahme -----------
    AP-0315. Ablauf identisch fuer jeden Zulieferer (Feinkonzept §6b.2):
    parsen -> pruefen (Schema) -> Rohstoffe aufloesen -> Vorschau -> uebernehmen.
@@ -7955,6 +7999,53 @@ async function selfTest(){
         fall("LIBAR44-7 während des Schreibens: Speichern und Abbrechen gesperrt (kein Doppel-Absenden)",
           () => { const h = form(2160, 10, 0.1, { speichert:true });
             return /id="bfSpeichern"[^>]*disabled/.test(h) && /id="bfAbbrechen"[^>]*disabled/.test(h); })
+      ];
+    })(),
+    // ---- LIBAR-58 Bring!-Export: Seite (schema.org Recipe) und Deeplink, reine Funktionen.
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, fn() === true]; }catch(e){ return [name, false]; } };
+      const posten = [
+        { key:"mehl", name:"Weissmehl", einheit:"g", rohstoff:null, g:975, gSoll:975, korrigiert:false },
+        { key:"wasser", name:"Wasser", einheit:"ml", rohstoff:null, g:750, gSoll:750, korrigiert:false },
+        { key:"salz", name:"Salz", einheit:"g", rohstoff:null, g:21, gSoll:20, korrigiert:true },
+        { key:"boese", name:`Mehl <b>"Typ" & 'Co'</b>`, einheit:"g", rohstoff:null, g:5, gSoll:5, korrigiert:false }
+      ];
+      const zeilen = (h) => [...h.matchAll(/<li itemprop="recipeIngredient">([^<]*)<\/li>/g)].map(m => m[1]);
+      return [
+        fall("LIBAR58-1 nur offene Posten: abgehakte fehlen, Reihenfolge bleibt, ohne Haken alle",
+          () => { const h = Bring.seite(posten, "T", new Set(["wasser", "boese"]));
+            const z = zeilen(h);
+            return z.length === 2 && z[0] === "975 g Weissmehl" && z[1] === "21 g Salz"
+              && zeilen(Bring.seite(posten, "T")).length === 4; }),
+        fall("LIBAR58-2 Escaping: Name und Titel mit <, >, & und Anführungszeichen als Text, kein Tag",
+          () => { const h = Bring.seite(posten, `Brot <i>"A" & B</i>`);
+            return !h.includes("<b>") && !h.includes("<i>")
+              && h.includes("Mehl &lt;b&gt;&quot;Typ&quot; &amp; 'Co'&lt;/b&gt;")
+              && h.includes('<h1 itemprop="name">Brot &lt;i&gt;&quot;A&quot; &amp; B&lt;/i&gt;</h1>')
+              && h.includes("<title>Brot &lt;i&gt;") ; }),
+        fall("LIBAR58-3 Mengentext «Menge Einheit Name»: korrigiert mit Ist (21 g, nicht 20 g), ml, Stück ohne Klammer-HTML",
+          () => { const stk = { key:"ei", name:"Eier", einheit:"g", rohstoff:{ einheitsgroesse:50, standardeinheit:"stk" }, g:150, gSoll:150, korrigiert:false };
+            const zs = zeilen(Bring.seite([...posten.slice(0, 3), stk], "T"));
+            const erwartetStk = View.mengeText(150, "g", stk.rohstoff).replace(/\s*<[\s\S]*$/, "") + " Eier";
+            return zs[1] === "750 ml Wasser" && zs[2] === "21 g Salz" && zs[3] === "3 Stk Eier" && zs[3] === erwartetStk && !zs[3].includes("<")
+              && Bring.zeile(stk) === erwartetStk; }),
+        fall("LIBAR58-4 Deeplink: url URL-kodiert (?, &, # überleben decodeURIComponent), source=web, Mengen 1",
+          () => { const u = "https://x.example/p?a=1&b=2#frag teil";
+            const d = Bring.deeplink(u); const q = d.split("?")[1];
+            const par = Object.fromEntries(q.split("&").map(s => s.split("=")));
+            return d.startsWith("https://api.getbring.com/rest/bringrecipes/deeplink?")
+              && !d.includes("#") && decodeURIComponent(par.url) === u
+              && par.source === "web" && par.baseQuantity === "1" && par.requestedQuantity === "1"; }),
+        fall("LIBAR58-5 Seitengerüst: Recipe-Microdata, Autor Libarius, recipeYield 1, robots noindex",
+          () => { const h = Bring.seite(posten, "T");
+            return h.startsWith("<!doctype html>") && h.includes('itemscope itemtype="https://schema.org/Recipe"')
+              && h.includes('<span itemprop="author">Libarius</span>') && h.includes('<meta itemprop="recipeYield" content="1">')
+              && h.includes('<meta name="robots" content="noindex">') && h.includes('<meta charset="utf-8">'); }),
+        fall("LIBAR58-6 Titel: Faktor nur bei ≠ 1 (Sauerteigbrot Weiss ×1.5, ×2), sonst nur Name",
+          () => Bring.titel("Sauerteigbrot Weiss", 1.5) === "Sauerteigbrot Weiss ×1.5"
+             && Bring.titel("Sauerteigbrot Weiss", 2) === "Sauerteigbrot Weiss ×2"
+             && Bring.titel("Sauerteigbrot Weiss", 1) === "Sauerteigbrot Weiss"
+             && Bring.titel("Brot", 1/3) === "Brot ×0.33")
       ];
     })()
   ];
