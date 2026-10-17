@@ -1,0 +1,15 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8">
+<meta name="robots" content="noindex"><title>Spike Testbrot B JS</title></head>
+<body><div id="r"></div>
+<!-- LIBAR-57 Spike: Markup wird erst per JavaScript aus ?d=<Zeilen mit | getrennt> erzeugt. Dummy-Daten. -->
+<script>
+(function () {
+  var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+  var d = new URLSearchParams(location.search).get('d') || '975 g Weissmehl|750 g Wasser|3 Stk Eier|250 ml Milch|20 g Salz';
+  var li = d.split('|').map(function (l) { return '<li itemprop="recipeIngredient">' + esc(l) + '</li>'; }).join('');
+  document.getElementById('r').innerHTML =
+    '<div itemscope itemtype="https://schema.org/Recipe"><h1 itemprop="name">Spike Testbrot B JS</h1>' +
+    '<span itemprop="author">Libarius</span><meta itemprop="recipeYield" content="1"><ul>' + li + '</ul></div>';
+})();
+</script>
+</body></html>
