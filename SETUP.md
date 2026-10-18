@@ -10,7 +10,7 @@ neun leere Sperrdateien liegengeblieben, die ich aus der Cowork-Sitzung heraus n
 löschen darf. Einmal im Terminal:
 
 ```bash
-cd ~/Library/CloudStorage/OneDrive-Persönlich/04_Casa\ La\ Rocca/Küche/kochen
+cd <Pfad-zum-lokalen-libarius-Klon>
 find .git \( -name '*.lock' -o -name 'tmp_obj_*' \) -delete
 git status          # SETUP.md steht noch als unversioniert drin
 git add -A && git commit -m "SETUP.md"

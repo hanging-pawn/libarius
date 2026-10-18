@@ -46,8 +46,7 @@ CONFIG · Model · Calc · Data · Store · View · Dev · App
 | Entwicklungsmodus — Zielwerte, Referenz-Vergleich, Substitution | AP-0312–0314 | offen |
 
 Ohne Anmeldung läuft die App mit zwei eingebauten Beispielrezepten. Nach Anmeldung lädt sie
-`Rezepte.xlsx` und `Rohstoffe.xlsx` direkt aus OneDrive (Pfade in `config.json`, änderbar über
-«Andere Datenbank öffnen»).
+`Rezepte.xlsx` und `Rohstoffe.xlsx` direkt aus OneDrive (Pfade: siehe Abschnitt «`config.json` — Pfade» unten).
 
 ## Entwickeln
 
@@ -108,6 +107,15 @@ Import, `Import.phasenFehler`). **Vergleichen** zeigt die Differenz zweier Versi
 und Bewertung, unabhängig vom produktiven Backprotokoll. **Version befördern** setzt eine
 gewählte Version — nach Bestätigungsdialog — als produktive Rezeptur; alle Versionen bleiben
 danach als Verlauf sichtbar.
+
+## `config.json` — Pfade
+
+Die `config.json` im Repo trägt nur **neutrale Beispielpfade** (`rezeptePfad`, `rohstoffePfad`,
+`backupOrdner` unter `/Libarius/Beispiel/…`), keine echten Ordner- oder Kontonamen. Die eigenen
+Pfade trägt jede Person einmalig über das Kontomenü-Element «Andere Datenbank öffnen» ein; sie
+werden **nur im Browser** (localStorage, Einstellungen) gespeichert und nie ins Repo geschrieben.
+Ein im Browser gespeicherter Wert hat Vorrang vor `config.json`. Ohne eigene Pfade zeigt die App
+nur den normalen Zustand «zuerst anmelden».
 
 ## Service — LLM-Import + Rohstoff-Recherche (AP-0318)
 

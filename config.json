@@ -2,9 +2,9 @@
   "clientId": "4c4bbfe6-8742-4d43-bd49-6b4b6e959fce",
   "tenantId": "common",
   "redirectUri": "https://hanging-pawn.github.io/libarius/",
-  "rezeptePfad": "/04_Casa La Rocca/Küche/Rezepte.xlsx",
-  "rohstoffePfad": "/04_Casa La Rocca/Küche/Rohstoffe.xlsx",
-  "backupOrdner": "/04_Casa La Rocca/Küche/Backups",
+  "rezeptePfad": "/Libarius/Beispiel/Rezepte.xlsx",
+  "rohstoffePfad": "/Libarius/Beispiel/Rohstoffe.xlsx",
+  "backupOrdner": "/Libarius/Beispiel/Backups",
   "schwundFenster": 3,
   "zellenWarnung": 25000,
   "aliase": {
