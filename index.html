@@ -68,6 +68,22 @@ main#hauptraster{display:grid;grid-template-columns:auto minmax(0,1fr) auto;
   font-size:1.1rem;cursor:pointer}
 .railinhalt{overflow-y:auto;flex:1}
 .rail .empty{padding:1.2rem .9rem;color:var(--muted);font-size:.88rem}
+/* OneDrive-Dateiauswahl (Andere Datenbank öffnen) – ersetzt die Pfad-Eingabe, touch-tauglich */
+.odpick{position:fixed;inset:0;z-index:20;background:rgba(20,16,12,.5);display:flex;align-items:flex-end;justify-content:center}
+.odpick[hidden]{display:none}
+.odpick .box{background:var(--panel);color:var(--ink);width:min(560px,100%);max-height:85vh;display:flex;flex-direction:column;
+  border-radius:14px 14px 0 0;border:1px solid var(--line)}
+@media(min-width:700px){.odpick{align-items:center}.odpick .box{border-radius:14px}}
+.odpick .kopf{padding:.8rem 1rem;border-bottom:1px solid var(--line)}
+.odpick .kopf b{display:block}
+.odpick .pfad{font-size:.8rem;color:var(--muted);word-break:break-all}
+.odpick ul{list-style:none;margin:0;padding:0;overflow:auto;flex:1}
+.odpick li button{display:block;width:100%;text-align:left;background:transparent;color:var(--ink);border:0;
+  border-bottom:1px solid var(--line);border-radius:0;padding:.85rem 1rem;min-height:48px;font-size:1rem}
+.odpick li button:active{background:var(--accent-soft)}
+.odpick li.leer{padding:1rem;color:var(--muted)}
+.odpick .fuss{padding:.6rem 1rem;border-top:1px solid var(--line);display:flex;gap:.5rem;justify-content:flex-end}
+
 .scrim{position:fixed;inset:0;background:rgba(20,16,12,.4);z-index:9}
 .scrim[hidden]{display:none}
 
@@ -1625,6 +1641,7 @@ button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)
   </div>
 </header>
 
+<div class="odpick noprint" id="odpick" hidden role="dialog" aria-modal="true"></div>
 <div class="scrim noprint" id="scrim" hidden></div>
 <button class="ghost noprint" id="btnVollbildEnde">Vollbild verlassen</button>
 
@@ -8468,11 +8485,64 @@ const App = {
   // auf dem alten Stand (Store.datenLaden() aendert dank seines eigenen try/catch ohnehin nichts
   // an Store.*Workbook, solange loadWorkbooks() scheitert; hier wird nur verhindert, dass CONFIG
   // trotzdem auf den neuen, ungeprueften Pfad zeigen bleibt).
+  // OneDrive-Dateiauswahl statt Pfad-Eingabe: Ordner durchblättern, .xlsx antippen.
+  // Liefert den Pfad ab OneDrive-Wurzel oder null bei Abbruch.
+  odDateiWaehlen(titel, startPfad){
+    return new Promise(async (fertig) => {
+      const box = el("#odpick");
+      let pfad = (startPfad || "").replace(/\/[^/]*$/, "");   // Elternordner der bisherigen Datei
+      const zu = (ergebnis) => { box.hidden = true; box.innerHTML = ""; fertig(ergebnis); };
+      const laden = async () => {
+        box.hidden = false;
+        box.innerHTML = '<div class="box"><div class="kopf"><b>' + esc(titel) + '</b><div class="pfad">Lade …</div></div></div>';
+        let eintraege = [];
+        try{
+          const token = await Data.token();
+          let url = "https://graph.microsoft.com/v1.0/me/drive/" + (pfad ? "root:" + encodeURI(pfad) + ":" : "root")
+            + "/children?$select=name,folder,file&$top=200";
+          while(url){
+            const res = await fetch(url, { headers: { Authorization: "Bearer " + token } });
+            if(!res.ok) throw new Error("Graph-Fehler " + res.status);
+            const j = await res.json();
+            eintraege = eintraege.concat(j.value || []);
+            url = j["@odata.nextLink"];
+          }
+        }catch(e){
+          if(pfad){ pfad = ""; return laden(); }
+          View.meldung("Ordner lesen fehlgeschlagen: " + e.message, "err", "Andere Datenbank");
+          return zu(null);
+        }
+        const ordner = eintraege.filter(x => x.folder).sort((x, y) => x.name.localeCompare(y.name, "de"));
+        const dateien = eintraege.filter(x => x.file && /\.xlsx$/i.test(x.name)).sort((x, y) => x.name.localeCompare(y.name, "de"));
+        const zeile = (art, name, sym) => '<li><button type="button" data-art="' + art + '" data-name="' + esc(name) + '">' + sym + " " + esc(name) + "</button></li>";
+        box.innerHTML = '<div class="box"><div class="kopf"><b>' + esc(titel) + '</b><div class="pfad">' + esc(pfad || "/") + '</div></div><ul>'
+          + (pfad ? zeile("hoch", "Eine Ebene höher", "⬆️") : "")
+          + ordner.map(o => zeile("ordner", o.name, "📁")).join("")
+          + dateien.map(d => zeile("datei", d.name, "📊")).join("")
+          + (!ordner.length && !dateien.length ? '<li class="leer">Keine Ordner oder Excel-Dateien hier.</li>' : "")
+          + '</ul><div class="fuss"><button type="button" class="ghost" data-art="abbruch">Abbrechen</button></div></div>';
+        box.querySelectorAll("button").forEach(btn => btn.addEventListener("click", () => {
+          const art = btn.dataset.art, name = btn.dataset.name;
+          if(art === "abbruch") return zu(null);
+          if(art === "hoch"){ pfad = pfad.replace(/\/[^/]*$/, ""); return laden(); }
+          if(art === "ordner"){ pfad = pfad + "/" + name; return laden(); }
+          zu(pfad + "/" + name);
+        }));
+      };
+      laden();
+    });
+  },
+
   async altDBKlick(){
-    const rez = prompt("Pfad zur Rezepte.xlsx (ab OneDrive-Wurzel, z. B. /Küche/Rezepte.xlsx):", CONFIG.rezeptePfad || "");
-    if(rez == null || !rez.trim()) return;
-    const roh = prompt("Pfad zur Rohstoffe.xlsx:", CONFIG.rohstoffePfad || "");
-    if(roh == null || !roh.trim()) return;
+    if(!Data.verfuegbar() || !msalApp.getActiveAccount()){
+      View.meldung("Zum Auswählen zuerst anmelden.", "warn", "Andere Datenbank");
+      await App.loginKlick();
+      return;
+    }
+    const rez = await App.odDateiWaehlen("Rezepte-Datei wählen", CONFIG.rezeptePfad);
+    if(!rez) return;
+    const roh = await App.odDateiWaehlen("Rohstoffe-Datei wählen", rez);
+    if(!roh) return;
     const alterRezPfad = CONFIG.rezeptePfad, alterRohPfad = CONFIG.rohstoffePfad;
     const neuerRezPfad = rez.trim(), neuerRohPfad = roh.trim();
 
