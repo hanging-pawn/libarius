@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>libarius — Entwurf linke Schiene</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="libarius.css">
+<style>
+  /* Nur fuer diese Referenzseite. Jede Hoehe ist ein Vielfaches von 28; die
+     Pruefung oben auf der Seite rechnet nach. Bausteine, die libarius.css noch
+     nicht kennt, stehen unten unter «Vorschlag Nachtrag» — sie wandern erst nach
+     der Freigabe in libarius.css. */
+  body{margin:0}
+  .blatt{padding:var(--lb-zeile) var(--lb-rand) calc(2 * var(--lb-zeile));max-width:1440px}
+  .blatt p,.blatt h1,.blatt h2,.blatt ul{margin:0;padding:0}
+  .blatt ul{list-style:none}
+  .blatt a.link{color:var(--lb-graphit);text-underline-offset:5px;text-decoration-thickness:1px}
+  .fett{font-weight:500}
+  .text{max-width:860px;text-wrap:pretty}
+  .zeile{display:flex;align-items:baseline;height:var(--lb-zeile);gap:0 16px;min-width:0}
+  .zeile > .k{width:240px;flex:none;color:var(--lb-neben);font-size:var(--lb-klein)}
+  .zeile > .v{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .liste > li{min-height:var(--lb-zeile);max-width:980px;text-wrap:pretty}
+  .liste > li::before{content:"–";color:var(--lb-neben);display:inline-block;width:20px}
+  #pruefung b{font-weight:500}
+
+  /* Zeichenbretter: echte Breite, nichts skaliert */
+  .bretter{display:flex;flex-wrap:wrap;align-items:flex-start;column-gap:48px;row-gap:var(--lb-zeile)}
+  .brett-kopf{width:min-content;min-width:100%}
+  .brett{display:flex;align-items:stretch}
+  .brett > .lb-randlinie{margin:0 var(--lb-gasse);flex:none}
+  .streifen{width:120px;position:relative;color:var(--lb-neben);font-size:var(--lb-klein);white-space:nowrap;overflow:hidden}
+  .streifen > .t{font-size:var(--lb-titel);font-weight:500;color:var(--lb-graphit);
+    height:var(--lb-bedien);padding-top:var(--lb-zeile)}
+  .streifen > .schleier,.k-schleier{position:absolute;inset:0;background:rgba(42,39,36,.10)}
+  .k-rahmen{display:flex;align-items:stretch}
+  .k-rahmen > .overlay{width:461px;padding:0 24px;background-color:var(--lb-papier);position:relative}
+  .k-rahmen > .k-schleier-spalte{width:112px;position:relative}
+
+  /* ---------- Vorschlag Nachtrag libarius.css — linke Schiene (LIBAR-46) ----------
+     Aufbau von oben: Kopf 56 · Suche 56 · [Luecke 28 · Abschnittskopf 28 · Tabs]
+     · Fuss (Luecke 28 · Einkaufsliste 56 · Posten 56 …). Die Schiene ist eine
+     Spalte voller Hoehe: oben die Navigation mit eigenem Bildlauf, unten der Fuss
+     angedockt. Masse nur aus der Schicht. */
+  .lb-schiene{display:flex;flex-direction:column;position:relative;min-height:0}
+  .lb-schiene-w{width:280px}
+  .lb-schiene-m{width:240px}
+  .lb-schiene-k{width:100%}
+  .lb-schienenkopf{display:flex;justify-content:space-between;align-items:flex-start;
+    height:var(--lb-bedien);flex:none}
+  .lb-schienenkopf > .lbl{padding-top:var(--lb-zeile);font-size:var(--lb-klein);color:var(--lb-neben)}
+  .lb-schiene .lb-feld{flex:none}
+  .lb-schienen-nav{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+
+  /* Abschnittskopf: 13 Nebentext, eine Zeile, volle Breite (wie .lb-zusammenfassung-kopf) */
+  .lb-abschnittskopf{display:flex;justify-content:space-between;align-items:baseline;
+    height:var(--lb-zeile);font-size:var(--lb-klein);color:var(--lb-neben)}
+  /* Scrollt die Navigation, bleibt der Kopf stehen und deckt die Luftzeile des
+     obersten Tabs — die Zahl rechts sagt, dass oben noch Tabs liegen. */
+  .lb-schienen-nav > .lb-abschnittskopf{position:sticky;top:0;z-index:1;
+    background:linear-gradient(var(--lb-linie),var(--lb-linie)) no-repeat 0 var(--lb-linie-y)/100% 1px,var(--lb-papier)}
+
+  /* Tab (Bestand index.html, AP-0314) — geaendert: das × steht auf der Linie,
+     15 px Nebentext, statt 13 px senkrecht zentriert (S-08). Tippziel 28 × 56. */
+  .lb-tab-cue{font-variant-numeric:tabular-nums}
+  .lb-tab-eintrag{display:flex;align-items:flex-start;min-width:0}
+  .lb-tab-eintrag > .lb-bedienzeile{flex:1;min-width:0}
+  .lb-tab-schliessen{flex:none;width:var(--lb-zeile);height:var(--lb-bedien);
+    margin:0;padding:var(--lb-zeile) 0 0;border:0;background:transparent;
+    font:inherit;line-height:var(--lb-zeile);color:var(--lb-neben);text-align:right;cursor:pointer}
+  .lb-tab-schliessen:hover{color:var(--lb-graphit)}
+  .lb-tab--aktiv .lb-tab-eintrag > .lb-bedienzeile{
+    background-image:linear-gradient(var(--lb-graphit),var(--lb-graphit));
+    background-repeat:no-repeat;background-position:0 calc(100% - var(--lb-zeile) + var(--lb-linie-y));
+    background-size:100% var(--lb-fokus-staerke)}
+  .lb-punkt{color:var(--lb-rot);font-size:var(--lb-klein);line-height:1;padding-left:6px}
+
+  /* Phasen am aktiven Tab (E-2a): Nummer rechts in der Cue, an der Linie;
+     Name um 16 px eingerueckt — so liest sich die Zeile als Teil des Tabs. */
+  .lb-sprungmarke--kind > .lb-cue{text-align:right}
+  .lb-sprungmarke--kind > .lb-bedienzeile{padding-left:16px}
+
+  /* Fuss: Einkaufsliste angedockt (E-1a, S-09/S-10). Zugeklappt eine Zeile;
+     aufgeklappt hoechstens die halbe Schienenhoehe, ganze Posten, eigener Bildlauf. */
+  .lb-schienen-fuss{flex:none;display:flex;flex-direction:column;min-height:0}
+  .lb-fuss-kopf .zusatz{padding-left:8px}
+  .lb-fuss-kopf .pfeil{width:var(--lb-zeile);text-align:right;color:var(--lb-neben)}
+  .lb-posten-liste{overflow-y:auto;overscroll-behavior:contain;margin:0;padding:0;list-style:none;
+    background-image:repeating-linear-gradient(to bottom,transparent 0 var(--lb-linie-y),
+      var(--lb-linie) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+      transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile));
+    background-attachment:local}
+  .lb-posten56{display:flex;align-items:baseline;height:var(--lb-bedien);padding-top:var(--lb-zeile)}
+  .lb-posten56 > .lb-kaestchen{align-self:flex-start;margin-top:5px}
+  .lb-posten56 > .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lb-posten56 > .menge{color:var(--lb-neben);white-space:nowrap;padding-left:8px}
+  .lb-posten56--ab > .nm{color:var(--lb-neben)}
+
+  /* Rezeptliste als Blendover, beginnt UNTER dem Suchfeld (E-3b): Oberkante
+     = Schienenkopf + Feld = 112. Randlinie links, unten eine Zeile Luft (K-4). */
+  .lb-blendover{position:absolute;z-index:2;left:0;top:calc(2 * var(--lb-bedien));
+    bottom:var(--lb-zeile);overflow:auto;
+    padding:0 var(--lb-gasse) 0 calc(var(--lb-rot-staerke) + var(--lb-gasse));
+    background-color:var(--lb-papier);
+    background-image:linear-gradient(var(--lb-rot),var(--lb-rot)),
+      repeating-linear-gradient(to bottom,transparent 0 var(--lb-linie-y),
+        var(--lb-linie) var(--lb-linie-y) calc(var(--lb-linie-y) + 1px),
+        transparent calc(var(--lb-linie-y) + 1px) var(--lb-zeile));
+    background-repeat:no-repeat,repeat;background-size:var(--lb-rot-staerke) 100%,100% 100%;
+    background-attachment:local,local}
+  .lb-schiene-w > .lb-blendover{width:calc(280px + var(--lb-gasse))}
+  .lb-schiene-m > .lb-blendover{width:calc(240px + var(--lb-gasse))}
+  .lb-schiene-k > .lb-blendover{left:-24px;right:-24px}
+  .lb-blendover > .kopf{display:flex;justify-content:space-between;align-items:flex-start;height:var(--lb-bedien)}
+  .lb-blendover > .kopf > .lb-phasentitel{padding-top:var(--lb-zeile)}
+  .lb-blendover .lb-tab--aktiv > .nm{text-decoration:underline;text-decoration-thickness:var(--lb-fokus-staerke)}
+</style>
+</head>
+<body class="lb lb-papier">
+<main class="blatt">
+
+  <h1 class="lb-titel">Entwurf linke Schiene</h1>
+  <p class="lb-neben">Navigation · LIBAR-46 · Variante B, Entscheide E-1a · E-2a · E-3b · E-4a (19.10.2026) · Beispieldaten</p>
+  <p class="lb-neben"><a class="link" href="index.html">Übersicht</a> · <a class="link" href="entwurf-cue.html">Entwurf Cue-Spalte</a> · <a class="link" href="stilblatt-nachtrag.html">Stilblatt-Nachtrag</a> · Requirements im Vault: 03_Design/2026-10-19_LIBAR-46_Requirements_linke_Schiene.md</p>
+  <p id="pruefung" class="lb-neben">Prüfung läuft …</p>
+
+  <!-- ================================================================ 1 -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">1 Was sich ändert</h2>
+  <p class="text"><span class="fett">Die Schiene führt nur noch Navigation, gegliedert in Suche, offene Rezepte mit ihren Phasen und die angedockte Einkaufsliste.</span> Keine neue Funktion — es fallen nur Doppelungen weg.</p>
+  <div class="lb-luecke"></div>
+  <ul class="liste">
+    <li>Kopf: «Navigation» und ein ×. Die Spindel ‹› entfällt — sie tat dasselbe wie × (E-4a).</li>
+    <li>Ein Einstieg: das Suchfeld. Fokus oder Tippen öffnet die Rezeptliste. Die Zeile «Rezept öffnen…» entfällt. Die Lupe der Kopfzeile bleibt (R-02).</li>
+    <li>Die Rezeptliste beginnt unter dem Suchfeld. Heute deckt sie das Feld zu, man tippt blind (E-3b).</li>
+    <li>Phasen hängen eingerückt am aktiven Tab. Der eigene Block «Phasen · Rezeptname» entfällt, der Name steht einmal (E-2a).</li>
+    <li>Einkaufsliste unten angedockt, zuklappbar. Aufgeklappt höchstens die halbe Schienenhöhe, die Tabs bleiben im Bild (E-1a, O-17.3/O-17.4 gelten weiter).</li>
+    <li>Tab-× steht auf der Linie, 15 px Nebentext statt 13 px zentriert. Tippziel bleibt 28 × 56.</li>
+  </ul>
+
+  <!-- ================================================================ 2 -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">2 Masse</h2>
+  <div class="zeile"><span class="k">Höhen von oben</span><span class="v">Kopf 56 · Suche 56 · Lücke 28 · Abschnittskopf 28 · Tab 56 · Phase 56 · … · Lücke 28 · Einkaufsliste 56 · Posten 56</span></div>
+  <div class="zeile"><span class="k">Umbruch</span><span class="v">Tab- und Phasennamen brechen um, +28 je Zeile — nie abgeschnitten</span></div>
+  <div class="zeile"><span class="k">W · Schiene 280</span><span class="v">Cue 72 · Notiz 175 · Tabname 147 (Notiz − ×) · Phasenname 159 (Notiz − Einzug 16)</span></div>
+  <div class="zeile"><span class="k">M · Schiene 240</span><span class="v">Cue 72 · Notiz 143 · Tabname 115 · Phasenname 127</span></div>
+  <div class="zeile"><span class="k">K · Overlay 461 (744 px)</span><span class="v">Cue 112 · Notiz 268 · Tabname 240 · Phasenname 252</span></div>
+  <div class="zeile"><span class="k">Blendover</span><span class="v">Oberkante 112 (unter dem Feld) · W 312 · M 272 · K volle Overlaybreite · unten 28 Luft</span></div>
+  <div class="zeile"><span class="k">Einkaufsliste offen</span><span class="v">höchstens ½ Schienenhöhe, auf ganze Posten abgerundet · Zustand in localStorage wie NavGruppen</span></div>
+  <div class="zeile"><span class="k">Rot</span><span class="v">nur die Randlinie des Blendovers (Rolle 1) und der Merker ● offene Korrektur (Rolle 3)</span></div>
+
+  <!-- ================================================================ 3 -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">3 Zeichenbretter</h2>
+  <p class="lb-neben">Echte Breite. Schienenhöhe wie am Gerät: W 1440 × 900 → 840 · M iPad quer 1180 × 820 → 756 · K iPad hoch 744 → 840 gezeigt.</p>
+  <div class="lb-luecke"></div>
+  <div class="bretter" id="bretter"></div>
+
+  <!-- ================================================================ 4 -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">4 Verhalten</h2>
+  <ul class="liste">
+    <li>Zugeklappt verschwindet die Schiene ganz, auf allen Stufen (R-10). Es bleibt nichts stehen.</li>
+    <li>Stufe M: höchstens eine Schiene offen (AP-0201 §2.2) — unverändert.</li>
+    <li>Stufe K: Schiene als Overlay min(62vw, 520) mit Schleier. Die Rezeptliste liegt im Overlay, unter dem Suchfeld.</li>
+    <li>Escape oder × im Blendover schliesst die Liste und leert die Suche (Bestand).</li>
+    <li>Reicht der Platz nicht, scrollt die Navigation in sich und der aktive Tab rückt an ihren oberen Rand — auch beim Aufklappen der Einkaufsliste (Brett F).</li>
+    <li>Phasen zeigt nur der aktive Tab, ab zwei Phasen (Bestand AP-0310). Inaktive Tabs bleiben eine Zeile.</li>
+    <li>Kein Rezept offen: Abschnitt «Offene Rezepte» entfällt, die Einkaufsliste zeigt «Kein Rezept offen» und klappt nicht auf.</li>
+    <li>Einkaufsliste folgt dem aktiven Tab (Bestand). Abgehakt = Nebentext, Kästchen gefüllt.</li>
+    <li>Druck unverändert: die Schiene ist noprint.</li>
+  </ul>
+
+  <!-- ================================================================ 5 -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">5 Weg in die Anwendung</h2>
+  <p class="lb-neben">Fundstellen in index.html, Stand 19.10.2026 (Commit 2273b3a). Vor dem Ändern prüfen.</p>
+  <div class="zeile"><span class="k">Markup ab 1657</span><span class="v">#btnRailLinksSpindel und #btnRezeptOeffnen entfernen · Etikett «Navigation» · #sprungblock entfällt · #einkaufslisteCard wird Fuss</span></div>
+  <div class="zeile"><span class="k">Handler 6468, 8322</span><span class="v">Spindel- und «Rezept öffnen»-Handler entfernen · focus im Suchfeld → App.blendoverOeffnen()</span></div>
+  <div class="zeile"><span class="k">View.tabs() 4236</span><span class="v">Phasen unter dem aktiven Tab ausgeben (Inhalt von View.sprungblock(), 4263)</span></div>
+  <div class="zeile"><span class="k">View.sprungPhase() 4362</span><span class="v">Selektor #sprungblock → #railTabs</span></div>
+  <div class="zeile"><span class="k">CSS 1498</span><span class="v">.lb-tab-schliessen auf die Linie (siehe «Vorschlag Nachtrag» im Kopf dieser Seite)</span></div>
+  <div class="zeile"><span class="k">CSS 880–920</span><span class="v">#rezeplisteBlendover top = 112 statt Schienenkopf; K: padding-top entfällt</span></div>
+  <div class="zeile"><span class="k">Offen</span><span class="v">rechte Schiene hat weiter eine Spindel (#btnRailRechtsSpindel) — eigenes Ticket, nicht Teil von LIBAR-46</span></div>
+  <div class="zeile"><span class="k">selfTest()</span><span class="v">AP0302 (Einkaufsliste) unverändert · neu: Suchfeld bei offenem Blendover sichtbar (elementFromPoint)</span></div>
+
+</main>
+
+<script>
+// Nur fuer die Referenzseite: baut die Zeichenbretter aus Beispieldaten und
+// prueft danach das Raster. Das Markup der Schiene entspricht dem, was
+// View.tabs() und die Einkaufsliste kuenftig ausgeben sollen.
+(function () {
+  var REZ = {
+    sauer:  { name: 'Sauerteigbrot hell', kat: 'Backen', faktor: 1.5, phasen: ['Sauerteig anfrischen', 'Hauptteig', 'Backen'] },
+    brioche:{ name: 'Brioche-Zopf', kat: 'Backen', faktor: 1, phasen: ['Vorteig', 'Hauptteig', 'Formen & Backen'] },
+    pane:   { name: 'Panettone mit kandierten Früchten und Schokolade', kat: 'Backen', faktor: 1, korr: true, phasen: ['Erster Teig', 'Zweiter Teig', 'Backen', 'Kühlen kopfüber'] }
+  };
+  var POSTEN = [['Butter', '100 g', true], ['Ei', '2.5 Stk (150 g)'], ['Hefe frisch', '15 g'], ['Milch 3.5%', '100 ml'],
+                ['Salz', '9 g'], ['Weissmehl 00', '500 g'], ['Zucker', '60 g']];
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+  function kopf() {
+    return '<div class="lb-schienenkopf"><span class="lbl">Navigation</span>' +
+      '<button type="button" class="lb-schliessen" aria-label="Navigation schliessen">×</button></div>';
+  }
+  function feld(suche) {
+    return suche
+      ? '<div class="lb-feld lb-feld--fokus"><span class="lb-etikett">Suche</span>' + esc(suche) + '<span style="border-left:1px solid var(--lb-graphit);margin-left:1px"></span></div>'
+      : '<div class="lb-feld lb-feld--leer"><span class="lb-etikett">Suche</span>Rezept suchen oder öffnen</div>';
+  }
+  function tabs(liste, aktiv, phaseAktiv) {
+    var h = '<div class="lb-luecke"></div><div class="lb-abschnittskopf"><span>Offene Rezepte</span><span>' + liste.length + '</span></div>' +
+      '<div class="lb-cornell CORNELL">';
+    liste.forEach(function (key, i) {
+      var r = REZ[key], ist = i === aktiv;
+      h += '<div class="lb-cue-zeile lb-tab' + (ist ? ' lb-tab--aktiv' : '') + '">' +
+        '<span class="lb-cue lb-tab-cue">' + (r.faktor !== 1 ? '×' + r.faktor : '') + '</span>' +
+        '<div class="lb-tab-eintrag"><button type="button" class="lb-bedienzeile lb-bedienzeile--umbruch"><span class="nm">' + esc(r.name) +
+        (r.korr ? '<span class="lb-punkt" title="Offene Korrekturen">●</span>' : '') + '</span></button>' +
+        '<button type="button" class="lb-tab-schliessen" aria-label="Rezept schliessen">×</button></div></div>';
+      if (ist && r.phasen.length >= 2) {
+        r.phasen.forEach(function (p, j) {
+          h += '<a class="lb-cue-zeile lb-sprungmarke lb-sprungmarke--kind' + (j === phaseAktiv ? ' lb-sprungmarke--aktiv' : '') + '" href="#">' +
+            '<span class="lb-cue">' + (j + 1) + '</span><span class="lb-bedienzeile lb-bedienzeile--umbruch"><span class="nm">' + esc(p) + '</span></span></a>';
+        });
+        h += '<a class="lb-cue-zeile lb-sprungmarke lb-sprungmarke--kind lb-sprungmarke--neben" href="#"><span class="lb-cue"></span>' +
+          '<span class="lb-bedienzeile lb-bedienzeile--umbruch"><span class="nm">Metadaten</span></span></a>';
+      }
+    });
+    return h + '</div>';
+  }
+  function fuss(ek, nPosten) {
+    if (ek === 'leer') {
+      return '<div class="lb-schienen-fuss"><div class="lb-luecke"></div>' +
+        '<div class="lb-bedienzeile lb-fuss-kopf" style="cursor:default"><span class="nm">Einkaufsliste</span><span class="zusatz">Kein Rezept offen</span></div></div>';
+    }
+    var offen = ek === 'offen';
+    var h = '<div class="lb-schienen-fuss"><div class="lb-luecke"></div>' +
+      '<button type="button" class="lb-bedienzeile lb-fuss-kopf" aria-expanded="' + offen + '"><span class="nm">Einkaufsliste</span>' +
+      '<span class="zusatz">' + POSTEN.length + ' Zutaten</span><span class="pfeil">' + (offen ? '⌄' : '›') + '</span></button>';
+    if (offen) {
+      h += '<ul class="lb-posten-liste" style="height:calc(' + nPosten + ' * var(--lb-bedien))">' + POSTEN.map(function (p) {
+        return '<li class="lb-posten56' + (p[2] ? ' lb-posten56--ab' : '') + '"><span class="lb-kaestchen' + (p[2] ? ' lb-kaestchen--an' : '') + '"></span>' +
+          '<span class="nm">' + esc(p[0]) + '</span><span class="menge">' + esc(p[1]) + '</span></li>';
+      }).join('') + '</ul>';
+    }
+    return h + '</div>';
+  }
+  function blendover() {
+    return '<div class="lb-blendover"><div class="kopf"><span class="lb-phasentitel">Rezepte</span>' +
+      '<button type="button" class="lb-schliessen" aria-label="Schliessen">×</button></div>' +
+      '<div class="lb-cornell CORNELL"><div class="lb-cue-gruppe"><button type="button" class="lb-cue" aria-expanded="true">Backen</button>' +
+      '<ul class="lb-cue-notiz"><li><button type="button" class="lb-bedienzeile lb-bedienzeile--umbruch lb-tab--aktiv"><span class="nm">Brioche-Zopf</span></button></li></ul>' +
+      '</div></div></div>';
+  }
+  function schiene(b) {
+    var h = '<div class="lb-schiene lb-schiene-' + b.stufe + '" style="height:calc(' + b.zeilen + ' * var(--lb-zeile))">' +
+      kopf() + feld(b.suche) +
+      '<div class="lb-schienen-nav">' + (b.tabs.length ? tabs(b.tabs, b.aktiv, b.phase) : '') + '</div>' +
+      fuss(b.tabs.length ? b.ek : 'leer', b.nPosten) + (b.suche ? blendover() : '') + '</div>';
+    return h.replace(/CORNELL/g, 'lb-cornell--' + b.stufe);
+  }
+
+  var BRETTER = [
+    { titel: 'A · W 280 · zwei Rezepte', sub: 'Einkaufsliste zu — der Normalfall', stufe: 'w', zeilen: 30, tabs: ['sauer', 'brioche'], aktiv: 1, phase: 0, ek: 'zu' },
+    { titel: 'B · W 280 · Einkaufsliste offen', sub: '½ Höhe = 420 → 6 Posten, Rest scrollt', stufe: 'w', zeilen: 30, tabs: ['sauer', 'brioche'], aktiv: 1, phase: 0, ek: 'offen', nPosten: 6 },
+    { titel: 'C · W 280 · Suche tippt «zo»', sub: 'Liste unter dem Feld (E-3b)', stufe: 'w', zeilen: 30, tabs: ['sauer', 'brioche'], aktiv: 1, phase: 0, ek: 'zu', suche: 'zo', streifen: true },
+    { titel: 'D · W 280 · kein Rezept offen', sub: 'nur Suche und leerer Fuss', stufe: 'w', zeilen: 30, tabs: [], ek: 'leer' },
+    { titel: 'E · M 240 · drei Rezepte', sub: 'langer Name bricht um', stufe: 'm', zeilen: 27, tabs: ['pane', 'sauer', 'brioche'], aktiv: 2, phase: 1, ek: 'zu' },
+    { titel: 'F · M 240 · Einkaufsliste offen', sub: 'aktiver Tab rückt nach oben', stufe: 'm', zeilen: 27, tabs: ['pane', 'sauer', 'brioche'], aktiv: 2, phase: 1, ek: 'offen', nPosten: 5 },
+    { titel: 'G · K · Overlay 461 bei 744 px', sub: 'Cue 112, Schleier über der Rezeptur', stufe: 'k', zeilen: 30, tabs: ['sauer', 'brioche'], aktiv: 1, phase: 0, ek: 'zu', k: true },
+    { titel: 'H · K · Suche tippt «zo»', sub: 'Liste im Overlay, unter dem Feld', stufe: 'k', zeilen: 30, tabs: ['sauer', 'brioche'], aktiv: 1, phase: 0, ek: 'zu', suche: 'zo', k: true }
+  ];
+
+  var ziel = document.getElementById('bretter');
+  ziel.innerHTML = BRETTER.map(function (b) {
+    var koerper;
+    if (b.k) {
+      koerper = '<div class="k-rahmen"><div class="overlay lb-papier">' + schiene(b) + '</div><div class="k-schleier-spalte"><div class="k-schleier"></div></div></div>';
+    } else if (b.streifen) {
+      koerper = '<div class="brett">' + schiene(b) + '<div class="lb-randlinie"></div>' +
+        '<div class="streifen"><div class="t">Brioche-Zopf</div><div>Backen · 3 Phasen</div><div class="schleier"></div></div></div>';
+    } else {
+      koerper = '<div class="brett">' + schiene(b) + '</div>';
+    }
+    return '<div><div class="brett-kopf"><p class="fett">' + esc(b.titel) + '</p><p class="lb-neben">' + esc(b.sub) + '</p></div>' + koerper + '</div>';
+  }).join('');
+
+  // Reicht der Platz nicht, rueckt der aktive Tab an den oberen Rand der Navigation
+  // (S-09) — sonst schoebe eine offene Einkaufsliste ihn auf Stufe M aus dem Bild.
+  document.querySelectorAll('.lb-schienen-nav').forEach(function (nav) {
+    var tab = nav.querySelector('.lb-tab--aktiv');
+    if (tab && nav.scrollHeight > nav.clientHeight) {
+      var oben = tab.getBoundingClientRect().top - nav.getBoundingClientRect().top + nav.scrollTop;
+      nav.scrollTop = Math.round(oben / 28) * 28;
+    }
+  });
+
+  // --- Pruefung ---------------------------------------------------------------
+  var Z = 28;
+  function nahe(a, b) { return Math.abs(a - b) < 0.05; }
+  function rest(x) { return ((x % Z) + Z) % Z; }
+  function name(el) {
+    return el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className.trim()
+      ? '.' + el.className.trim().split(/\s+/).join('.') : '');
+  }
+  function rasterPruefung() {
+    var geprueft = 0, fehler = [];
+    document.querySelectorAll('.blatt *').forEach(function (el) {
+      if (el.closest('svg') || el.matches('.lb-kaestchen, .lb-punkt, .schleier, .k-schleier')) return;
+      var cs = getComputedStyle(el);
+      if (cs.display === 'inline' || cs.display === 'none' || cs.display === 'contents') return;
+      var r = el.getBoundingClientRect();
+      if (!r.height) return;
+      geprueft++;
+      if (!nahe(rest(r.height), 0)) { fehler.push(name(el) + ' Höhe ' + r.height.toFixed(2)); return; }
+      var p = el.parentElement ? getComputedStyle(el.parentElement) : null;
+      if (p && p.display.indexOf('flex') >= 0 && p.alignItems === 'baseline') return;
+      if (cs.display === 'inline-block' || cs.position === 'sticky') return;
+      var top = r.top + window.scrollY;
+      if (!nahe(rest(top), 0)) fehler.push(name(el) + ' Oberkante ' + top.toFixed(2));
+    });
+    return { geprueft: geprueft, fehler: fehler };
+  }
+  function abgeschnitten() {
+    var n = 0;
+    document.querySelectorAll('.lb-cornell .nm, .lb-cornell .lb-cue').forEach(function (el) {
+      if (el.scrollWidth > el.clientWidth + 0.5) n++;
+    });
+    return n;
+  }
+  function feldFrei() {
+    // E-3b: in jedem Brett mit offener Liste liegt das Suchfeld obenauf.
+    var ok = 0, alle = 0;
+    document.querySelectorAll('.lb-blendover').forEach(function (bo) {
+      var f = bo.parentElement.querySelector('.lb-feld');
+      f.scrollIntoView({block: 'center'});
+      var r = f.getBoundingClientRect();
+      var oben = document.elementFromPoint(r.left + 20, r.top + r.height - 10);
+      alle++; if (oben && f.contains(oben)) ok++;
+    });
+    window.scrollTo(0, 0);
+    return ok + ' / ' + alle;
+  }
+  function bericht() {
+    var rp = rasterPruefung(), frei = feldFrei();
+    document.getElementById('pruefung').innerHTML =
+      'Rasterprüfung: <b>' + rp.geprueft + '</b> Blöcke, ' +
+      (rp.fehler.length ? '<b>' + rp.fehler.length + ' ausserhalb</b>: ' + rp.fehler.slice(0, 5).join(' · ')
+                        : '<b>alle</b> Höhen und Oberkanten auf 28') +
+      ' · abgeschnitten: <b>' + abgeschnitten() + '</b> · Suchfeld frei bei offener Liste: <b>' + frei + '</b>';
+    window.lbPruefung = { raster: rp, abgeschnitten: abgeschnitten(), feldFrei: frei };
+  }
+  (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(bericht);
+})();
+</script>
+</body>
+</html>

@@ -28,6 +28,7 @@ mit 0 px Versatz behoben. Vollständige Tabelle:
 | `design/stilblatt-nachtrag.html` | Marker, Zustände, Meldungen, Overlay-Rahmen (Nachtrag 10.09.2026, K-21) |
 | `design/entwurf-kochen.html` | Hauptansicht, ein Rezept und Menü (Artboards 2a, 2b) |
 | `design/entwurf-cue.html` | Cue-Spalte der linken Schiene, Cornell-Schnitt W/M/K (AP-0202 libarius-gestaltung, 10.09.2026) |
+| `design/entwurf-schiene.html` | Linke Schiene neu geordnet: Suche, Tabs mit eingerückten Phasen, Einkaufsliste angedockt, W/M/K (LIBAR-46, Variante B, 19.10.2026 — Entwurf, Freigabe offen) |
 | `design/entwurf-rezeptur.html` | Rezeptur im Detail und Entwicklungsmodus (1c, 1d) |
 | `design/entwurf-kochmodus.html` | Kochmodus im 38er-Raster (1e) |
 | `design/_ikonen.svg.html` | Symbolsatz zum Einsetzen in eine Seite |
