@@ -8130,6 +8130,99 @@ async function selfTest(){
           return q.includes("conflictBehavior=fail") && q.includes("backupHochladen") && q.includes("backupName")
             && !q.includes("heutigesDatumLokal"); });
       return ergebnisse;
+    })()),
+    // ---- LIBAR-82/FR-107 «nie loeschen»: kein DELETE im Datenzugriff, Zeilenzahl nach jedem
+    // Schreibpfad nie kleiner. Mock-Tabelle fuehrt die Datenzeilen (Excel-Zeile 2 = Index 0) und
+    // kennt nur getItemMeta/backup/updateCell/ensureSheet — ein Loeschaufruf wuerde werfen.
+    ...(await (async () => {
+      const ergebnisse = [];
+      const fall = async (name, fn) => { try{ ergebnisse.push([name, (await fn()) === true]); }catch(e){ ergebnisse.push([name, false]); } };
+      const tabelle = (breite, zeilen, eTag) => {
+        const z = zeilen.map(r => r.slice()), log = [];
+        return { z, log,
+          async getItemMeta(){ log.push("getItemMeta"); return { eTag }; },
+          async backup(){ log.push("backup"); return "b.xlsx"; },
+          async ensureSheet(){ log.push("ensureSheet"); return true; },
+          async updateCell(p, s, addr, wert){ log.push("updateCell"); const c = XLSX.utils.decode_cell(addr);
+            while(z.length <= c.r - 1) z.push(new Array(breite).fill(null));
+            z[c.r - 1][c.c] = wert; return true; } };
+      };
+      const nurErlaubt = (log) => log.every(x => ["getItemMeta", "backup", "updateCell", "ensureSheet"].includes(x));
+      const gleich = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+      const zeilenVon = (header, n) => Array.from({ length:n }, (_, i) => header.map((h, c) => h === "Rezept-ID" ? "RZP-00" + (i + 1) : "w" + i + "-" + c));
+
+      await fall("FR107-1 Quelltext aller Data-Methoden: kein DELETE, kein Graph-Pfad …/delete (Zeilen oder Range)",
+        () => { const quellen = Object.keys(Data).filter(k => typeof Data[k] === "function").map(k => Data[k].toString());
+          return quellen.length > 5 && quellen.every(q => !q.includes("DELETE") && !/\/(rows|range)[^"'`]*\/delete|\/delete\b|deleteRow|\.delete\(\s*\{/i.test(q)); });
+
+      await fall("FR107-2 protokollSchreiben(): Zeilenzahl vor = nach, nur updateCell, andere Zeilen unverändert",
+        async () => { const vorher = zeilenVon(editorSchreibenHeader, 5);
+          const gw = tabelle(editorSchreibenHeader.length, vorher, "E1");
+          const erg = await protokollSchreiben(gw, { ...editorSchreibenParams, aktuellerETag:"E1",
+            protokoll:[{ datum:"2026-10-22", sollG:500, istG:470, notizen:null }] });
+          return erg.ergebnis === "ok" && gw.z.length === vorher.length && nurErlaubt(gw.log) && gw.log.includes("updateCell")
+            && [0, 1, 2, 4].every(i => gleich(gw.z[i], vorher[i])); });
+
+      await fall("FR107-3 importSchreiben() neues Rezept: Zeilenzahl nach = vor + 1, bisherige Zeilen zeichengleich",
+        async () => { const vorher = [["RZP-001","Bestehend","Kategorie",null,"Mehl",1000,1000,1,"Stk",null,"[]","[]",null],
+                                      ["RZP-003","Zweites","Kategorie",null,"Mehl",500,500,1,"Stk",null,"[]","[]",null]];
+          const wb = { SheetNames:["Rezepte"], Sheets:{ Rezepte: XLSX.utils.aoa_to_sheet([importHeader, ...vorher]) } };
+          const gw = tabelle(importHeader.length, vorher, "E1");
+          const erg = await importSchreiben(gw, { rezeptePfad:"/Test/Rezepte.xlsx", rezWorkbook: wb, rezSheetName:"Rezepte",
+            neueRezepte:[importNeuesRezept], versionRezepte:[], aktuellerRezepteETag:"E1",
+            rohstoffePfad:"/Test/Rohstoffe.xlsx", rohWorkbook:{ SheetNames:["Rohstoffe"], Sheets:{ Rohstoffe: XLSX.utils.aoa_to_sheet([["Name"],["Mehl"]]) } },
+            neueAliase:[], aktuellerRohstoffeETag:null });
+          return erg.ergebnis === "ok" && gw.z.length === vorher.length + 1 && nurErlaubt(gw.log)
+            && vorher.every((r, i) => gleich(gw.z[i], r)) && gw.z[2][0] === "RZP-002"; });
+
+      await fall("FR107-4 Variante übernehmen und Batch-Definition schreiben: Zeilenzahl unverändert, Variantenliste vollständig",
+        async () => {
+          // (a) Batch-Definition (batchDefinitionSchreiben)
+          const kopf = ["Rezept-ID","Name","Basis-Menge (g)","Sollgewicht (g)","Portionen","Phasen (JSON)","Entwicklung (JSON)","Protokoll (JSON)","Geändert"];
+          const vorher = zeilenVon(kopf, 4);
+          const gwB = tabelle(kopf.length, vorher, "E1");
+          const ergB = await batchDefinitionSchreiben(gwB, { rezeptePfad:"/Test/Rezepte.xlsx", sheetName:"Rezepte", header:kopf, zeileExcel:3,
+            aktuellerETag:"E1", zellen:[{ spalte:"Basis-Menge (g)", neu:1500, alt:1000 }, { spalte:"Sollgewicht (g)", neu:1500, alt:1000 }] });
+          const batchOk = ergB.ergebnis === "ok" && gwB.z.length === vorher.length && nurErlaubt(gwB.log)
+            && [0, 2, 3].every(i => gleich(gwB.z[i], vorher[i])) && gwB.z[1][6] === vorher[1][6];
+
+          // (b) Variante uebernehmen (App.entwUebernehmenBestaetigt) gegen die Mock-Tabelle: Data,
+          // msalApp, Store, View und entwPersistieren werden nur fuer diesen Fall ersetzt und in
+          // finally vollstaendig wiederhergestellt.
+          const entwicklung = { status:"entwicklung", zielwerte:{}, aktivV:2, versionen:[
+              { v:1, datum:"2026-10-01", notiz:"Start", herkunft:"produktiv", phasen:[{ name:"P", zutaten:[{ name:"Mehl", prozent:1, einheit:"g" }], schritte:[] }] },
+              { v:2, datum:"2026-10-02", notiz:"Mehr Wasser", herkunft:{ ausV:1 }, phasen:[{ name:"P", zutaten:[{ name:"Mehl", prozent:1, einheit:"g" }, { name:"Wasser", prozent:0.7, einheit:"g" }], schritte:[] }] }
+            ], versuche:[] };
+          const rz = Model.aufloesen([JSON.parse(JSON.stringify(BEISPIEL_REZEPTE[0]))], BEISPIEL_ROHSTOFFE).rezepte[0];
+          rz.entwicklung = JSON.parse(JSON.stringify(entwicklung)); rz.protokoll = rz.protokoll || [];
+          rz._raw = { spalten: kopf, zeile: 2 };   // Excel-Zeile 3
+          const vorherU = zeilenVon(kopf, 4);
+          const gwU = tabelle(kopf.length, vorherU, "E1");
+          // Store.aktuellesRezept/entw sind Getter auf den aktiven Tab (tabFeld) — darum ein eigener Tab.
+          const storeKeys = ["offene", "aktivIdx", "rezepte", "rezepteWorkbook", "rezepteETag", "rezepteSheetName"];
+          const sicherStore = Object.fromEntries(storeKeys.map(k => [k, Store[k]]));
+          const sicherData = { verfuegbar: Data.verfuegbar, getItemMeta: Data.getItemMeta, backup: Data.backup, updateCell: Data.updateCell };
+          const sicherMsal = msalApp, sicherMeldung = View.meldung, sicherRezept = View.rezept, sicherPersist = App.entwPersistieren;
+          const meldungen = [];
+          try{
+            const z = EntwModell.hydrieren(entwicklung); z.overlay = { typ:"uebernehmen", v:2 };
+            Object.assign(Store, { offene:[{ rezeptId: rz.id, entw: z }], aktivIdx:0, rezepte:[rz], rezepteETag:"E1", rezepteSheetName:"Rezepte",
+              rezepteWorkbook:{ SheetNames:["Rezepte"], Sheets:{ Rezepte: XLSX.utils.aoa_to_sheet([kopf, ...vorherU]) } } });
+            Object.assign(Data, { verfuegbar: () => true, getItemMeta: gwU.getItemMeta, backup: gwU.backup, updateCell: gwU.updateCell });
+            msalApp = { getActiveAccount: () => ({ username:"selftest" }) };
+            View.meldung = (text, art) => meldungen.push(art); View.rezept = () => {}; App.entwPersistieren = () => {};
+            await App.entwUebernehmenBestaetigt();
+          }finally{
+            Object.assign(Store, sicherStore); Object.assign(Data, sicherData);
+            msalApp = sicherMsal; View.meldung = sicherMeldung; View.rezept = sicherRezept; App.entwPersistieren = sicherPersist;
+          }
+          const entwGeschrieben = JSON.parse(gwU.z[1][6]);
+          const uebernehmenOk = meldungen.includes("ok") && !meldungen.includes("err")
+            && gwU.z.length === vorherU.length && nurErlaubt(gwU.log)
+            && [0, 2, 3].every(i => gleich(gwU.z[i], vorherU[i]))
+            && entwGeschrieben.versionen.length === 2 && entwGeschrieben.versionen.map(v => v.v).join() === "1,2";
+          return batchOk && uebernehmenOk; });
+      return ergebnisse;
     })())
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
