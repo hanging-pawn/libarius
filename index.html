@@ -8223,6 +8223,84 @@ async function selfTest(){
             && entwGeschrieben.versionen.length === 2 && entwGeschrieben.versionen.map(v => v.v).join() === "1,2";
           return batchOk && uebernehmenOk; });
       return ergebnisse;
+    })()),
+    // ---- LIBAR-83/NFR-06 Token-Umgang: ein kompletter Mock-Lade- und Schreiblauf ueber die ECHTE
+    // Data-Schicht (Mock nur fuer msalApp und fetch). Gepruefte Ausgabekanaele: console.log/info/
+    // warn/error/debug, localStorage, fetch (URL, Body, Header) und Fehlermeldungen (Error.message
+    // bzw. ergebnis.meldung — genau der Text, den App/View.meldung als Toast anzeigt).
+    ...(await (async () => {
+      const PROBE = "TEST-TOKEN-NFR06";   // Mock-Zugriffstoken (kein echter Wert)
+      const enthaelt = (x) => { try{ return x != null && (typeof x === "string" ? x : (x instanceof Error ? x.message + " " + x.stack : JSON.stringify(x) ?? String(x))).includes(PROBE); }catch(e){ return String(x).includes(PROBE); } };
+      const bodyText = (b) => b == null ? "" : typeof b === "string" ? b : (b instanceof ArrayBuffer || ArrayBuffer.isView(b)) ? new TextDecoder().decode(b) : String(b);
+      const xlsxBuf = (aoa, blatt) => XLSX.write({ SheetNames:[blatt], Sheets:{ [blatt]: XLSX.utils.aoa_to_sheet(aoa) } }, { type:"array", bookType:"xlsx" });
+      const rezBuf = xlsxBuf([importHeader, ["RZP-001","Bestehend","Kategorie",null,"Mehl",1000,1000,1,"Stk",null,"[]","[]",null]], "Rezepte");
+      const rohBuf = xlsxBuf([["Name"],["Mehl"]], "Rohstoffe");
+      const aufrufe = [], ausgaben = [], meldungen = [];
+      let fehlerModus = false;
+      const antwort = (status, extra) => ({ ok: status >= 200 && status < 300, status,
+        json: async () => ({ eTag:"E1", name:"x", error:{ message:"echo " + PROBE } }), text: async () => "echo Bearer " + PROBE,
+        arrayBuffer: async () => new ArrayBuffer(0), ...extra });
+      const mockFetch = async (url, opts = {}) => {
+        aufrufe.push({ url: String(url), opts });
+        if(fehlerModus) return antwort(500);
+        const m = (opts.method || "GET").toUpperCase(), u = String(url);
+        if(m === "GET" && u.includes("Rezepte.xlsx:/content")) return antwort(200, { arrayBuffer: async () => rezBuf });
+        if(m === "GET" && u.includes("Rohstoffe.xlsx:/content")) return antwort(200, { arrayBuffer: async () => rohBuf });
+        if(m === "GET" && u.includes("worksheets(")) return antwort(404);
+        return antwort(m === "PUT" || m === "POST" ? 201 : 200);
+      };
+      const kanaele = ["log", "info", "warn", "error", "debug"];
+      const sicher = { msal: msalApp, fetch: window.fetch, rez: CONFIG.rezeptePfad, roh: CONFIG.rohstoffePfad,
+        console: Object.fromEntries(kanaele.map(k => [k, console[k]])) };
+      const params = { ...editorSchreibenParams, aktuellerETag:"E1", protokoll:[{ datum:"2026-10-22", sollG:500, istG:470, notizen:null }] };
+      const importParams = (wb) => ({ rezeptePfad:"/Test/Rezepte.xlsx", rezWorkbook: wb, rezSheetName:"Rezepte",
+        neueRezepte:[importNeuesRezept], versionRezepte:[], aktuellerRezepteETag:"E1",
+        rohstoffePfad:"/Test/Rohstoffe.xlsx", rohWorkbook:{ SheetNames:["Rohstoffe"], Sheets:{ Rohstoffe: XLSX.utils.aoa_to_sheet([["Name"],["Mehl"]]) } },
+        neueAliase:[{ variante:"Weissmehl", ziel:"Mehl", datum:"2026-10-22" }], aktuellerRohstoffeETag:"E1" });
+      let laufOk = false;
+      try{
+        msalApp = { getActiveAccount: () => ({ username:"selftest" }), acquireTokenSilent: async () => ({ accessToken: PROBE }) };
+        window.fetch = mockFetch;
+        kanaele.forEach(k => { console[k] = (...args) => ausgaben.push(args); });
+        CONFIG.rezeptePfad = "/Test/Rezepte.xlsx"; CONFIG.rohstoffePfad = "/Test/Rohstoffe.xlsx";
+        // Laden
+        const geladen = await loadWorkbooks();
+        await Data.getItemMeta(CONFIG.rezeptePfad);
+        // Schreiben: Protokoll und Import (neues Rezept + Alias inkl. ensureSheet) ueber die echte Data-Schicht
+        const e1 = await protokollSchreiben(Data, params);
+        const e2 = await importSchreiben(Data, importParams(geladen.rezWb));
+        // Fehlerpfad 500: Graph-Antwort spiegelt den Token im Body
+        fehlerModus = true;
+        const f1 = await protokollSchreiben(Data, params);
+        const f2 = await importSchreiben(Data, importParams(geladen.rezWb));
+        for(const lauf of [() => Data.readWorkbook(CONFIG.rezeptePfad), () => Data.updateCell("/Test/Rezepte.xlsx", "Rezepte", "A1", 1),
+                           () => Data.backup(CONFIG.rezeptePfad), () => Data.ensureSheet("/Test/Rezepte.xlsx", "X")]){
+          try{ await lauf(); meldungen.push("kein Fehler"); }catch(e){ meldungen.push(e.message); }
+        }
+        meldungen.push(f1.meldung, f2.meldung);
+        laufOk = e1.ergebnis === "ok" && e2.ergebnis === "ok" && f1.ergebnis === "fehler" && f2.ergebnis === "fehler"
+          && geladen.rezepte.length === 1 && !meldungen.includes("kein Fehler");
+      }catch(e){ laufOk = false; meldungen.push("Ausnahme: " + e.message); }
+      finally{
+        msalApp = sicher.msal; window.fetch = sicher.fetch; CONFIG.rezeptePfad = sicher.rez; CONFIG.rohstoffePfad = sicher.roh;
+        kanaele.forEach(k => { console[k] = sicher.console[k]; });
+      }
+      const lsWerte = [];
+      try{ for(let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); lsWerte.push([k, localStorage.getItem(k)]); } }catch(e){}
+      const mitAuth = aufrufe.filter(a => a.opts.headers && a.opts.headers.Authorization);
+      return [
+        ["NFR06-1 kompletter Mock-Lade-/Schreiblauf inkl. Fehlerpfad 500: kein console-Argument enthält den Token",
+          laufOk && ausgaben.every(args => !args.some(enthaelt))],
+        ["NFR06-2 nach dem Lauf enthält kein localStorage-Wert (Settings, Entwurf, EntwEntwurf, alle übrigen) den Token",
+          laufOk && lsWerte.every(([k, v]) => !enthaelt(k) && !enthaelt(v))],
+        ["NFR06-3 alle fetch-Aufrufe: Token nur im Header Authorization, nie in URL oder Body",
+          laufOk && aufrufe.length >= 10 && mitAuth.length === aufrufe.length
+            && aufrufe.every(a => !a.url.includes(PROBE) && !bodyText(a.opts.body).includes(PROBE)
+              && a.opts.headers.Authorization === "Bearer " + PROBE
+              && Object.entries(a.opts.headers).every(([h, v]) => h === "Authorization" || !String(v).includes(PROBE)))],
+        ["NFR06-4 Fehlermeldungen (Toast-Text) enthalten den Token nicht, auch wenn die Graph-Antwort ihn spiegelt",
+          laufOk && meldungen.length === 6 && meldungen.every(m => typeof m === "string" && m.length > 0 && !m.includes(PROBE))]
+      ];
     })())
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
