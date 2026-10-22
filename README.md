@@ -62,9 +62,12 @@ python3 -m http.server 8080     # dann http://localhost:8080
 Vor jedem Schreibzugriff auf `Rezepte.xlsx` (Backprotokoll-Eintrag speichern, Import
 übernehmen) legt die App automatisch eine Sicherungskopie in `config.json.backupOrdner`
 an (der Pfad wird pro Nutzer in den Einstellungen gesetzt, Vorgabe `<Datenordner>/Backups`)
-— **eine Datei pro Tag**,
-`Rezepte_backup_JJJJ-MM-TT.xlsx`. Mehrfaches Speichern am selben Tag ersetzt nur diese
-eine Tagesdatei, der Ordner wird bei Bedarf automatisch angelegt.
+— **eine eigene Datei je Schreibzugriff** mit Zeitstempel (Europe/Zurich),
+`Rezepte_backup_JJJJ-MM-TT_HH-MM-SS.xlsx` (FR-106, LIBAR-81). Eine bestehende Sicherung
+wird nie ersetzt: die App lädt mit `conflictBehavior=fail` hoch; existiert der Name schon
+(zweites Speichern in derselben Sekunde), versucht sie es einmal mit Suffix `_2`, sonst
+bricht sie ab und schreibt nichts. Der Ordner wird bei Bedarf automatisch angelegt; er
+wächst mit jedem Speichern (die App löscht nie, FR-107).
 
 Das eigentliche Schreiben nutzt für das Backprotokoll gezielte Zell-Updates über die
 Microsoft Graph Excel Workbook API statt eines Ganzdatei-Uploads (Entscheid O-9 —
@@ -74,8 +77,8 @@ Kopfzeile bei jedem Speichern). Vor jedem Schreiben prüft die App den `eTag` vo
 zwischenzeitlich extern geändert, bricht die App ab, meldet den Konflikt und lädt den
 Bestand neu, statt blind zu überschreiben.
 
-**Restore:** In OneDrive in den Backup-Ordner navigieren, die gewünschte Tagesdatei
-(`Rezepte_backup_JJJJ-MM-TT.xlsx`) öffnen, herunterladen und über die produktive
+**Restore:** In OneDrive in den Backup-Ordner navigieren, die gewünschte Sicherung
+(`Rezepte_backup_JJJJ-MM-TT_HH-MM-SS.xlsx`) öffnen, herunterladen und über die produktive
 `Rezepte.xlsx` hochladen (ersetzen) — oder die Backup-Datei in OneDrive kopieren und auf
 `Rezepte.xlsx` umbenennen. Backups älter als ~90 Tage bei
 Gelegenheit von Hand in einen Archiv-Unterordner verschieben, nie automatisch löschen

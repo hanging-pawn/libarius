@@ -1833,6 +1833,29 @@ const zahlOderNull = v => { if(v == null || v === "") return null; const n = Num
 // ist, ueberschrieb das zweite Save des Tages sogar den Stand vor dem ersten. sv-SE liefert
 // mit Intl.DateTimeFormat das Format JJJJ-MM-TT direkt.
 const heutigesDatumLokal = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Zurich" }).format(new Date());
+// LIBAR-81/FR-106: Backup-Name mit Zeitstempel (Europe/Zurich, wie heutigesDatumLokal) statt einer
+// Tagesdatei — jeder Schreibzugriff bekommt eine eigene Sicherung, keine ueberschreibt eine andere.
+// "Rezepte.xlsx", 2026-10-22 13:45:07 Zurich -> "Rezepte_backup_2026-10-22_13-45-07.xlsx".
+const backupName = (dateiname, jetzt) => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Zurich",
+    year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", second:"2-digit", hourCycle:"h23" })
+    .formatToParts(jetzt).map(x => [x.type, x.value]));
+  const stamm = String(dateiname).replace(/\.xlsx$/i, "");
+  return `${stamm}_backup_${p.year}-${p.month}-${p.day}_${p.hour}-${p.minute}-${p.second}.xlsx`;
+};
+// LIBAR-81/FR-106: laedt das Backup nie per Upsert hoch. "put(name)" legt die Datei mit
+// conflictBehavior=fail an und liefert die fetch-Antwort ({ok, status}). 409 (Name existiert,
+// z.B. zweites Speichern in derselben Sekunde) -> genau ein zweiter Versuch mit Suffix "_2";
+// scheitert auch der, wirft die Funktion — der Aufrufer schreibt dann nichts (stufe "backup").
+async function backupHochladen(put, zielName){
+  const namen = [zielName, zielName.replace(/\.xlsx$/i, "") + "_2.xlsx"];
+  for(const name of namen){
+    const res = await put(name);
+    if(res.ok) return name;
+    if(res.status !== 409) throw new Error("Backup fehlgeschlagen (" + res.status + ")");
+  }
+  throw new Error("Backup fehlgeschlagen: " + namen[1] + " existiert bereits — nichts überschrieben");
+}
 
 /* ---------- Verfahrenskatalog (AP-0202/AP-0307) ---------------------------
    Kern (datum, optional sollG/istG, notizen) gilt fuer jedes Verfahren. Ob Soll/Ist im
@@ -2883,21 +2906,19 @@ const Data = {
   },
 
   // Kopie vor jedem Schreibzugriff (Feinkonzept §5.3 / CLAUDE.md «nie überschreiben»).
-  // Eine Datei pro Tag (AP-0305 Schritt 6) — mehrfaches Speichern am selben Tag ersetzt
-  // nur diese eine Tagesdatei, PUT auf den Pfad ist von sich aus ein Upsert.
+  // LIBAR-81/FR-106: eine eigene Datei je Schreibzugriff (Zeitstempel bis zur Sekunde, siehe
+  // backupName) und PUT mit conflictBehavior=fail statt Upsert — eine bestehende Sicherung wird
+  // nie ersetzt; bei 409 ein zweiter Versuch mit "_2" (backupHochladen).
   async backup(pfad){
     const ordner = CONFIG.backupOrdner || "/Backups";
     await Data.ensureOrdner(ordner);
     const buf = await Data.readWorkbook(pfad);
     const token = await Data.token();
     const name = pfad.split("/").pop();
-    const heute = heutigesDatumLokal();
-    const zielName = name.replace(/\.xlsx$/i, "") + "_backup_" + heute + ".xlsx";
-    const url = "https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(ordner + "/" + zielName) + ":/content";
-    const res = await fetch(url, { method: "PUT",
+    const put = (zielName) => fetch("https://graph.microsoft.com/v1.0/me/drive/root:" + encodeURI(ordner + "/" + zielName)
+        + ":/content?@microsoft.graph.conflictBehavior=fail", { method: "PUT",
       headers: { Authorization: "Bearer " + token, "Content-Type": "application/octet-stream" }, body: buf });
-    if(!res.ok) throw new Error("Backup fehlgeschlagen (" + res.status + ")");
-    return zielName;
+    return await backupHochladen(put, backupName(name, new Date()));
   },
 
   // Schnittstelle für AP-0305 (Speichern). Pilotbefund zum Formatverlust: siehe
@@ -8064,7 +8085,52 @@ async function selfTest(){
              && Bring.titel("Sauerteigbrot Weiss", 1) === "Sauerteigbrot Weiss"
              && Bring.titel("Brot", 1/3) === "Brot ×0.33")
       ];
-    })()
+    })(),
+    // ---- LIBAR-81/FR-106 Backup vor jedem Schreibzugriff mit Zeitstempel, nie per Upsert.
+    ...(await (async () => {
+      const ergebnisse = [];
+      const fall = async (name, fn) => { try{ ergebnisse.push([name, (await fn()) === true]); }catch(e){ ergebnisse.push([name, false]); } };
+      // Zurich: 22.10.2026 ist noch MESZ (UTC+2).
+      const zh = (h, m, s) => new Date(Date.UTC(2026, 9, 22, h - 2, m, s));
+      const putMock = (antworten, log) => async (name) => { log.push(name); const st = antworten.shift() ?? 201; return { ok: st >= 200 && st < 300, status: st }; };
+      const params = { ...editorSchreibenParams, aktuellerETag:"E1", protokoll:[{ datum:"2026-10-22", sollG:500, istG:470, notizen:null }] };
+      await fall("FR106-1 backupName: Rezepte.xlsx um 13:45:07 Zürich → Rezepte_backup_2026-10-22_13-45-07.xlsx",
+        () => backupName("Rezepte.xlsx", zh(13, 45, 7)) === "Rezepte_backup_2026-10-22_13-45-07.xlsx");
+      await fall("FR106-2 zwei Zeitpunkte desselben Tags (13:45:07, 13:45:08) → zwei verschiedene Namen",
+        () => backupName("Rezepte.xlsx", zh(13, 45, 7)) !== backupName("Rezepte.xlsx", zh(13, 45, 8)));
+      await fall("FR106-3 zwei Speichervorgänge nacheinander: zwei Backups mit verschiedenen Zielnamen, je vor dem ersten updateCell",
+        async () => {
+          const uhr = [zh(13, 45, 7), zh(13, 45, 8)];
+          const log = [];
+          const gw = { async getItemMeta(){ log.push(["meta"]); return { eTag:"E1" }; },
+            async backup(pfad){ const n = await backupHochladen(putMock([], []), backupName(pfad.split("/").pop(), uhr.shift())); log.push(["backup", n]); return n; },
+            async updateCell(p, s, addr){ log.push(["cell", addr]); return true; } };
+          const e1 = await protokollSchreiben(gw, params); const schnitt = log.length;
+          const e2 = await protokollSchreiben(gw, params);
+          const vorgang = (l) => { const iB = l.findIndex(x => x[0] === "backup"), iC = l.findIndex(x => x[0] === "cell"); return iB >= 0 && iC > iB ? l[iB][1] : null; };
+          const n1 = vorgang(log.slice(0, schnitt)), n2 = vorgang(log.slice(schnitt));
+          return e1.ergebnis === "ok" && e2.ergebnis === "ok" && log.filter(x => x[0] === "backup").length === 2
+            && n1 === "Rezepte_backup_2026-10-22_13-45-07.xlsx" && n2 === "Rezepte_backup_2026-10-22_13-45-08.xlsx"; });
+      await fall("FR106-4 PUT 409 → zweiter Versuch mit anderem Namen; scheitert auch dieser → nichts geschrieben (fehler, stufe backup)",
+        async () => {
+          const l1 = [];
+          const n = await backupHochladen(putMock([409, 201], l1), "R_backup_2026-10-22_13-45-07.xlsx");
+          const l2 = [], log = [];
+          const gw = { async getItemMeta(){ return { eTag:"E1" }; },
+            async backup(){ return await backupHochladen(putMock([409, 409], l2), "R_backup_2026-10-22_13-45-07.xlsx"); },
+            async updateCell(p, s, addr){ log.push(addr); return true; } };
+          const erg = await protokollSchreiben(gw, params);
+          return n === "R_backup_2026-10-22_13-45-07_2.xlsx" && l1.length === 2 && l1[0] !== l1[1]
+            && l2.length === 2 && l2[0] !== l2[1]
+            && erg.ergebnis === "fehler" && erg.stufe === "backup" && log.length === 0; });
+      await fall("FR106-5 UTC-Grenze: 21.10. 23:30 UTC → Datum 2026-10-22 (MESZ)",
+        () => backupName("Rezepte.xlsx", new Date(Date.UTC(2026, 9, 21, 23, 30, 0))) === "Rezepte_backup_2026-10-22_01-30-00.xlsx");
+      await fall("FR106-6 Data.backup: kein Upsert — conflictBehavior=fail, Name über backupName, keine Tagesdatei",
+        () => { const q = Data.backup.toString();
+          return q.includes("conflictBehavior=fail") && q.includes("backupHochladen") && q.includes("backupName")
+            && !q.includes("heutigesDatumLokal"); });
+      return ergebnisse;
+    })())
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
   return { anzahl:t.length, fehler };
