@@ -2505,6 +2505,29 @@ const Calc = {
     return [...posten.values()].sort((a,b) => a.name.localeCompare(b.name, "de"));
   },
 
+  // LIBAR-69/FR-1403: Einkaufsliste eines Menues = Calc.einkaufsliste je Eintrag (Faktor aus den
+  // Portionen des Eintrags, offene Kochkorrekturen des Rezepts fliessen wie in FR-1401 ein),
+  // zusammengefuehrt nach nameKey. Gleiche Ausgabeform wie Calc.einkaufsliste. Name/Einheit/
+  // Rohstoff stammen von der ersten Fundstelle. Unbekannte rezeptId wird uebersprungen.
+  // korrekturenAlle: { [rezeptId]: { zutaten } } (Form von Korrekturen.alle).
+  menueEinkaufsliste(menu, rezepte, korrekturenAlle){
+    const posten = new Map();
+    ((menu && menu.eintraege) || []).forEach(e => {
+      const rz = (rezepte || []).find(r => r.id === e.rezeptId);
+      if(!rz) return;
+      const kx = korrekturenAlle && korrekturenAlle[rz.id];
+      const liste = Calc.einkaufsliste(rz, Calc.faktorAusPortionen(e.portionen, rz), kx && kx.zutaten);
+      liste.forEach(p => {
+        const ziel = posten.get(p.key);
+        if(!ziel){ posten.set(p.key, { ...p }); return; }
+        ziel.g += p.g;
+        ziel.gSoll += p.gSoll;
+        if(p.korrigiert) ziel.korrigiert = true;
+      });
+    });
+    return [...posten.values()].sort((a,b) => a.name.localeCompare(b.name, "de"));
+  },
+
   kosten(rezept, faktor, schwund){
     let roh = 0; const fehlend = [];
     for(const z of Calc.zutatenFlach(rezept)){
@@ -4108,6 +4131,62 @@ function korrekturenModul(ablage){
 const Korrekturen = korrekturenModul({
   lesen: () => Settings.get("korrekturen", {}),
   schreiben: wert => Settings.set("korrekturen", wert)
+});
+
+/* ---------- Menues: Menueplanung (LIBAR-69/FR-1403) ---------------------------------------
+   Ein Menue ist { id, name, eintraege:[{ rezeptId, portionen }] }. Ablage in localStorage
+   (Settings-Schluessel "menues", pro Geraet; Sync zwischen Geraeten ist ausser Umfang). Als
+   Fabrik mit austauschbarer Ablage wie korrekturenModul, damit selfTest() einen Reload als
+   zweite Instanz ueber derselben Ablage nachstellen kann. Jede Operation liest frisch aus der
+   Ablage und schreibt die ganze Liste zurueck; defekter oder nicht-array Inhalt gilt als leer. */
+function menuesModul(ablage){
+  const lesen = () => {
+    try{
+      const w = ablage.lesen();
+      return Array.isArray(w) ? w.filter(m => m && typeof m === "object" && !Array.isArray(m) && m.id != null)
+        .map(m => ({ ...m, eintraege: Array.isArray(m.eintraege) ? m.eintraege : [] })) : [];
+    }catch(e){ return []; }
+  };
+  const schreiben = liste => { try{ ablage.schreiben(liste); }catch(e){} };
+  const kopie = x => JSON.parse(JSON.stringify(x));
+  const aendern = (menuId, fn) => {
+    const liste = lesen();
+    const m = liste.find(x => x.id === menuId);
+    if(!m) return null;
+    fn(m);
+    schreiben(liste);
+    return kopie(m);
+  };
+  return {
+    alle(){ return kopie(lesen()); },
+    neu(name){
+      const liste = lesen();
+      const m = { id: "m" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name: name || "", eintraege: [] };
+      liste.push(m);
+      schreiben(liste);
+      return kopie(m);
+    },
+    speichern(menu){
+      const liste = lesen();
+      const i = liste.findIndex(x => x.id === menu.id);
+      if(i >= 0) liste[i] = kopie(menu); else liste.push(kopie(menu));
+      schreiben(liste);
+    },
+    loeschen(id){ schreiben(lesen().filter(m => m.id !== id)); },
+    eintragSetzen(menuId, rezeptId, portionen){
+      return aendern(menuId, m => {
+        const e = m.eintraege.find(x => x.rezeptId === rezeptId);
+        if(e) e.portionen = portionen; else m.eintraege.push({ rezeptId, portionen });
+      });
+    },
+    eintragEntfernen(menuId, rezeptId){
+      return aendern(menuId, m => { m.eintraege = m.eintraege.filter(x => x.rezeptId !== rezeptId); });
+    }
+  };
+}
+const Menues = menuesModul({
+  lesen: () => Settings.get("menues", []),
+  schreiben: wert => Settings.set("menues", wert)
 });
 
 // LIBAR-38: Ist dasselbe Rezept in zwei Tabs offen, sieht dieser Tab die Aenderung des
@@ -6723,6 +6802,52 @@ async function selfTest(){
       return ["AP0305-M3 Phase ohne zutaten faellt nach fehlerhaft, restliche Rezepte laden weiter",
         rezepte.length === 1 && rezepte[0].id === "OK1"
           && fehlerhaft.length === 1 && fehlerhaft[0].id === "BAD1"];
+    })(),
+    // LIBAR-69/FR-1403: reiner Kern der Menue-Einkaufsliste und Menues-Ablage (localStorage, pro Geraet).
+    ...(() => {
+      const rez = (id, mehlG, portionen) => ({ id, name:id, basisMengeG:1000, portionen,
+        phasen:[{ name:"P", zutaten:[{ name:"Mehl", nameKey:"mehl", prozent:mehlG/1000, einheit:"g", rohstoff:null }] }] });
+      const rA = rez("A", 300, 4), rB = rez("B", 200, 2), rC = rez("C", 650, 4);
+      const rezepte = [rA, rB, rC];
+      const sicher = fn => { try{ return fn(); }catch(e){ return { fehler:e }; } };
+      const m1 = sicher(() => Calc.menueEinkaufsliste({ id:"m", name:"M", eintraege:[{ rezeptId:"A", portionen:4 }, { rezeptId:"B", portionen:2 }] }, rezepte, {}));
+      const m2 = sicher(() => Calc.menueEinkaufsliste({ id:"m", name:"M", eintraege:[{ rezeptId:"C", portionen:6 }] }, rezepte, {}));
+      const m2b = sicher(() => Calc.menueEinkaufsliste({ id:"m", name:"M", eintraege:[{ rezeptId:"A", portionen:8 }, { rezeptId:"B", portionen:1 }] }, rezepte, {}));
+      const m3 = sicher(() => Calc.menueEinkaufsliste({ id:"m", name:"M", eintraege:[{ rezeptId:"A", portionen:4 }, { rezeptId:"B", portionen:2 }] }, rezepte,
+        { B:{ zutaten:{ "0/0":{ ist:250, einheit:"g", faktorBeiEingabe:1 } }, notiz:"", uebernommen:[] } }));
+      const m4 = sicher(() => Calc.menueEinkaufsliste({ id:"m", name:"M", eintraege:[{ rezeptId:"ZZ", portionen:4 }, { rezeptId:"A", portionen:4 }] }, rezepte, {}));
+      const m5 = sicher(() => Calc.menueEinkaufsliste({ id:"m", name:"M", eintraege:[] }, rezepte, {}));
+      const ablageMock = start => { let roh = start === undefined ? null : JSON.stringify(start);
+        return { lesen: () => roh == null ? undefined : JSON.parse(roh), schreiben: w => { roh = JSON.stringify(w); }, roh: () => roh }; };
+      const r1 = sicher(() => {
+        const ab = ablageMock([]);
+        const a = menuesModul(ab);
+        const m = a.neu("Sonntag");
+        a.eintragSetzen(m.id, "A", 6); a.eintragSetzen(m.id, "B", 2); a.eintragSetzen(m.id, "A", 5);
+        a.eintragEntfernen(m.id, "B");
+        const b = menuesModul(ab);
+        const zwei = a.neu("Zweites"); a.loeschen(zwei.id);
+        return { a:a.alle(), b:b.alle(), m, ids:b.alle().map(x => x.id) };
+      });
+      const korrupt = [undefined, null, "kaputt", 42, { x:1 }, [null, 3, "s"]].map(w => sicher(() => menuesModul(ablageMock(w)).alle()));
+      korrupt.push(sicher(() => menuesModul({ lesen: () => { throw new Error("lesen"); }, schreiben(){} }).alle()));
+      const g = x => x && x.fehler === undefined;
+      return [
+        ["LIBAR69-1 Calc.menueEinkaufsliste: Mehl 300 g + 200 g ergibt einen Posten mit g = 500",
+          Array.isArray(m1) && m1.length === 1 && m1[0].key === "mehl" && nah(m1[0].g, 500) && nah(m1[0].gSoll, 500) && m1[0].korrigiert === false],
+        ["LIBAR69-2 Portionen skaliert je Rezept: 4 -> 6 Portionen = Faktor 1.5 (650 -> 975 g); verschiedene Portionen summieren korrekt",
+          Array.isArray(m2) && m2.length === 1 && nah(m2[0].g, 975)
+            && Array.isArray(m2b) && m2b.length === 1 && nah(m2b[0].g, 600 + 100)],
+        ["LIBAR69-3 Kochkorrektur eines Rezepts aendert g und setzt korrigiert, gSoll bleibt die unveraenderte Summe",
+          Array.isArray(m3) && m3.length === 1 && nah(m3[0].g, 300 + 250) && nah(m3[0].gSoll, 500) && m3[0].korrigiert === true],
+        ["LIBAR69-4 Eintrag mit unbekannter rezeptId wird uebersprungen, leeres Menue gibt []",
+          Array.isArray(m4) && m4.length === 1 && nah(m4[0].g, 300) && Array.isArray(m5) && m5.length === 0],
+        ["LIBAR69-5 Menues ueberstehen einen simulierten Reload: Instanz 1 schreibt, Instanz 2 liest deep-equal",
+          g(r1) && JSON.stringify(r1.a) === JSON.stringify(r1.b) && r1.b.length === 1 && r1.b[0].name === "Sonntag"
+            && JSON.stringify(r1.b[0].eintraege) === JSON.stringify([{ rezeptId:"A", portionen:5 }])],
+        ["LIBAR69-6 Defekter oder nicht-array Speicherinhalt (auch Lesefehler) ergibt eine leere Liste ohne Wurf",
+          korrupt.every(k => Array.isArray(k) && k.length === 0)]
+      ];
     })(),
     // LIBAR-36/M12: zwei Tabs = zwei korrekturenModul()-Instanzen ueber derselben Ablage.
     // Vor der Korrektur schrieb speichern() den ganzen Arbeitsstand — alle drei Faelle rot.
