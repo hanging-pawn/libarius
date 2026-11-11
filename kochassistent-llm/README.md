@@ -4,7 +4,7 @@ Unterprojekt von Libarius: ein kleines Sprachmodell, mit Wissen aus echten Kochb
 feinabgestimmt. Es bewertet ein Rezept (Machbarkeit, Effizienz, Verhältnisse, Technik,
 Risiko) und schlägt begründete Änderungen vor. Wunsch: lokal auf dem Mobilgerät.
 
-**Stand:** Gerüst und Anforderungsentwurf. Noch kein Code, keine Daten, kein Modell.
+**Stand:** Gerüst, Anforderungsentwurf und Schema-Prüfung. Keine Daten, kein Modell.
 **Anforderungen:** führend im Projekt-Vault, IDs `REQ-nnn`; hier nur der Verweis [REQUIREMENTS.md](REQUIREMENTS.md).
 **Plan:** Jira LIBAR, Meilensteine M11 bis M14.
 
@@ -35,4 +35,26 @@ lokal — `.gitignore` in diesem Ordner sperrt es (REQ-105).
 - **Gerät:** iPhone 15 Pro als Referenz.
 - **Training:** lokal auf dem Mac mit Unsloth Studio.
 - **Pfade:** `konfig/pfade.beispiel.toml` nach `konfig/pfade.lokal.toml` kopieren und den Quellenordner in iCloud Drive eintragen.
-- **Python-Pipeline:** Abhängigkeiten folgen mit dem Lehrer-Modell-Benchmark (REQ-050). Vorgesehen ist Python ≥ 3.11 in einer eigenen Umgebung in diesem Ordner.
+- **Python-Pipeline:** Python ≥ 3.11, eigene Umgebung `.venv/` in diesem Ordner (per `.gitignore` nicht im Repo). Weitere Abhängigkeiten folgen mit dem Lehrer-Modell-Benchmark (REQ-050).
+
+```bash
+cd kochassistent-llm
+python3.13 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+```
+
+## Trainingsbeispiele prüfen
+
+```bash
+.venv/bin/python -m kochassistent.schema_check tests/fixtures/gueltig.jsonl
+```
+
+Prüft jede Zeile einer JSONL-Datei gegen `schema/trainingsbeispiel.schema.json`, gibt je Verstoss eine Zeile mit der verletzten Regel aus und endet nur bei lauter gültigen Beispielen mit Exit 0.
+
+## Tests
+
+```bash
+.venv/bin/pytest tests
+```
+
+Die Fixtures in `tests/fixtures/` sind erfunden, nicht aus einem Buch. `tests/erzeuge_fixtures.py` erzeugt sie neu.
