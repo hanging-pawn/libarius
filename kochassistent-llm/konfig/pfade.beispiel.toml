@@ -1,0 +1,8 @@
+# Vorlage. Nach pfade.lokal.toml kopieren und anpassen — die lokale Datei wird nicht eingecheckt.
+
+# Ordner mit den Kochbüchern in iCloud Drive (REQ-105). Wird nur gelesen.
+quellen = "~/Library/Mobile Documents/com~apple~CloudDocs/<Ordner eintragen>"
+
+# Abgeleitete Daten und Modelle bleiben lokal im Projektordner.
+daten = "daten"
+modelle = "modelle"

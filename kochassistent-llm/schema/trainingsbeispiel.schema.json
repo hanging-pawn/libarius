@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kochassistent/trainingsbeispiel/0",
+  "title": "Trainingsbeispiel (Entwurf)",
+  "description": "Ein destilliertes Beispiel. Entwurf zu REQUIREMENTS.md REQ-010 bis REQ-019 und REQ-060 bis REQ-066 — wird mit M1 festgezogen.",
+  "type": "object",
+  "required": [
+    "id",
+    "aufgabe",
+    "bereich",
+    "rechtsstatus",
+    "eingabe",
+    "denkweg",
+    "ausgabe",
+    "belege",
+    "pruefung"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "aufgabe": {
+      "enum": [
+        "bewerten",
+        "aendern",
+        "fehlerbild",
+        "wissen"
+      ],
+      "description": "bewerten = Rezept beurteilen; aendern = Änderungsvorschlag; fehlerbild = Fehler → Ursache → Abhilfe; wissen = Regel/Verhältnis/Technik erklären"
+    },
+    "bereich": {
+      "enum": [
+        "backen",
+        "kochen"
+      ],
+      "description": "REQ-060"
+    },
+    "rechtsstatus": {
+      "enum": [
+        "gemeinfrei",
+        "offen",
+        "geschuetzt"
+      ],
+      "description": "strengster Status der verwendeten Quellen (REQ-066)"
+    },
+    "eingabe": {
+      "type": "object",
+      "required": [
+        "frage"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "frage": {
+          "type": "string"
+        },
+        "rezept": {
+          "description": "Rezept im Austauschformat rezept/1 (siehe ../FORMAT.md), ein einzelnes Rezept-Objekt",
+          "type": "object"
+        }
+      }
+    },
+    "denkweg": {
+      "description": "Schritte, die von der Eingabe zur echten Lösung führen. Jeder Schritt stützt sich auf einen Beleg oder eine Rechnung (REQ-014).",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "stuetze"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "stuetze": {
+            "type": "object",
+            "required": [
+              "art"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "art": {
+                "enum": [
+                  "beleg",
+                  "rechnung",
+                  "eingabe"
+                ]
+              },
+              "belegId": {
+                "type": "string"
+              },
+              "rechnung": {
+                "type": "string",
+                "description": "nachrechenbarer Ausdruck, z. B. 720 / 1000 = 0.72"
+              }
+            }
+          }
+        }
+      }
+    },
+    "ausgabe": {
+      "$ref": "#/$defs/bewertung"
+    },
+    "belege": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "quelleId",
+          "stelle",
+          "art",
+          "aussage"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "quelleId": {
+            "type": "string",
+            "description": "Schlüssel aus dem Quellenregister (REQ-001)"
+          },
+          "stelle": {
+            "type": "string",
+            "description": "Seite / Kapitel / Abschnitt"
+          },
+          "aussage": {
+            "type": "string",
+            "description": "die Aussage in eigenen Worten — kein Wortlaut aus dem Buch (REQ-105)"
+          },
+          "art": {
+            "enum": [
+              "rezept",
+              "technik",
+              "grundverhaeltnis",
+              "fehlerbild",
+              "warenkunde",
+              "befund"
+            ]
+          },
+          "bedingungen": {
+            "type": "string",
+            "description": "Versuchsbedingungen; Pflicht bei art = befund (REQ-065)"
+          }
+        },
+        "if": {
+          "properties": {
+            "art": {
+              "const": "befund"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "bedingungen"
+          ]
+        }
+      }
+    },
+    "pruefung": {
+      "type": "object",
+      "required": [
+        "loesungAusQuelle",
+        "rechnungenGeprueft",
+        "status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "loesungAusQuelle": {
+          "type": "boolean",
+          "description": "Die Lösung steht so in der Quelle und ist nicht vom Lehrer-Modell erfunden (REQ-013)"
+        },
+        "rechnungenGeprueft": {
+          "type": "boolean"
+        },
+        "status": {
+          "enum": [
+            "automatisch",
+            "stichprobe-ok",
+            "verworfen"
+          ]
+        },
+        "geprueftVon": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "bewertung": {
+      "title": "Bewertung — Ausgabeformat des Modells (REQ-030 bis REQ-035)",
+      "type": "object",
+      "required": [
+        "kriterien",
+        "vorschlaege"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kriterien": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kriterium",
+              "urteil",
+              "begruendung"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "kriterium": {
+                "enum": [
+                  "machbarkeit",
+                  "effizienz",
+                  "verhaeltnisse",
+                  "technik",
+                  "risiko"
+                ]
+              },
+              "urteil": {
+                "enum": [
+                  "ok",
+                  "auffaellig",
+                  "kritisch",
+                  "nicht-beurteilbar"
+                ]
+              },
+              "begruendung": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "vorschlaege": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "aenderung",
+              "wirkung",
+              "begruendung"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "aenderung": {
+                "type": "string"
+              },
+              "wirkung": {
+                "type": "string"
+              },
+              "begruendung": {
+                "type": "string"
+              },
+              "nebenwirkung": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
