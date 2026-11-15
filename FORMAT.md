@@ -159,6 +159,7 @@ in «Phasen (JSON)» ändert nur «Ins Rezept übernehmen» — dieser Pfad schr
 | `v` | number | nein | Schemaversion, Default `1` |
 | `notizen` | object | nein | Schlüssel `"<Phase>/<Zutat>"` (Zutatenzeile) oder `"<Phase>/s<Schritt>"` (Schrittzeile), alle Indizes 0-basiert wie in `phasen`; Wert: Text |
 | `korrekturen` | object | nein | Schlüssel nur `"<Phase>/<Zutat>"`; Wert: Ist-Menge in g, Zahl ≥ 0 |
+| `rezeptnotiz` | string | nein | Freie Notiz je Rezept aus der Küche (Arbeitsstand «Korrekturen», LIBAR-151); fehlt, wenn leer |
 | *weitere* | beliebig | nein | Schema offen — z. B. Gefässe und Hinweise des Mise-Overlays (EM-1). Unbekannte Schlüssel werden gelesen und unverändert zurückgeschrieben |
 
 **Lesen:** Fehlt die Spalte oder ist die Zelle leer, gilt `{ "v": 1, "notizen": {}, "korrekturen": {} }`.
@@ -171,6 +172,14 @@ die Kopfzelle «Mise (JSON)» in der ersten Spalte hinter dem genutzten Bereich 
 Zellen bleiben unberührt. Scheitert die Datenzelle nach angelegter Kopfzelle, wird die Kopfzelle
 wieder geleert (Rollback). «Geändert» bleibt stehen — Notizen ändern das Rezept nicht.
 Grenze 32'767 Zeichen pro Zelle (Excel).
+
+**Korrekturen geräteübergreifend** (LIBAR-151, FR-314): Ohne Anmeldung liegen Korrekturen wie bisher
+nur im `localStorage` (`libarius.korrekturen`). Nach dem ersten Laden aus OneDrive werden sie einmalig
+je Rezept und Feld übernommen: Korrektur als Menge bei Faktor 1 (`ist / faktorBeiEingabe`), steht dort
+schon ein anderer Wert, bleibt er (der lokale lebt in der Sicherung weiter); Rezeptnotizen bleiben
+beide. Danach wird der lokale Schlüssel umbenannt zu `libarius.korrekturen.backup-<Datum>` — nie
+gelöscht. Ab dann schreibt jede Änderung (1.5 s nach der letzten Eingabe) die Zelle; bei fremdem eTag
+wird frisch gelesen und feldweise gemischt (eigene Änderung gewinnt nur, wo sie geändert hat).
 
 ## Prüfung
 

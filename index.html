@@ -2446,6 +2446,68 @@ const Model = {
     return null;
   },
 
+  // LIBAR-151 (FR-314): Kochkorrekturen wandern aus localStorage in «Mise (JSON)». Ein
+  // Korrektur-Eintrag des Arbeitsstands ({ ist, einheit, faktorBeiEingabe, sollBeiEingabe }) wird
+  // dort als Menge bei Faktor 1 abgelegt — skaleninvariant wie korrekturenUebernehmenBestaetigt
+  // (ist/faktorBeiEingabe), ungerundet. Die Rezeptnotiz des Arbeitsstands steht im offenen
+  // Wurzelschluessel «rezeptnotiz». Rein, ohne Netz/DOM.
+  miseKorrekturWert(k){
+    if(!k) return null;
+    const f = Number(k.faktorBeiEingabe) > 0 ? Number(k.faktorBeiEingabe) : 1;
+    const g = Number(k.ist) / f;
+    return Number.isFinite(g) && g >= 0 ? g : null;
+  },
+  kxHatInhalt(kx){ return !!(kx && ((kx.zutaten && Object.keys(kx.zutaten).length) || (typeof kx.notiz === "string" && kx.notiz.trim()))); },
+  // Mise -> Arbeitsstand-Eintrag (Form von korrekturenModul): faktorBeiEingabe 1, damit
+  // Calc.korrekturAktuell(k, f) = g * f gilt.
+  kxAusMise(mise, rz){
+    const kx = { zutaten:{}, notiz: (mise && typeof mise.rezeptnotiz === "string") ? mise.rezeptnotiz : "", uebernommen:[] };
+    if(!mise) return kx;
+    Object.keys(mise.korrekturen || {}).forEach(key => {
+      const g = Number(mise.korrekturen[key]);
+      if(!Model.MISE_ZUTAT_RE.test(key) || !Number.isFinite(g) || g < 0) return;
+      const [i, j] = key.split("/").map(Number);
+      const z = rz && rz.phasen && rz.phasen[i] && rz.phasen[i].zutaten && rz.phasen[i].zutaten[j];
+      kx.zutaten[key] = { ist: g, einheit: z && z.einheit ? z.einheit : "g",
+        sollBeiEingabe: z && rz.basisMengeG ? Calc.mengeG(z, rz.basisMengeG, 1) : null, faktorBeiEingabe: 1 };
+    });
+    return kx;
+  },
+  // Arbeitsstand ist die Wahrheit: korrekturen und rezeptnotiz aus kx, Zeilennotizen und alle
+  // fremden Wurzelschluessel bleiben unveraendert. Gibt ein NEUES Objekt zurueck.
+  miseMitKx(mise, kx){
+    const m = mise ? { ...mise, notizen: { ...(mise.notizen || {}) }, korrekturen: {} } : Model.miseLeer();
+    Object.keys((kx && kx.zutaten) || {}).forEach(key => {
+      if(!Model.MISE_ZUTAT_RE.test(key)) return;
+      const g = Model.miseKorrekturWert(kx.zutaten[key]);
+      if(g != null) m.korrekturen[key] = g;
+    });
+    const n = kx && typeof kx.notiz === "string" ? kx.notiz : "";
+    if(n.trim()) m.rezeptnotiz = n; else delete m.rezeptnotiz;
+    return m;
+  },
+  // Einmalige Uebernahme eines localStorage-Eintrags, feldweise und ohne Verlust: fehlende
+  // Korrekturen kommen dazu; steht in Mise schon ein ANDERER Wert (anderes Geraet war zuerst),
+  // bleibt er stehen und der lokale Wert lebt in der umbenannten Sicherung weiter (gezaehlt in
+  // konflikte). Rezeptnotizen: beide Texte bleiben, der lokale wird angehaengt, ausser er steht
+  // schon drin (wiederholter Lauf nach Teilfehler haengt nichts doppelt an).
+  miseUebernahme(mise, lokal){
+    const m = mise ? { ...mise, notizen: { ...(mise.notizen || {}) }, korrekturen: { ...(mise.korrekturen || {}) } } : Model.miseLeer();
+    let neu = 0, konflikte = 0;
+    Object.keys((lokal && lokal.zutaten) || {}).forEach(key => {
+      if(!Model.MISE_ZUTAT_RE.test(key)) return;
+      const g = Model.miseKorrekturWert(lokal.zutaten[key]);
+      if(g == null) return;
+      if(m.korrekturen[key] === undefined){ m.korrekturen[key] = g; neu++; }
+      else if(Math.abs(Number(m.korrekturen[key]) - g) > 1e-9) konflikte++;
+    });
+    const l = lokal && typeof lokal.notiz === "string" ? lokal.notiz.trim() : "";
+    const r = typeof m.rezeptnotiz === "string" ? m.rezeptnotiz.trim() : "";
+    if(l && !r){ m.rezeptnotiz = l; neu++; }
+    else if(l && r && !r.includes(l)){ m.rezeptnotiz = r + "\n" + l; neu++; }
+    return { mise: m, neu, konflikte };
+  },
+
   // LIBAR-43 (M8): Batch neu definieren = Rezept dauerhaft umskalieren. Eingabe ist das neue
   // Fertiggewicht inkl. Schwund (LIBAR-41); faktor = neu / aktuell. "Phasen (JSON)" traegt
   // Baeckerprozente relativ zur Basis-Menge — jede Zutatenmenge (Basis-Menge × Prozent) skaliert
@@ -4345,6 +4407,14 @@ function korrekturenModul(ablage){
       });
       K.alle = frisch;
       merken(frisch);
+    },
+    // LIBAR-151: nach der Anmeldung wechselt die Ablage von localStorage auf «Mise (JSON)»
+    // (App.korrekturenAufMise). Der Arbeitsstand startet frisch aus der neuen Ablage.
+    ablageWechseln(neu){
+      ablage = neu;
+      Object.keys(basis).forEach(id => { delete basis[id]; });
+      K.alle = lesen();
+      merken(K.alle);
     },
     // AP-0201 §3.4: die Rezeptliste in B1 markiert Rezepte mit offenen Korrekturen mit einem Punkt.
     hatOffene(rezeptId){
@@ -7216,6 +7286,74 @@ async function selfTest(){
     l150.ergUnlesbar = await miseZelleSchreiben(l150.gwUnlesbar, { ...basis150, header:kopf150Mit, altWert:"{kaputt" });
   }catch(e){ l150.fehler = e; }
 
+  // LIBAR-151: zwei Geraete ueber EINER gemockten Arbeitsmappe (AOA + eTag, jede Zelle zaehlt
+  // den eTag hoch). laden() = Reload eines Geraets: parseRezepte auf einer Kopie + aktueller eTag.
+  const l151 = {};
+  try{
+    const ph = '[{"name":"Teig","zutaten":[{"name":"Mehl","prozent":1,"einheit":"g"},{"name":"Wasser","prozent":0.65,"einheit":"g"}],"schritte":[]}]';
+    const mappe = () => {
+      const aoa = [["Rezept-ID","Name","Basis-Menge (g)","Phasen (JSON)"], ["R1","Brot",1000,ph], ["R2","Zopf",500,ph]];
+      let n = 1; const log = [];
+      return { aoa, log, eTag: () => "E" + n,
+        async getItemMeta(){ return { eTag: "E" + n }; },
+        async backup(){ log.push(["backup"]); return "b.xlsx"; },
+        async updateCell(pfad, sheet, addr, wert){
+          const c = XLSX.utils.decode_cell(addr);
+          while(aoa.length <= c.r) aoa.push([]);
+          while(aoa[c.r].length <= c.c) aoa[c.r].push(null);
+          aoa[c.r][c.c] = wert; n++; log.push(["cell", addr, wert]); return true; } };
+    };
+    const laden = wb => ({ rezepte: Model.parseRezepte(JSON.parse(JSON.stringify(wb.aoa))).rezepte, eTag: wb.eTag() });
+    const pfad = { rezeptePfad:"/T/Rezepte.xlsx", sheetName:"Rezepte" };
+    const speicherAblage = () => { let w = {}; return { lesen: () => JSON.parse(JSON.stringify(w)), schreiben: x => { w = JSON.parse(JSON.stringify(x)); } }; };
+
+    // Geraet A: Arbeitsstand wie App.korrekturSetzen ihn anlegt (700 g bei Faktor 2), Notiz,
+    // dazu ein Rezept, das es in dieser Datenbank nicht gibt, und eines fuer R2.
+    const KA = korrekturenModul(speicherAblage());
+    KA.get("R1").zutaten["0/1"] = { ist:700, einheit:"g", sollBeiEingabe:1300, faktorBeiEingabe:2, ts:"t" };
+    KA.get("R1").notiz = "Teig weicher"; KA.speichern("R1");
+    KA.get("R2").zutaten["0/0"] = { ist:520, einheit:"g", sollBeiEingabe:500, faktorBeiEingabe:1, ts:"t" }; KA.speichern("R2");
+    KA.get("X9").zutaten["0/0"] = { ist:1, einheit:"g", sollBeiEingabe:1, faktorBeiEingabe:1, ts:"t" }; KA.speichern("X9");
+    const wb = mappe();
+    const a = laden(wb);
+    l151.mig = await korrekturenNachMise(wb, { ...pfad, rezepte:a.rezepte, aktuellerETag:a.eTag, lokal: KA.alle });
+    l151.migLog = wb.log.slice();
+    l151.a = a;
+    // Geraet B laedt neu und arbeitet auf der Mise-Ablage (wie App.korrekturenAufMise)
+    const b = laden(wb);
+    l151.bMise = JSON.parse(JSON.stringify(b.rezepte.map(rz => ({ id: rz.id, mise: rz.mise }))));
+    const standB = {}; b.rezepte.forEach(rz => { const k = Model.kxAusMise(rz.mise, rz); if(Model.kxHatInhalt(k)) standB[rz.id] = k; });
+    const KB = korrekturenModul(speicherAblage()); KB.ablageWechseln({ lesen: () => JSON.parse(JSON.stringify(standB)), schreiben(){} });
+    l151.kB = KB.get("R1");
+    // Danach gleichzeitig: A korrigiert Mehl (Stand nach der Uebernahme), B (alter eTag) aendert Wasser
+    // und Notiz. B bekommt den Konflikt, liest frisch, mischt feldweise -> beide Aenderungen bleiben.
+    const aR1 = a.rezepte.find(r => r.id === "R1");
+    const basisA = Model.kxAusMise(aR1.mise, aR1);
+    const kxA = Model.kxAusMise(aR1.mise, aR1);
+    kxA.zutaten["0/0"] = { ist:1100, einheit:"g", sollBeiEingabe:1000, faktorBeiEingabe:1 };
+    l151.syncA = await korrekturMiseSync(wb, { ...pfad, rz:aR1, kx:kxA, basis:basisA, aktuellerETag:l151.mig.eTag,
+      frischLesen: async () => laden(wb), mischen: KA.mischen });
+    const bR1 = b.rezepte.find(r => r.id === "R1");
+    const basisB = Model.kxAusMise(bR1.mise, bR1);
+    const kxB = Model.kxAusMise(bR1.mise, bR1);
+    kxB.zutaten["0/1"] = { ist:800, einheit:"g", sollBeiEingabe:1300, faktorBeiEingabe:2 };
+    kxB.notiz = "Teig weicher, 10 Min. länger";
+    l151.syncB = await korrekturMiseSync(wb, { ...pfad, rz:bR1, kx:kxB, basis:basisB, aktuellerETag:b.eTag,
+      frischLesen: async () => laden(wb), mischen: KB.mischen });
+    l151.c = laden(wb);   // drittes Geraet / Reload nach beiden
+    l151.gleich = await korrekturMiseSync(wb, { ...pfad, rz:l151.c.rezepte.find(r => r.id === "R1"),
+      kx: Model.kxAusMise(l151.c.rezepte.find(r => r.id === "R1").mise, l151.c.rezepte.find(r => r.id === "R1")),
+      basis:null, aktuellerETag:l151.c.eTag, frischLesen:null, mischen: KA.mischen });
+    // Unlesbare Mise-Zelle -> teilweise, diese Zelle unberuehrt; fremder eTag -> nichts geschrieben
+    const wb2 = mappe(); wb2.aoa[0].push("Mise (JSON)"); wb2.aoa[1].push("{kaputt");
+    const d2 = laden(wb2);
+    l151.teil = await korrekturenNachMise(wb2, { ...pfad, rezepte:d2.rezepte, aktuellerETag:d2.eTag, lokal: KA.alle });
+    l151.teilZelle = wb2.aoa[1][4];
+    const wb3 = mappe(); const d3 = laden(wb3);
+    l151.konf = await korrekturenNachMise(wb3, { ...pfad, rezepte:d3.rezepte, aktuellerETag:"E-alt", lokal: KA.alle });
+    l151.konfLog = wb3.log.slice();
+  }catch(e){ l151.fehler = e; }
+
   const t = [
     ["AP0305-H1 ladeConfig() behaelt eingebaute Aliase und ergaenzt config.json-Aliase, statt sie zu ersetzen",
       h1AliaseNachConfigErhalten],
@@ -8927,6 +9065,55 @@ async function selfTest(){
               && brot[2].name === "Ofen" && brot[3].portionen === 24 && brot[3].g === 12000; })
       ];
     })(),
+    // ---- LIBAR-151 (FR-314) localStorage-Korrekturen nach «Mise (JSON)» (Werte oben vor t, l151).
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, !l151.fehler && fn() === true]; }catch(e){ return [name, false]; } };
+      const mise = rz => rz.mise;
+      const r = (d, id) => d.rezepte.find(x => x.id === id);
+      return [
+        fall("LIBAR151-1 Uebernahme: 700 g bei Faktor 2 -> 350 g (Faktor 1) und Rezeptnotiz in Mise (JSON) von R1, R2 520 g; X9 (nicht in der Datenbank) bleibt nur lokal; Kopfzelle genau einmal",
+          () => l151.mig.ergebnis === "ok" && l151.mig.neu === 3 && l151.mig.konflikte === 0 && l151.mig.offen.length === 0
+            && l151.migLog.filter(x => x[0] === "cell").map(x => x[1]).join(",") === "E1,E2,E3"
+            && l151.migLog.filter(x => x[0] === "backup").length === 2
+            && mise(r({ rezepte: l151.bMise }, "R1")).korrekturen["0/1"] === 350 && mise(r({ rezepte: l151.bMise }, "R1")).rezeptnotiz === "Teig weicher"
+            && mise(r({ rezepte: l151.bMise }, "R2")).korrekturen["0/0"] === 520 && !JSON.stringify(l151.migLog).includes("X9")),
+        fall("LIBAR151-2 Geraet A korrigiert, Geraet B sieht es nach dem Neuladen (zweite Korrekturen-Instanz auf derselben Mappe): 700 g bei Faktor 2, Notiz gleich",
+          () => Calc.korrekturAktuell(l151.kB.zutaten["0/1"], 2) === 700 && Calc.korrekturAktuell(l151.kB.zutaten["0/1"], 1) === 350
+            && l151.kB.notiz === "Teig weicher"),
+        fall("LIBAR151-3 gleichzeitig A (Mehl 1100 g) und B mit altem eTag (Wasser 800 g bei ×2, Notiz): Konflikt -> frisch lesen, feldweise mischen -> beide Werte ueberleben",
+          () => { const m = mise(r(l151.c, "R1"));
+            return l151.syncA.ergebnis === "ok" && l151.syncB.ergebnis === "ok" && !!l151.syncB.frisch
+              && m.korrekturen["0/0"] === 1100 && m.korrekturen["0/1"] === 400 && m.rezeptnotiz === "Teig weicher, 10 Min. länger"
+              && mise(r(l151.c, "R2")).korrekturen["0/0"] === 520 && l151.gleich.ergebnis === "gleich"; }),
+        fall("LIBAR151-4 Zusammenfuehren je Feld: vorhandener anderer Wert bleibt (konflikte 1), fehlender kommt dazu, Notizen beide, kein doppeltes Anhaengen",
+          () => { const lok = { zutaten:{ "0/0":{ ist:20, faktorBeiEingabe:2 }, "0/1":{ ist:7, faktorBeiEingabe:1 } }, notiz:"lokal" };
+            const u = Model.miseUebernahme({ v:1, notizen:{ "0/s0":"x" }, korrekturen:{ "0/0":9 }, rezeptnotiz:"fern", gefaesse:[1] }, lok);
+            const u2 = Model.miseUebernahme(u.mise, lok);
+            return u.konflikte === 1 && u.mise.korrekturen["0/0"] === 9 && u.mise.korrekturen["0/1"] === 7 && u.mise.rezeptnotiz === "fern\nlokal"
+              && u.mise.notizen["0/s0"] === "x" && u.mise.gefaesse[0] === 1 && u2.neu === 0 && u2.mise.rezeptnotiz === "fern\nlokal"; }),
+        fall("LIBAR151-5 unlesbare Mise-Zelle -> «teilweise», Zelle unberuehrt; fremder eTag -> Konflikt, kein Backup, keine Zelle",
+          () => l151.teil.ergebnis === "teilweise" && l151.teil.offen.includes("R1") && l151.teilZelle === "{kaputt"
+            && l151.konf.ergebnis === "konflikt" && l151.konfLog.length === 0),
+        fall("LIBAR151-6 localStorage-Eintrag wird umbenannt, nie geloescht: Kopie unter .backup-<Datum>, bestehende fremde Sicherung bekommt -2",
+          () => { const m = new Map([["libarius.korrekturen", '{"R1":1}'], ["libarius.korrekturen.backup-2026-11-15", "anders"]]);
+            const sp = { getItem: k => m.has(k) ? m.get(k) : null, setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) };
+            const neu = korrekturenSicherungUmbenennen(sp, "libarius.korrekturen", "2026-11-15");
+            const nochmal = korrekturenSicherungUmbenennen(sp, "libarius.korrekturen", "2026-11-15");
+            return neu === "libarius.korrekturen.backup-2026-11-15-2" && m.get(neu) === '{"R1":1}' && !m.has("libarius.korrekturen")
+              && m.get("libarius.korrekturen.backup-2026-11-15") === "anders" && nochmal === null; }),
+        fall("LIBAR151-7 Mise-Ablage plant je geaendertem Rezept einen Abgleich; ohne Anmeldung bleibt Korrekturen auf localStorage (miseAktiv aus, nur datenLaden schaltet um)",
+          () => { const geplant = [], sicher = App.miseSyncPlanen;
+            App.miseSyncPlanen = id => geplant.push(id);
+            try{
+              const K = korrekturenModul({ lesen: () => ({}), schreiben(){} });
+              K.ablageWechseln(App.miseAblageNeu({ R1: { zutaten:{}, notiz:"", uebernommen:[] } }));
+              K.get("R1").notiz = "neu"; K.speichern("R1"); K.speichern("R1");
+            }finally{ App.miseSyncPlanen = sicher; }
+            const angemeldet = el("#btnLogin") && el("#btnLogin").classList.contains("angemeldet");
+            return geplant.join(",") === "R1" && App.datenLaden.toString().includes("korrekturenAufMise")
+              && (angemeldet || App.miseAktiv === false); })
+      ];
+    })(),
     // ---- LIBAR-149 (E-4/E-7) Zutatenzeile «Menge · Name · Hinweis», Stueckzutaten Gewicht zuerst.
     ...(() => {
       const fall = (name, fn) => { try{ return [name, fn() === true]; }catch(e){ return [name, false]; } };
@@ -9223,6 +9410,94 @@ async function miseZelleSchreiben(gateway, { rezeptePfad, sheetName, header, zei
   let neuerETag = null;
   try{ neuerETag = (await gateway.getItemMeta(rezeptePfad)).eTag; }catch(e){ neuerETag = null; }
   return { ergebnis:"ok", geschrieben, neuerETag, spalteAngelegt: vorhanden === -1 ? spalte : null };
+}
+
+// LIBAR-151: nach einem erfolgreichen Mise-Schreiben den Lesestand des Rezepts nachfuehren —
+// rz.mise, die Rohzeile und die (von allen Rezepten geteilte) Kopfzeile, falls die Spalte eben
+// angelegt wurde; sonst legte das naechste Rezept die Kopfzelle ein zweites Mal an.
+function miseNachfuehren(rz, mise, erg){
+  const SP = Model.MISE_SPALTE, header = rz._raw.spalten;
+  if(erg.spalteAngelegt != null && header.indexOf(SP) === -1) header[erg.spalteAngelegt] = SP;
+  const i = header.indexOf(SP);
+  if(i > -1 && rz._raw.werte) rz._raw.werte[i] = Model.miseSchreiben(mise);
+  rz.mise = mise;
+}
+function miseAltWert(rz){
+  const i = rz._raw.spalten.indexOf(Model.MISE_SPALTE);
+  return i > -1 && rz._raw.werte ? rz._raw.werte[i] : null;
+}
+
+// LIBAR-151 (FR-314): einmalige Uebernahme der localStorage-Korrekturen nach «Mise (JSON)», je
+// Rezept und Feld (Model.miseUebernahme), der Reihe nach ueber miseZelleSchreiben (eTag-Kette,
+// Backup je Schreiben). lokal = { rezeptId: { zutaten, notiz, uebernommen } }. Rezepte, die es in
+// dieser Datenbank nicht gibt, bleiben nur in der lokalen Sicherung. Eine unlesbare Mise-Zelle
+// oder ein Schreibfehler -> "teilweise" (der Aufrufer benennt localStorage dann NICHT um);
+// Konflikt -> sofort Abbruch. Mutiert rz.mise/_raw der geschriebenen Rezepte.
+async function korrekturenNachMise(gateway, { rezepte, rezeptePfad, sheetName, aktuellerETag, lokal }){
+  let eTag = aktuellerETag, neu = 0, konflikte = 0;
+  const geschrieben = [], offen = [];
+  for(const id of Object.keys(lokal || {})){
+    if(!Model.kxHatInhalt(lokal[id])) continue;
+    const rz = (rezepte || []).find(r => r.id === id);
+    if(!rz) continue;
+    if(rz.mise === null || !rz._raw){ offen.push(id); continue; }
+    const u = Model.miseUebernahme(rz.mise, lokal[id]);
+    konflikte += u.konflikte;
+    if(Model.miseSchreiben(u.mise) === Model.miseSchreiben(rz.mise)) continue;
+    const erg = await miseZelleSchreiben(gateway, { rezeptePfad, sheetName, header: rz._raw.spalten,
+      zeileExcel: rz._raw.zeile + 1, aktuellerETag: eTag, mise: u.mise, altWert: miseAltWert(rz) });
+    if(erg.ergebnis === "konflikt") return { ergebnis:"konflikt", eTag, geschrieben, neu, konflikte, offen:[...offen, id] };
+    if(erg.ergebnis !== "ok"){ offen.push(id); continue; }
+    miseNachfuehren(rz, u.mise, erg);
+    eTag = erg.neuerETag; neu += u.neu;
+    erg.geschrieben.forEach(g => geschrieben.push(g));
+  }
+  return { ergebnis: offen.length ? "teilweise" : "ok", eTag, geschrieben, neu, konflikte, offen };
+}
+
+// LIBAR-151: Arbeitsstand eines Rezepts nach «Mise (JSON)» schreiben. Fremder eTag (anderes
+// Geraet, anderer Tab) -> frisch lesen (frischLesen() -> { rezepte, eTag }), feldweiser
+// Dreiwege-Vergleich wie LIBAR-38 (mischen(mein, frisch, basis): nur MEINE Aenderungen
+// gegenueber dem zuletzt bestaetigten Stand gewinnen, die des anderen bleiben) und genau ein
+// zweiter Versuch. -> { ergebnis:"gleich"|"ok"|"konflikt"|"fehler", eTag, geschrieben, kx?, frisch? }
+async function korrekturMiseSync(gateway, { rz, kx, basis, rezeptePfad, sheetName, aktuellerETag, frischLesen, mischen }){
+  if(!rz || !rz._raw || rz.mise === null) return { ergebnis:"fehler", meldung:"Mise (JSON) dieses Rezepts ist nicht beschreibbar" };
+  const ziel = Model.miseMitKx(rz.mise, kx);
+  if(Model.miseSchreiben(ziel) === Model.miseSchreiben(rz.mise)) return { ergebnis:"gleich", eTag: aktuellerETag, geschrieben:[] };
+  const schreiben = (r, mise, eTag) => miseZelleSchreiben(gateway, { rezeptePfad, sheetName, header: r._raw.spalten,
+    zeileExcel: r._raw.zeile + 1, aktuellerETag: eTag, mise, altWert: miseAltWert(r) });
+  let erg = await schreiben(rz, ziel, aktuellerETag);
+  if(erg.ergebnis === "ok"){ miseNachfuehren(rz, ziel, erg); return { ergebnis:"ok", eTag: erg.neuerETag, geschrieben: erg.geschrieben }; }
+  if(erg.ergebnis !== "konflikt" || !frischLesen) return { ...erg, eTag: aktuellerETag, geschrieben:[] };
+  let frisch;
+  try{ frisch = await frischLesen(); }catch(e){ return { ergebnis:"fehler", stufe:"lesen", meldung: e.message, eTag: aktuellerETag, geschrieben:[] }; }
+  const rzFrisch = frisch && (frisch.rezepte || []).find(r => r.id === rz.id);
+  if(!rzFrisch || rzFrisch.mise === null || !rzFrisch._raw) return { ergebnis:"fehler", stufe:"lesen", meldung:"Rezept nach Neuladen nicht beschreibbar", eTag: aktuellerETag, geschrieben:[] };
+  const gemischt = mischen(kx, Model.kxAusMise(rzFrisch.mise, rzFrisch), basis);
+  const ziel2 = Model.miseMitKx(rzFrisch.mise, gemischt);
+  rz._raw = rzFrisch._raw; rz.mise = rzFrisch.mise;
+  if(Model.miseSchreiben(ziel2) === Model.miseSchreiben(rzFrisch.mise)) return { ergebnis:"ok", eTag: frisch.eTag, geschrieben:[], kx: gemischt, frisch };
+  erg = await schreiben(rz, ziel2, frisch.eTag);
+  if(erg.ergebnis !== "ok") return { ...erg, eTag: frisch.eTag, geschrieben:[], frisch };
+  miseNachfuehren(rz, ziel2, erg);
+  return { ergebnis:"ok", eTag: erg.neuerETag, geschrieben: erg.geschrieben, kx: gemischt, frisch };
+}
+
+// LIBAR-151: localStorage-Eintrag umbenennen statt loeschen — Kopie unter
+// "<schluessel>.backup-<datum>[-n]", erst nach bestaetigter Kopie faellt der alte Schluessel weg.
+// speicher = localStorage-artig (getItem/setItem/removeItem). -> neuer Schluessel oder null.
+function korrekturenSicherungUmbenennen(speicher, schluessel, datum){
+  let roh;
+  try{ roh = speicher.getItem(schluessel); }catch(e){ return null; }
+  if(roh == null) return null;
+  let ziel = schluessel + ".backup-" + datum, n = 2;
+  try{
+    while(speicher.getItem(ziel) != null && speicher.getItem(ziel) !== roh) ziel = schluessel + ".backup-" + datum + "-" + n++;
+    speicher.setItem(ziel, roh);
+    if(speicher.getItem(ziel) !== roh) return null;
+    speicher.removeItem(schluessel);
+  }catch(e){ return null; }
+  return ziel;
 }
 
 // AP-0307: reiner Schreibkern des Verfahrensprotokoll-Formulars — gleiches Prinzip wie
@@ -9539,6 +9814,10 @@ const App = {
       catch(e){ Store.rezepteETag = null; }
       try{ Store.rohstoffeETag = (await Data.getItemMeta(CONFIG.rohstoffePfad)).eTag; }
       catch(e){ Store.rohstoffeETag = null; }
+      // LIBAR-151 (FR-314): Korrekturen ab hier geraeteuebergreifend in «Mise (JSON)».
+      let miseMeldung = null;
+      try{ miseMeldung = await App.korrekturenAufMise(); }
+      catch(e){ miseMeldung = { art:"warn", text:"Korrekturen bleiben lokal: " + e.message }; }
       el("#modus").textContent = "OneDrive — " + Store.rezepte.length + " Rezepte";
       // AP-0314, AP-0204 §2.5: der Bestand hat gewechselt (Beispieldaten -> OneDrive) — bereits
       // offene Tabs der Beispieldaten passen zu keiner rezeptId des neuen Bestands mehr und
@@ -9554,6 +9833,7 @@ const App = {
       }else{
         View.meldung("Rezepte und Rohstoffe aus OneDrive geladen.", "ok");
       }
+      if(miseMeldung) View.meldung(miseMeldung.text, miseMeldung.art, "Korrekturen");
       return true;
     }catch(e){
       View.meldung("Laden fehlgeschlagen: " + e.message, "err", "Fehler beim Laden");
@@ -9799,6 +10079,115 @@ const App = {
     Korrekturen.speichern(rezeptId);
     View.rezept();
     View.liste();
+  },
+
+  // ---- LIBAR-151 (FR-314): Korrekturen geraeteuebergreifend in «Mise (JSON)». Ohne Anmeldung
+  // bleibt alles wie bisher (localStorage). Nach dem Laden aus OneDrive: einmalige Uebernahme des
+  // localStorage-Stands (korrekturenNachMise), Umbenennen als Sicherung, dann arbeitet Korrekturen
+  // auf einer Ablage, deren Schreiben je geaendertem Rezept einen Mise-Abgleich plant.
+  miseAktiv: false, miseBasis: {}, miseTimer: {}, miseLaeuft: false,
+  miseAblageNeu(stand){
+    const kopie = o => JSON.parse(JSON.stringify(o || {}));
+    let s = kopie(stand);
+    return {
+      lesen: () => kopie(s),
+      schreiben(wert){
+        const alt = s; s = kopie(wert);
+        new Set([...Object.keys(alt), ...Object.keys(s)]).forEach(id => {
+          if(JSON.stringify(alt[id]) !== JSON.stringify(s[id])) App.miseSyncPlanen(id);
+        });
+      }
+    };
+  },
+  // -> { art, text } fuer eine Meldung oder null.
+  async korrekturenAufMise(){
+    if(App.miseAktiv){ App.miseNachziehen(Store.rezepte); return null; }
+    let meldung = null;
+    const lokal = Settings.get("korrekturen", null);
+    if(lokal && typeof lokal === "object" && Object.keys(lokal).some(id => Model.kxHatInhalt(lokal[id]))){
+      const erg = await korrekturenNachMise(Data, { rezepte: Store.rezepte, rezeptePfad: CONFIG.rezeptePfad,
+        sheetName: Store.rezepteSheetName, aktuellerETag: Store.rezepteETag, lokal });
+      erg.geschrieben.forEach(g => workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, g.addr, g.wert));
+      if(erg.geschrieben.length) Store.rezepteETag = erg.eTag;
+      if(erg.ergebnis !== "ok")
+        return { art:"warn", text:"Korrekturen dieses Geräts konnten nicht vollständig nach Rezepte.xlsx übernommen werden ("
+          + (erg.ergebnis === "konflikt" ? "Datei zwischenzeitlich geändert" : erg.offen.length + " Rezept(e) nicht beschreibbar")
+          + ") — sie bleiben lokal und werden beim nächsten Laden erneut übernommen." };
+      const sicherung = korrekturenSicherungUmbenennen(localStorage, Settings.schluessel("korrekturen"), heutigesDatumLokal());
+      if(!sicherung) return { art:"warn", text:"Korrekturen wurden nach Rezepte.xlsx übernommen, die lokale Kopie konnte aber nicht umbenannt werden — sie bleibt unverändert." };
+      meldung = { art: erg.konflikte ? "warn" : "ok", text: erg.neu + " Korrektur(en)/Notiz(en) dieses Geräts in Rezepte.xlsx übernommen; die lokale Kopie bleibt unter «"
+        + sicherung + "»." + (erg.konflikte ? " " + erg.konflikte + " Wert(e) standen dort schon anders — es gilt der Wert aus Rezepte.xlsx." : "") };
+    }
+    App.miseBasis = {};
+    const stand = {};
+    Store.rezepte.forEach(rz => {
+      if(!rz.mise) return;
+      const k = Model.kxAusMise(rz.mise, rz);
+      App.miseBasis[rz.id] = k;
+      if(Model.kxHatInhalt(k)) stand[rz.id] = k;
+    });
+    Korrekturen.ablageWechseln(App.miseAblageNeu(stand));
+    App.miseAktiv = true;
+    return meldung;
+  },
+  // Frischer Bestand (Neuladen, fremder eTag): je Rezept feldweise mischen — meine Aenderungen
+  // gegenueber dem zuletzt bestaetigten Stand (miseBasis) gewinnen, alles andere kommt aus der Datei.
+  miseNachziehen(rezepte, ausser){
+    rezepte.forEach(fr => {
+      if(fr.id === ausser || !fr.mise) return;
+      const frK = Model.kxAusMise(fr.mise, fr);
+      const mein = Korrekturen.alle[fr.id], basis = App.miseBasis[fr.id];
+      App.miseBasis[fr.id] = frK;
+      if(!mein){ if(Model.kxHatInhalt(frK)) Korrekturen.alle[fr.id] = frK; return; }
+      const g = Korrekturen.mischen(mein, frK, basis);
+      mein.zutaten = g.zutaten; mein.notiz = g.notiz;
+      if(Model.miseSchreiben(Model.miseMitKx(fr.mise, mein)) !== Model.miseSchreiben(fr.mise)) App.miseSyncPlanen(fr.id);
+    });
+  },
+  // Notiz-Eingabe speichert je Tastendruck — geschrieben wird erst nach 1.5 s Ruhe.
+  miseSyncPlanen(id){
+    clearTimeout(App.miseTimer[id]);
+    App.miseTimer[id] = setTimeout(() => App.miseSync(id), 1500);
+  },
+  async miseFrischLesen(){
+    const eTag = (await Data.getItemMeta(CONFIG.rezeptePfad)).eTag;
+    const wb = XLSX.read(await Data.readWorkbook(CONFIG.rezeptePfad), { type:"array", cellDates:true });
+    const sn = wb.SheetNames[0];
+    const { rezepte } = Model.parseRezepte(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header:1, raw:true, defval:null }));
+    return { rezepte, eTag, wb, sn };
+  },
+  async miseSync(id){
+    if(!App.miseAktiv) return;
+    if(App.miseLaeuft){ App.miseSyncPlanen(id); return; }
+    const rz = Store.rezepte.find(r => r.id === id);
+    if(!rz || !rz._raw || !(Data.verfuegbar() && msalApp && msalApp.getActiveAccount())) return;
+    App.miseLaeuft = true;
+    try{
+      const kx = Korrekturen.get(id);
+      const erg = await korrekturMiseSync(Data, { rz, kx, basis: App.miseBasis[id], rezeptePfad: CONFIG.rezeptePfad,
+        sheetName: Store.rezepteSheetName, aktuellerETag: Store.rezepteETag, frischLesen: App.miseFrischLesen, mischen: Korrekturen.mischen });
+      if(erg.frisch){
+        Store.rezepteWorkbook = erg.frisch.wb; Store.rezepteSheetName = erg.frisch.sn; Store.rezepteETag = erg.frisch.eTag;
+        erg.frisch.rezepte.forEach(fr => { const r = Store.rezepte.find(x => x.id === fr.id); if(r && r !== rz){ r.mise = fr.mise; r._raw = fr._raw; } });
+        App.miseNachziehen(Store.rezepte, id);
+      }
+      if(erg.ergebnis === "ok" || erg.ergebnis === "gleich"){
+        erg.geschrieben.forEach(g => workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, g.addr, g.wert));
+        if(erg.ergebnis === "ok") Store.rezepteETag = erg.eTag;
+        App.miseBasis[id] = Model.kxAusMise(rz.mise, rz);
+        if(erg.kx){
+          kx.zutaten = erg.kx.zutaten; kx.notiz = erg.kx.notiz;
+          const tippt = document.activeElement && document.activeElement.id === "korrekturNotiz";
+          if(Store.aktuellesRezept && Store.aktuellesRezept.id === id && !tippt) View.rezept();
+          View.liste();
+        }
+      }else{
+        View.meldung("Korrekturen konnten nicht in Rezepte.xlsx gespeichert werden" + (erg.meldung ? " (" + erg.meldung + ")" : "")
+          + " — sie bleiben in dieser Sitzung und werden beim nächsten Ändern erneut gespeichert.", "warn", "Nicht gespeichert");
+      }
+    }catch(e){
+      View.meldung("Korrekturen konnten nicht in Rezepte.xlsx gespeichert werden (" + e.message + ").", "warn", "Nicht gespeichert");
+    }finally{ App.miseLaeuft = false; }
   },
 
   // AP-0203 §6.3 "Ins Rezept übernehmen", auf den schmalen Fall zugeschnitten: nur die
