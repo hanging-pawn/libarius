@@ -2262,7 +2262,11 @@ const Model = {
           // Backprotokoll fuer neu geschriebene Eintraege. Leseregel AP-0202: ist sie fuer ein
           // Rezept gesetzt, gilt sie ausschliesslich; ist sie leer, dient Backprotokoll (JSON)
           // rein lesend als Fallback bis zum ersten Schreiben (Migration siehe App.protokollSpeichern).
-          iProtokoll = i("Protokoll (JSON)");
+          iProtokoll = i("Protokoll (JSON)"),
+          // LIBAR-150: Spalte "Mise (JSON)" (Notizen/Korrekturen je Zeile). Fehlt sie: leeres
+          // Mise-Objekt. Ungueltiger Inhalt laesst das Rezept laden (mise null, miseFehler) —
+          // die Zelle wird dann nie ueberschrieben.
+          iMise = i("Mise (JSON)");
     const rezepte = [], fehlerhaft = [];
     for(let r = 1; r < aoa.length; r++){
       const row = aoa[r];
@@ -2314,6 +2318,8 @@ const Model = {
           quelle: row[iQuelle] || null,
           verfahren: (iVerfahren > -1 && row[iVerfahren]) ? String(row[iVerfahren]).trim() || null : null,
           phasen, backprotokoll, protokoll, entwicklung,
+          mise: iMise > -1 ? Model.parseMise(row[iMise]) : Model.miseLeer(),
+          miseFehler: iMise > -1 && Model.parseMise(row[iMise]) === null ? "Mise (JSON) ist kein gültiges Objekt" : null,
           _raw: { zeile: r, spalten: header, werte: row }
         });
       }catch(e){
@@ -2329,6 +2335,64 @@ const Model = {
   zelladresse(header, spaltenname, zeileExcel){
     const i = header.indexOf(spaltenname);
     return i === -1 ? null : XLSX.utils.encode_col(i) + zeileExcel;
+  },
+
+  // LIBAR-150 (FR-210, FR-314, Entscheid O-15): Spalte «Mise (JSON)» je Rezept. Traegt
+  // Zeilennotizen (Schluessel "<Phase>/<Zutat>" bzw. "<Phase>/s<Schritt>", alles 0-basiert) und
+  // Mengenkorrekturen (nur "<Phase>/<Zutat>", Wert in g). Das Schema ist offen: weitere
+  // Wurzelschluessel (spaeter Gefaesse/Hinweise des Mise-Overlays, EM-1) werden beim Lesen
+  // unveraendert mitgefuehrt und beim Schreiben wieder ausgegeben — nichts geht verloren.
+  // Rein, ohne Netz/DOM. "Phasen (JSON)" beruehrt dieser Pfad nie (Sollmengen aendert nur
+  // «Ins Rezept übernehmen»).
+  MISE_SPALTE: "Mise (JSON)",
+  MISE_ZUTAT_RE: /^\d+\/\d+$/,
+  MISE_NOTIZ_RE: /^\d+\/s?\d+$/,
+  miseLeer(){ return { v:1, notizen:{}, korrekturen:{} }; },
+  miseSchluessel(phaseIndex, zutatIndex){ return phaseIndex + "/" + zutatIndex; },
+  miseSchrittSchluessel(phaseIndex, schrittIndex){ return phaseIndex + "/s" + schrittIndex; },
+  // Zellwert -> Objekt. Leer/fehlend -> miseLeer(). Ungueltiges JSON oder falsche Form -> null:
+  // dann darf nichts darueber geschrieben werden (miseZelleSchreiben verweigert, nie loeschen).
+  parseMise(wert){
+    const istObj = o => o != null && typeof o === "object" && !Array.isArray(o);
+    if(wert == null || (typeof wert === "string" && wert.trim() === "")) return Model.miseLeer();
+    let o;
+    try{ o = typeof wert === "string" ? JSON.parse(wert) : null; }catch(e){ return null; }
+    if(!istObj(o)) return null;
+    if(o.notizen != null && !istObj(o.notizen)) return null;
+    if(o.korrekturen != null && !istObj(o.korrekturen)) return null;
+    return { ...o, v: o.v != null ? o.v : 1, notizen: { ...(o.notizen || {}) }, korrekturen: { ...(o.korrekturen || {}) } };
+  },
+  // Objekt -> Zellwert (JSON-Text). v, notizen, korrekturen zuerst, Schluessel sortiert (stabile
+  // Diffs), danach alle uebrigen Wurzelschluessel unveraendert.
+  miseSchreiben(mise){
+    const m = mise || Model.miseLeer();
+    const sortiert = o => Object.keys(o || {}).sort((a, b) => a.localeCompare(b, "en", { numeric:true }))
+      .reduce((acc, k) => { acc[k] = o[k]; return acc; }, {});
+    const { v, notizen, korrekturen, ...rest } = m;
+    return JSON.stringify({ v: v != null ? v : 1, notizen: sortiert(notizen), korrekturen: sortiert(korrekturen), ...rest });
+  },
+  // Eine Notiz oder Korrektur setzen/entfernen; gibt ein NEUES Objekt zurueck (null = ungueltig).
+  // art "notiz": Schluessel Zutat oder Schritt, Text (leer -> Eintrag entfernt).
+  // art "korrektur": nur Zutat-Schluessel, Zahl >= 0 in g (leer/null -> Eintrag entfernt).
+  miseSetzen(mise, art, schluessel, wert){
+    const m = mise ? { ...mise, notizen: { ...(mise.notizen || {}) }, korrekturen: { ...(mise.korrekturen || {}) } } : Model.miseLeer();
+    const leer = wert == null || (typeof wert === "string" && wert.trim() === "");
+    if(art === "notiz"){
+      if(!Model.MISE_NOTIZ_RE.test(String(schluessel))) return null;
+      if(leer){ delete m.notizen[schluessel]; return m; }
+      if(typeof wert !== "string") return null;
+      m.notizen[schluessel] = wert.trim();
+      return m;
+    }
+    if(art === "korrektur"){
+      if(!Model.MISE_ZUTAT_RE.test(String(schluessel))) return null;
+      if(leer){ delete m.korrekturen[schluessel]; return m; }
+      const n = Number(String(wert).replace(",", "."));
+      if(!Number.isFinite(n) || n < 0) return null;
+      m.korrekturen[schluessel] = n;
+      return m;
+    }
+    return null;
   },
 
   // LIBAR-43 (M8): Batch neu definieren = Rezept dauerhaft umskalieren. Eingabe ist das neue
@@ -6991,6 +7055,46 @@ async function selfTest(){
     l43.ergRollback = await batchDefinitionSchreiben(l43.gwRollback, { ...basis43, zellen:l43.planMit.zellen });
   }catch(e){ l43.fehler = e; }
 
+  // LIBAR-150: Schreibkern "Mise (JSON)" ueber gemockte Graph-Schicht (Muster LIBAR43).
+  const l150 = {};
+  try{
+    const kopf150 = ["Rezept-ID","Name","Basis-Menge (g)","Phasen (JSON)","Geändert"];
+    const kopf150Mit = [...kopf150, "Mise (JSON)"];
+    const mock150 = (eTag, wirftBei) => {
+      const log = [];
+      return { log,
+        async getItemMeta(){ log.push(["meta"]); return { eTag }; },
+        async backup(){ log.push(["backup"]); return "b.xlsx"; },
+        async updateCell(pfad, sheet, addr, wert){
+          if(wirftBei && wirftBei.addr === addr && wirftBei.mal-- > 0){ log.push(["fehl", addr]); throw new Error("mock " + addr); }
+          log.push(["cell", addr, wert]); return true; } };
+    };
+    let m = Model.miseLeer();
+    m = Model.miseSetzen(m, "notiz", Model.miseSchluessel(0, 1), "Butter weich, nicht flüssig");
+    m = Model.miseSetzen(m, "notiz", Model.miseSchrittSchluessel(1, 2), "Ofen 10 Min. früher an");
+    m = Model.miseSetzen(m, "korrektur", Model.miseSchluessel(0, 1), 130);
+    m = Model.miseSetzen(m, "korrektur", Model.miseSchluessel(2, 10), "2,5");
+    l150.mise = m;
+    const basis150 = { rezeptePfad:"/T/Rezepte.xlsx", sheetName:"Rezepte", zeileExcel:4, aktuellerETag:"E1", mise:m };
+    l150.addrMit = Model.zelladresse(kopf150Mit, "Mise (JSON)", 4);
+    l150.addrOhne = XLSX.utils.encode_col(kopf150.length);
+    l150.kopf = kopf150; l150.kopfMit = kopf150Mit;
+    l150.gwMit = mock150("E1");
+    l150.ergMit = await miseZelleSchreiben(l150.gwMit, { ...basis150, header:kopf150Mit, altWert:'{"v":1,"notizen":{"0/0":"alt"},"korrekturen":{}}' });
+    l150.gwNeu = mock150("E1");
+    l150.ergNeu = await miseZelleSchreiben(l150.gwNeu, { ...basis150, header:kopf150, altWert:null });
+    l150.gwKonflikt = mock150("E2");
+    l150.ergKonflikt = await miseZelleSchreiben(l150.gwKonflikt, { ...basis150, header:kopf150Mit, altWert:"" });
+    l150.gwOhneETag = mock150("E1");
+    l150.ergOhneETag = await miseZelleSchreiben(l150.gwOhneETag, { ...basis150, aktuellerETag:null, header:kopf150Mit, altWert:"" });
+    l150.gwRollback = mock150("E1", { addr: l150.addrOhne + "4", mal: 1 });
+    l150.ergRollback = await miseZelleSchreiben(l150.gwRollback, { ...basis150, header:kopf150, altWert:null });
+    l150.gwRollbackMit = mock150("E1", { addr: l150.addrMit, mal: 1 });
+    l150.ergRollbackMit = await miseZelleSchreiben(l150.gwRollbackMit, { ...basis150, header:kopf150Mit, altWert:'{"v":1,"notizen":{},"korrekturen":{"0/0":5}}' });
+    l150.gwUnlesbar = mock150("E1");
+    l150.ergUnlesbar = await miseZelleSchreiben(l150.gwUnlesbar, { ...basis150, header:kopf150Mit, altWert:"{kaputt" });
+  }catch(e){ l150.fehler = e; }
+
   const t = [
     ["AP0305-H1 ladeConfig() behaelt eingebaute Aliase und ergaenzt config.json-Aliase, statt sie zu ersetzen",
       h1AliaseNachConfigErhalten],
@@ -8663,6 +8767,63 @@ async function selfTest(){
       ];
     })()),
     // LIBAR-146 (M-7): Faktor der Tab-Cue hoechstens zwei Nachkommastellen, leer bei 1.
+    // ---- LIBAR-150 Spalte "Mise (JSON)" (Werte oben vor t asynchron ermittelt, l150).
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, !l150.fehler && fn() === true]; }catch(e){ return [name, false]; } };
+      const kanon = o => Array.isArray(o) ? "[" + o.map(kanon).join(",") + "]"
+        : (o && typeof o === "object") ? "{" + Object.keys(o).sort().map(k => JSON.stringify(k) + ":" + kanon(o[k])).join(",") + "}"
+        : JSON.stringify(o);
+      const gleich = (a, b) => kanon(a) === kanon(b);
+      const zell = log => log.filter(x => x[0] === "cell");
+      return [
+        fall("LIBAR150-1 Rundlauf: parseMise(miseSchreiben(x)) == x fuer Notizen (Zutat 0/1, Schritt 1/s2) und Korrekturen (0/1 130 g, 2/10 2.5 g)",
+          () => { const x = l150.mise;
+            return gleich(Model.parseMise(Model.miseSchreiben(x)), x) && x.notizen["0/1"] === "Butter weich, nicht flüssig"
+              && x.notizen["1/s2"] === "Ofen 10 Min. früher an" && x.korrekturen["0/1"] === 130 && x.korrekturen["2/10"] === 2.5
+              && gleich(Model.parseMise(Model.miseSchreiben(Model.miseLeer())), Model.miseLeer()); }),
+        fall("LIBAR150-2 Schema offen: fremder Wurzelschluessel (gefaesse) bleibt beim Rundlauf erhalten; leer/null -> leeres Mise; kaputtes JSON, Array, notizen als Array -> null",
+          () => { const mitExtra = Model.parseMise('{"v":1,"notizen":{"0/0":"a"},"korrekturen":{},"gefaesse":[{"id":"S1","name":"Schüssel"}]}');
+            return mitExtra.gefaesse[0].name === "Schüssel" && gleich(Model.parseMise(Model.miseSchreiben(mitExtra)), mitExtra)
+              && gleich(Model.parseMise(""), Model.miseLeer()) && gleich(Model.parseMise(null), Model.miseLeer())
+              && Model.parseMise("{kaputt") === null && Model.parseMise("[1]") === null && Model.parseMise('{"notizen":[]}') === null; }),
+        fall("LIBAR150-3 miseSetzen prueft Schluessel und Werte, aendert das Eingabeobjekt nicht; leer entfernt den Eintrag",
+          () => { const m0 = Model.miseLeer(); const m1 = Model.miseSetzen(m0, "notiz", "0/3", "x");
+            return Object.keys(m0.notizen).length === 0 && m1.notizen["0/3"] === "x"
+              && Model.miseSetzen(m1, "notiz", "0/3", "").notizen["0/3"] === undefined && m1.notizen["0/3"] === "x"
+              && Model.miseSetzen(m0, "korrektur", "0/s1", 5) === null && Model.miseSetzen(m0, "notiz", "a/b", "x") === null
+              && Model.miseSetzen(m0, "korrektur", "0/1", -1) === null && Model.miseSetzen(m0, "korrektur", "0/1", "abc") === null
+              && Model.miseSetzen(m0, "andere", "0/1", 1) === null; }),
+        fall("LIBAR150-4 Backup vor dem Schreiben; Spalte vorhanden -> genau eine Zelle «Mise (JSON)», nie Phasen (JSON)/Geändert",
+          () => { const log = l150.gwMit.log; const iB = log.findIndex(x => x[0] === "backup"), iC = log.findIndex(x => x[0] === "cell");
+            const c = zell(log);
+            return l150.ergMit.ergebnis === "ok" && iB > -1 && iB < iC && c.length === 1 && c[0][1] === l150.addrMit
+              && gleich(Model.parseMise(c[0][2]), l150.mise) && l150.ergMit.spalteAngelegt === null
+              && !c.some(x => x[1] === Model.zelladresse(l150.kopfMit, "Phasen (JSON)", 4) || x[1] === Model.zelladresse(l150.kopfMit, "Geändert", 4)); }),
+        fall("LIBAR150-5 Spalte fehlt -> Kopfzelle hinter dem genutzten Bereich angelegt (F1), dann F4; keine bestehende Spalte beruehrt",
+          () => { const c = zell(l150.gwNeu.log);
+            return l150.ergNeu.ergebnis === "ok" && l150.addrOhne === "F" && l150.ergNeu.spalteAngelegt === 5
+              && c.length === 2 && c[0][1] === "F1" && c[0][2] === "Mise (JSON)" && c[1][1] === "F4"
+              && l150.gwNeu.log.findIndex(x => x[0] === "backup") < l150.gwNeu.log.findIndex(x => x[0] === "cell"); }),
+        fall("LIBAR150-6 eTag fremd oder fehlend -> «konflikt», kein Backup, keine Zelle",
+          () => l150.ergKonflikt.ergebnis === "konflikt" && l150.ergOhneETag.ergebnis === "konflikt"
+             && [l150.gwKonflikt, l150.gwOhneETag].every(g => g.log.every(x => x[0] === "meta"))),
+        fall("LIBAR150-7 Teilfehler: neue Kopfzelle geschrieben, Mise-Zelle scheitert -> Kopfzelle auf leer zurueckgerollt; bei vorhandener Spalte bleibt der alte Wert",
+          () => { const c = zell(l150.gwRollback.log), c2 = zell(l150.gwRollbackMit.log);
+            return l150.ergRollback.ergebnis === "fehler" && l150.ergRollback.zurueckgerollt === true && l150.ergRollback.stufe === "mise"
+              && c.length === 2 && c[0][1] === "F1" && c[0][2] === "Mise (JSON)" && c[1][1] === "F1" && c[1][2] === ""
+              && l150.ergRollbackMit.ergebnis === "fehler" && c2.length === 0; }),
+        fall("LIBAR150-8 bestehende Zelle unlesbar -> «fehler» Stufe lesen, kein Backup, keine Zelle (nie ueberschreiben)",
+          () => l150.ergUnlesbar.ergebnis === "fehler" && l150.ergUnlesbar.stufe === "lesen" && l150.gwUnlesbar.log.length === 0),
+        fall("LIBAR150-9 parseRezepte liest «Mise (JSON)»: gueltig -> rz.mise; unlesbar -> Rezept laedt, mise null + miseFehler; ohne Spalte -> leeres Mise",
+          () => { const h = ["Rezept-ID","Name","Phasen (JSON)","Mise (JSON)"];
+            const ok = Model.parseRezepte([h, ["R1","A","[]",'{"v":1,"notizen":{"0/s0":"n"},"korrekturen":{"0/0":7}}']]).rezepte[0];
+            const kaputt = Model.parseRezepte([h, ["R2","B","[]","{kaputt"]]);
+            const ohne = Model.parseRezepte([h.slice(0,3), ["R3","C","[]"]]).rezepte[0];
+            return ok.mise.notizen["0/s0"] === "n" && ok.mise.korrekturen["0/0"] === 7 && ok.miseFehler === null
+              && kaputt.rezepte.length === 1 && kaputt.fehlerhaft.length === 0 && kaputt.rezepte[0].mise === null && !!kaputt.rezepte[0].miseFehler
+              && gleich(ohne.mise, Model.miseLeer()); })
+      ];
+    })(),
     ["LIBAR146-1 Faktor 13/12 in der Tab-Cue gerundet: «×1.08» statt «×1.0833333333333333»",
       View.faktorText(13/12) === "×1.08"],
     ["LIBAR146-2 Faktor 1 und fehlender Faktor: Cue leer; 2 bleibt «×2», 0.5 «×0.5», 2/3 «×0.67»",
@@ -8763,6 +8924,54 @@ async function batchDefinitionSchreiben(gateway, { rezeptePfad, sheetName, heade
   let neuerETag = null;
   try{ neuerETag = (await gateway.getItemMeta(rezeptePfad)).eTag; }catch(e){ neuerETag = null; }
   return { ergebnis:"ok", geschrieben, neuerETag, nebenfehler };
+}
+
+// LIBAR-150 (FR-210, FR-314): Schreibkern der Spalte "Mise (JSON)" — Prinzip wie
+// batchDefinitionSchreiben: eTag pruefen (fehlend = Konflikt) -> Backup -> Kernzellen der Reihe
+// nach, bei Fehler Rollback der schon geschriebenen -> eTag neu. Fehlt die Spalte, wird sie beim
+// ersten Schreiben angelegt: Kopfzelle in der ersten Spalte HINTER dem genutzten Bereich
+// (header.length), dort ist jede Zelle leer — bestehende Zellen bleiben unberuehrt. Schreibt nie
+// "Phasen (JSON)" und nie eine andere Spalte; "Geändert" bleibt stehen (Notizen aendern das Rezept
+// nicht). altWert = bisheriger Zellinhalt (rz._raw); ist er unlesbar, wird nichts geschrieben.
+async function miseZelleSchreiben(gateway, { rezeptePfad, sheetName, header, zeileExcel, aktuellerETag, mise, altWert }){
+  const SP = Model.MISE_SPALTE;
+  const text = Model.miseSchreiben(mise);
+  if(!mise || Model.parseMise(text) === null) return { ergebnis:"fehler", stufe:"plan", meldung:"Ungültige Mise-Daten" };
+  if(text.length > 32767) return { ergebnis:"fehler", stufe:"groesse", meldung:"Mise (JSON) überschreitet 32'767 Zeichen" };
+  const altLeer = altWert == null || altWert === "";
+  if(!altLeer && Model.parseMise(altWert) === null)
+    return { ergebnis:"fehler", stufe:"lesen", meldung:"Bestehende Zelle Mise (JSON) ist unlesbar — nichts geschrieben" };
+  if(!Array.isArray(header) || !(zeileExcel >= 2)) return { ergebnis:"fehler", stufe:"plan", meldung:"Zeile oder Kopfzeile fehlt" };
+  let meta;
+  try{ meta = await gateway.getItemMeta(rezeptePfad); }
+  catch(e){ return { ergebnis:"fehler", stufe:"eTag", meldung: e.message }; }
+  if(!aktuellerETag || meta.eTag !== aktuellerETag) return { ergebnis:"konflikt" };
+
+  const vorhanden = header.indexOf(SP);
+  const spalte = vorhanden > -1 ? vorhanden : header.length;
+  const buchstabe = XLSX.utils.encode_col(spalte);
+  const ziele = [];
+  if(vorhanden === -1) ziele.push({ stufe:"kopf", addr: buchstabe + "1", neu: SP, alt: "" });
+  ziele.push({ stufe:"mise", addr: buchstabe + zeileExcel, neu: text, alt: altLeer ? "" : altWert });
+
+  try{ await gateway.backup(rezeptePfad); }
+  catch(e){ return { ergebnis:"fehler", stufe:"backup", meldung: e.message }; }
+
+  const geschrieben = [];
+  for(const z of ziele){
+    try{ await gateway.updateCell(rezeptePfad, sheetName, z.addr, z.neu); geschrieben.push({ addr: z.addr, wert: z.neu, alt: z.alt }); }
+    catch(e){
+      let zurueckgerollt = true;
+      for(const g of geschrieben.slice().reverse()){
+        try{ await gateway.updateCell(rezeptePfad, sheetName, g.addr, g.alt); }
+        catch(e2){ zurueckgerollt = false; }
+      }
+      return { ergebnis:"fehler", stufe: z.stufe, meldung: e.message, zurueckgerollt };
+    }
+  }
+  let neuerETag = null;
+  try{ neuerETag = (await gateway.getItemMeta(rezeptePfad)).eTag; }catch(e){ neuerETag = null; }
+  return { ergebnis:"ok", geschrieben, neuerETag, spalteAngelegt: vorhanden === -1 ? spalte : null };
 }
 
 // AP-0307: reiner Schreibkern des Verfahrensprotokoll-Formulars — gleiches Prinzip wie
