@@ -1664,6 +1664,35 @@ a:active,button:active,.lb-bedienzeile:active > .nm,.lb-sprungmarke:active .nm{
      fuer eine Bedienzeile plus die sichere Zone. */
   body{padding-bottom:calc(var(--lb-bedien) + env(safe-area-inset-bottom))}
 }
+/* LIBAR-149 (Design-Review 15.11.2026, E-4/E-7, FR-209/FR-313; Entwurf
+   design/entwurf-rezeptansicht.html Bretter A-D, G): Zutatenzeile «Menge · Name ·
+   Hinweis». Menge Medium, rechtsbuendig in fester Spalte (84 px, Telefon 68, Kochmodus
+   120), danach genau die Luecke (14 px, Kochmodus 19) bis zum Namen, Hinweis 13 px
+   Nebentext. Kein Bäckerprozent ausserhalb des Entwicklungsmodus (der rendert seine
+   eigene Grid-Zeile). Arbeitsschritt: Nummer 13 Nebentext in der Mengenspalte, Text
+   auf der Namensflucht, hoechstens 520 px Satzbreite. Steht am Ende des Stilblatts und
+   mit .mz, damit die aelteren td:first-child-Regeln (Name war die erste Zelle) hier
+   nicht mehr greifen — auch nicht im Druck. */
+:root{--mz-menge:84px;--mz-gasse:14px}
+@media (max-width:599px){:root{--mz-menge:68px}}
+body.vollbild{--mz-menge:120px;--mz-gasse:19px}
+body table.zutaten.mz{width:100%;table-layout:fixed}
+body table.zutaten.mz td.menge{width:var(--mz-menge);padding:0;text-align:right;white-space:nowrap;
+  font-weight:500;font-variant-numeric:tabular-nums;color:var(--ink);font-size:inherit}
+body table.zutaten.mz td.menge.korr{color:var(--rot)}
+body table.zutaten.mz td.name{padding:0 0 0 var(--mz-gasse);text-align:left;text-wrap:pretty}
+body table.zutaten.mz .hw,body table.zutaten.mz .korrektur-soll{display:inline-block;height:var(--lb-zeile);
+  line-height:var(--lb-zeile);vertical-align:top;font-size:13px;color:var(--muted);
+  padding-left:6px;margin-left:0;font-weight:400}
+ol.schritte li{padding-left:calc(var(--mz-menge) + var(--mz-gasse));
+  max-width:calc(var(--mz-menge) + var(--mz-gasse) + 520px)}
+ol.schritte li::before{width:var(--mz-menge);text-align:right;font-size:13px;color:var(--muted)}
+body.vollbild ol.schritte li{max-width:calc(var(--mz-menge) + var(--mz-gasse) + 520px)}
+body.vollbild ol.schritte li::before,body.vollbild table.zutaten.mz .hw,body.vollbild table.zutaten.mz .korrektur-soll{font-size:17px}
+@media print{
+  body table.zutaten.mz td.menge,body table.zutaten.mz td.menge.korr{color:#000}
+  body table.zutaten.mz .korrektur-soll{color:#000}
+}
 </style>
 </head>
 <body>
@@ -4986,30 +5015,53 @@ const View = {
     const fodmapHtml = fodmap
       ? `<span class="fodmap-ampel" style="color:var(--${fodmap})" title="FODMAP: ${esc(fodmap)}${portion ? " · sichere Portion " + portion + " g" : ""}">●</span>`
       : "";
-    let menge, pct;
+    // LIBAR-149 (E-4, E-7): die Rezeptzeile «Menge · Name · Hinweis» braucht die Menge ohne
+    // Zusatz (wertHtml), die Stueckzahl als Hinweis (hinweisHtml) und die durchgestrichene
+    // Sollmenge hinter dem Namen (sollHtml). mengeHtml/pctText bleiben fuer die
+    // Entwicklungs-Grid-Zeile (Bäckerprozent nur im Entwicklungsmodus).
+    let menge, pct, wert, gezeigt = null, einheitGezeigt = z.einheit, sollHtml = "";
     if(korrektur){
       const istAktuell = Calc.korrekturAktuell(korrektur, faktor);
+      const sollTitel = `bei Faktor ${nf(korrektur.faktorBeiEingabe,2)} als ${Calc.runden(korrektur.ist, korrektur.einheit)} eingegeben`;
       menge = `${View.mengeText(istAktuell, korrektur.einheit, z.rohstoff)} `
-        + `<span class="korrektur-soll" title="bei Faktor ${nf(korrektur.faktorBeiEingabe,2)} als `
-        + `${Calc.runden(korrektur.ist, korrektur.einheit)} eingegeben">↕ <s>${View.mengeText(g, z.einheit, z.rohstoff)}</s></span>`;
+        + `<span class="korrektur-soll" title="${sollTitel}">↕ <s>${View.mengeText(g, z.einheit, z.rohstoff)}</s></span>`;
       pct = istAktuell / (rz.basisMengeG * faktor) * 100;
+      gezeigt = istAktuell; einheitGezeigt = korrektur.einheit;
+      wert = Calc.runden(istAktuell, korrektur.einheit);
+      sollHtml = `<span class="korrektur-soll" title="${sollTitel}"><s>${Calc.runden(g, z.einheit)}</s></span>`;
     }else{
       // AP-0303 (libarius-codefix)/H3: z.prozent kann bei einer von Hand veraenderten
       // "Phasen (JSON)"-Zelle Text statt Zahl sein — "—" statt "NaN %" anzeigen.
       const prozentGueltig = typeof z.prozent === "number" && Number.isFinite(z.prozent);
       menge = prozentGueltig ? View.mengeText(g, z.einheit, z.rohstoff) : "—";
       pct = prozentGueltig ? z.prozent * 100 : null;
+      if(prozentGueltig) gezeigt = g;
+      wert = prozentGueltig ? Calc.runden(g, z.einheit) : "—";
     }
-    return { nameHtml: `${esc(z.name)}${unbekannt}${regelHtml}${fodmapHtml}`, pctText: pct != null ? pct.toFixed(1) + " %" : "—", mengeHtml: menge };
+    const stk = gezeigt != null ? View.stueckHinweis(gezeigt, z.rohstoff) : "";
+    const hinweisHtml = stk ? `<span class="hw">${stk}</span>` : "";
+    return { nameHtml: `${esc(z.name)}${unbekannt}${regelHtml}${fodmapHtml}`, pctText: pct != null ? pct.toFixed(1) + " %" : "—", mengeHtml: menge,
+             wertHtml: wert, hinweisHtml, sollHtml, korrigiert: !!korrektur, einheit: einheitGezeigt };
+  },
+
+  // LIBAR-149 (E-7): Stueckzutaten — das Gewicht fuehrt, die Stueckzahl steht als Hinweis
+  // «≈ 2 Stk» (auf 0.5 gerundet wie AP-0303, halbe als «½»). Kein Stueckrohstoff -> "".
+  stueckHinweis(g, rohstoff){
+    const stk = Calc.alsStueck(g, rohstoff);
+    if(!stk || !Number.isFinite(stk.stueck)) return "";
+    const r = Calc.rundenStueck(stk.stueck);
+    const ganz = Math.floor(r), halb = r - ganz >= 0.5;
+    return `≈ ${ganz === 0 && halb ? "½" : ganz + (halb ? "½" : "")} Stk`;
   },
 
   // AP-0315 (libarius-gestaltung): entwZellenHtml (optional) haengt fertig gerenderte
   // <td class="entw-td"> je offener Variante an — dieselbe <tr>, dieselbe Zeile (AP-0205 §3.1).
   zutatenzeile(z, rz, faktor, korrektur, entwZellenHtml){
+    // LIBAR-149 (E-4): Menge (fest, rechtsbuendig) · Name · Sollmenge · Hinweis. Kein
+    // Bäckerprozent — das steht nur noch in der Entwicklungs-Grid-Zeile.
     const t = View.zutatenzeileTeile(z, rz, faktor, korrektur);
-    return `<tr><td>${t.nameHtml}</td>
-      <td class="pct">${t.pctText}</td>
-      <td class="menge">${t.mengeHtml}</td>${entwZellenHtml || ""}</tr>`;
+    return `<tr><td class="menge${t.korrigiert ? " korr" : ""}">${t.wertHtml}</td>
+      <td class="name">${t.nameHtml}${t.sollHtml}${t.hinweisHtml}</td>${entwZellenHtml || ""}</tr>`;
   },
 
   // AP-0315, AP-0205 §3.1: dieselbe Zutatenzeile als Grid-Zeile (statt <tr>) — braucht die
@@ -6078,7 +6130,7 @@ const View = {
         }).join("")}</div>` : "";
       }else{
         zt = p.zutaten.length
-          ? `<table class="zutaten">${p.zutaten.map((z, j) => View.zutatenzeile(z, rz, f, kx.zutaten[i + "/" + j])).join("")}</table>` : "";
+          ? `<table class="zutaten mz">${p.zutaten.map((z, j) => View.zutatenzeile(z, rz, f, kx.zutaten[i + "/" + j])).join("")}</table>` : "";
       }
       let sc;
       if(zEntw){
@@ -6572,7 +6624,7 @@ const View = {
           ${st.rezepte.map((rz, i) => {
             const modus = st.entscheidung[i] === "version" ? "wird als Version angehängt" : "wird neu angelegt";
             const zt = rz.phasen.map(ph => ph.zutaten.length
-              ? `<table class="zutaten">${ph.zutaten.map(z => View.zutatenzeile(z, rz, 1)).join("")}</table>` : "").join("");
+              ? `<table class="zutaten mz">${ph.zutaten.map(z => View.zutatenzeile(z, rz, 1)).join("")}</table>` : "").join("");
             return `<div class="importvorschau">
               <h3>${esc(rz.name || "(ohne Namen)")} <span class="hint" style="display:inline">— ${modus}</span></h3>
               <div class="sub" style="color:var(--muted);font-size:.85rem">${esc(rz.kategorie||"—")}
@@ -8873,6 +8925,57 @@ async function selfTest(){
             const brot = Calc.ausbeuteKette({ portionG:500, portionName:"Laib", ebenen:[{ name:"Gärkorb", anzahl:1 }, { name:"Ofen", anzahl:8 }, { name:"Tag", anzahl:3 }] });
             return nur.length === 1 && nur[0].name === "Portion" && brot.length === 4 && brot[0].name === "Laib"
               && brot[2].name === "Ofen" && brot[3].portionen === 24 && brot[3].g === 12000; })
+      ];
+    })(),
+    // ---- LIBAR-149 (E-4/E-7) Zutatenzeile «Menge · Name · Hinweis», Stueckzutaten Gewicht zuerst.
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, fn() === true]; }catch(e){ return [name, false]; } };
+      const ei = BEISPIEL_ROHSTOFFE.find(r => r.name === "Ei");
+      const mehl = BEISPIEL_ROHSTOFFE.find(r => r.name === "Weissmehl 00");
+      const brioche = { basisMengeG:500, portionen:12 };
+      const f13 = Calc.faktorAusPortionen(13, brioche);
+      const zeile = (z, k) => { const d = document.createElement("tbody"); d.innerHTML = View.zutatenzeile(z, brioche, f13, k); return d.firstElementChild; };
+      const eiHaupt = { name:"Ei", prozent:0.24, einheit:"g", rohstoff:ei };
+      return [
+        fall("LIBAR149-1 Zeilenfolge: erste Zelle Menge, zweite Name, keine td.pct und kein «%» ausserhalb des Entwicklungsmodus",
+          () => { const tr = zeile({ name:"Weissmehl 00", prozent:0.8, einheit:"g", rohstoff:mehl });
+            return tr.cells.length === 2 && tr.cells[0].classList.contains("menge") && tr.cells[1].classList.contains("name")
+              && tr.cells[1].textContent.startsWith("Weissmehl 00") && tr.cells[0].textContent === "433 g"
+              && !tr.querySelector(".pct") && !tr.textContent.includes("%"); }),
+        fall("LIBAR149-2 Brioche bei 13 Portionen: «130 g» fuehrt, «≈ 2 Stk» als Hinweis hinter dem Namen, keine Stueckzahl in der Mengenzelle",
+          () => { const tr = zeile(eiHaupt);
+            return tr.cells[0].textContent === "130 g" && tr.querySelector("td.name .hw").textContent === "≈ 2 Stk"
+              && !tr.cells[0].textContent.includes("Stk") && tr.cells[1].firstChild.textContent === "Ei"
+              && tr.cells[1].lastElementChild.classList.contains("hw"); }),
+        fall("LIBAR149-3 Stueckrundung im Hinweis auf 0.5: 32.5 g -> «≈ ½ Stk», 90 g -> «≈ 1½ Stk», 130 g -> «≈ 2 Stk»; Nicht-Stueckrohstoff -> kein Hinweis",
+          () => View.stueckHinweis(32.5, ei) === "≈ ½ Stk" && View.stueckHinweis(90, ei) === "≈ 1½ Stk"
+            && View.stueckHinweis(130, ei) === "≈ 2 Stk" && View.stueckHinweis(400, mehl) === "" && View.stueckHinweis(10, null) === ""
+            && zeile({ name:"Ei", prozent:0.06, einheit:"g", rohstoff:ei }).cells[0].textContent === "33 g"),
+        fall("LIBAR149-4 Korrektur: Mengenzelle nur der neue Wert (Klasse korr), Soll durchgestrichen hinter dem Namen",
+          () => { const tr = zeile({ name:"Butter", prozent:0.2, einheit:"g", rohstoff:null }, { ist:110, einheit:"g", faktorBeiEingabe:f13, sollBeiEingabe:108 });
+            return tr.cells[0].classList.contains("korr") && tr.cells[0].textContent === "110 g"
+              && tr.cells[1].querySelector(".korrektur-soll s").textContent === "108 g"; }),
+        fall("LIBAR149-5 Entwicklungsmodus behaelt das Bäckerprozent (Grid-Zeile mit entw-zeile-pct)",
+          () => { const d = document.createElement("div"); d.innerHTML = View.entwZutatZeileGrid(eiHaupt, brioche, f13, null, "");
+            return d.querySelector(".entw-zeile-pct").textContent === "24.0 %"; }),
+        fall("LIBAR149-6 gemessene Luecke Ende Menge -> Anfang Name 14 px (Range-Rechtecke), Zeile 28 px, Schritt-Nummer in der Mengenspalte",
+          () => { const box = document.createElement("div");
+            box.style.cssText = "position:absolute;left:-5000px;top:0;width:600px";
+            box.innerHTML = `<table class="zutaten mz"><tbody>${View.zutatenzeile(eiHaupt, brioche, f13)}</tbody></table><ol class="schritte"><li>Kneten.</li></ol>`;
+            document.body.appendChild(box);
+            try{
+              const tr = box.querySelector("tr"), rg = document.createRange();
+              rg.selectNodeContents(tr.cells[0]); const mr = rg.getBoundingClientRect().right;
+              rg.selectNodeContents(tr.cells[1].firstChild); const nl = rg.getBoundingClientRect().left;
+              const li = box.querySelector("li"), pl = parseFloat(getComputedStyle(li).paddingLeft);
+              const nr = getComputedStyle(li, "::before"), cs = getComputedStyle(box);
+              // Masse aus den Variablen: 84/14 (Telefon 68/14, Kochmodus 120/19), Zeile 28 (Kochmodus 38)
+              const m = parseFloat(cs.getPropertyValue("--mz-menge")), gs = parseFloat(cs.getPropertyValue("--mz-gasse"));
+              const z = parseFloat(cs.getPropertyValue("--lb-zeile")) || 28;
+              return [84, 68, 120].includes(m) && [14, 19].includes(gs) && Math.abs(nl - mr - gs) < 0.6
+                && Math.abs(tr.getBoundingClientRect().height % z) < 0.05 && Math.abs(tr.cells[0].getBoundingClientRect().width - m) < 0.05
+                && pl === m + gs && nr.textAlign === "right" && parseFloat(nr.width) === m && parseFloat(getComputedStyle(li).maxWidth) === m + gs + 520;
+            }finally{ box.remove(); } })
       ];
     })(),
     // ---- LIBAR-85/NFR-12: Erklaertext vor der Anmeldung. Gemockte msalApp protokolliert, ob der
