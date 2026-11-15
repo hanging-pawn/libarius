@@ -28,6 +28,8 @@ mit 0 px Versatz behoben. Vollständige Tabelle:
 | `design/stilblatt-nachtrag.html` | Marker, Zustände, Meldungen, Overlay-Rahmen (Nachtrag 10.09.2026, K-21) |
 | `design/entwurf-kochen.html` | Hauptansicht, ein Rezept und Menü (Artboards 2a, 2b) |
 | `design/entwurf-cue.html` | Cue-Spalte der linken Schiene, Cornell-Schnitt W/M/K (AP-0202 libarius-gestaltung, 10.09.2026) |
+| `design/entwurf-schiene.html` | Linke Schiene neu geordnet: Suche, Tabs mit eingerückten Phasen, Einkaufsliste angedockt, W/M/K (LIBAR-46, Variante B, 19.10.2026 — Entwurf, Freigabe offen) |
+| `design/entwurf-rezeptansicht.html` | Rezeptansicht nach Design-Review 15.11.2026: Zutatenzeile Menge · Name · Hinweis, Notizen zeilengleich, Batch-Formular mit Portionsgrösse und Ausbeute-Kette, W/M/K/iPhone/Kochmodus (Entwurf, Freigabe offen) |
 | `design/entwurf-rezeptur.html` | Rezeptur im Detail und Entwicklungsmodus (1c, 1d) |
 | `design/entwurf-kochmodus.html` | Kochmodus im 38er-Raster (1e) |
 | `design/_ikonen.svg.html` | Symbolsatz zum Einsetzen in eine Seite |
@@ -201,6 +203,15 @@ Bei 1440 px sind das 200 / 1.5 / 757 / 1.5 / 272 bei 40 px Rand und 32 px Gassen
 
 ## Zutatenzeile
 
+> **Neu entschieden 15.11.2026 (Design-Review Rezeptansicht, E-4, E-7):** Die Zeile wird
+> **Menge · Name · Hinweis** — Menge fett in fester Spalte links, rechtsbündig, Tabellenziffern;
+> danach Name, danach Hinweis in Nebentext. Das **Bäckerprozent erscheint nur noch im
+> Entwicklungsmodus**. Gilt für Normalansicht, Kochmodus und Druck. Bei Stückzutaten führt das
+> Gewicht, die Stückzahl steht als Nebentext («Ei 120 g · ≈ 2 Stk»). Grund: gemessene Leerstrecke
+> Name → Menge 320–710 px (Desktop/iPad), im Kochmodus bis 860 px. Der Text unten beschreibt den
+> **bisherigen Stand** und bleibt als Herkunft stehen; umgesetzt ist die neue Zeile noch nicht.
+> Herleitung: Vault `Projekte/Libarius/03_Design/2026-11-15_Design-Review_Rezeptansicht/10_befunde.md`.
+
 **Zur Notizspalte siehe K-9**: die Notiz bleibt in der rechten Schiene (AP-0201 B4), sie
 wandert nicht in die Zutatenzeile. Was die dafür gezeichneten 240 px heute tragen, klärt
 AP-0403 Schritt 7.
@@ -235,7 +246,7 @@ Der Entwurf ist ein Entwurf: mehrere Objekte stehen nicht auf ihrer Kante. Durch
 | K-11 | 2a | Schiene 200, Einkaufsliste 272 | **gilt nicht** — App 280 / 340 nach AP-0201 §1; auf Stufe M bleiben 240, dafür wird AP-0201 angepasst (O-20/R-12). **Angepasst 10.09.2026** (AP-0203): AP-0201 §1 nennt 240 px als Mindestbreite von B1 und B4 |
 | K-12 | `libarius.css` | Gerätestufen 1200 / 900 | **gilt nicht** — AP-0201 §2.1: 1280 / 860 |
 | K-13 | 2a | Kopfzeile eine Rasterzeile (28) | 56 px — Entscheid 1, Tippziele |
-| K-14 | 1c, 2a | Zutatenzeile Name · Menge · Einheit · Notiz | Name · Bäckerprozent 64 · Menge 96 mit Einheit im Text; Notizspalte entfällt (K-9) |
+| K-14 | 1c, 2a | Zutatenzeile Name · Menge · Einheit · Notiz | Name · Bäckerprozent 64 · Menge 96 mit Einheit im Text; Notizspalte entfällt (K-9). **Überholt 15.11.2026** (Design-Review Rezeptansicht E-3/E-4): Zeile wird Menge · Name · Hinweis, Bäckerprozent nur im Entwicklungsmodus; Notiz und Korrektur stehen zeilengleich in der Randspalte rechts — siehe «Entscheide vom 15.11.2026» |
 | K-15 | 1c, 2a | Phasen immer offen, Titel ohne Pfeil | klappbar mit `›`, Summary 56 (AP-0201 §4.1, Entscheid 1) |
 | K-16 | 2a | Metadatenzeile 28, Pfeil rechts | 56 px (Entscheid 1); Pfeil wandert nach rechts (R-25) |
 | K-17 | 1e | Kochmodus ohne Bedienelemente und Metadaten | **übernommen wie gezeichnet** — Entscheid 10.09.2026 (O-20): Skalierung, Aktionen und Metadaten fallen weg, nur das Rezept bleibt |
@@ -309,6 +320,42 @@ Herleitung im Reviewprotokoll `AP-0403_design_review_output.md`.
 Offen bis AP-0401: rechtsbündige Zutatennamen (R-29) — Entscheid am Gerät.
 *Präzisiert 10.09.2026: AP-0401 meint den Sprint `libarius-bedienung`; im Sprint
 `libarius-gestaltung` trägt AP-0402 (Bedientest Mac und iPad) den Prüfpunkt.*
+
+## Entscheide vom 15.11.2026 — Design-Review Rezeptansicht
+
+Feedback Gianluca zu Notizen (F-1), Mengen (F-2) und Zutatenzeile (F-3), geprüft auf Desktop,
+iPad und iPhone (iPad/iPhone per Viewport-Emulation, nicht am Gerät). Dossier, Befunde (74),
+ChefSteps-Muster und Screenshots im Vault unter
+`Projekte/Libarius/03_Design/2026-11-15_Design-Review_Rezeptansicht/`. Anforderungen dazu im
+Katalog v1.4.0 (FR-209, FR-210, FR-311 bis FR-313, FR-1701, NFR-23, alle `entwurf`).
+**Noch nichts davon ist in `index.html` umgesetzt.**
+
+15. **Batch und Portion bleiben im Entwicklungsmodus** (E-1) — LIBAR-39 gilt weiter. Das Formular
+    «Batch definieren» bekommt die **Portionsgrösse als eigenes Feld**, wird leichter erreichbar
+    und zeigt Felder vor Vorschau und Knöpfen, unter dem Rezepttitel (heute verkehrt, Flex-`order`).
+16. **Batch-Formular auf jeder Breite** (E-1a): die 819-px-Sperre gilt nur für den Variantenvergleich.
+17. **Ausbeute-Kette frei benennbar, höchstens drei Ebenen** (E-2), z. B. Stück · Blech · Ofenlauf
+    oder Laib · Gärkorb · Ofen. Eingabe auf jeder Ebene, die anderen rechnen mit.
+18. **Notizschiene zeilengleich** (E-3): Korrektur direkt in der Mengenzelle der Zutat (Nachentscheid
+    zum Entwurf), Notiz je Zutat und je Schritt auf derselben Rasterzeile in der Randspalte rechts, scrollt mit (Muster AP-0315). Die
+    Schiene führt **keine eigene Zutatenliste** mehr. Eine mehrzeilige Notiz läuft in leere Randzellen
+    darunter aus; nur bei belegter Nachbarzelle wächst die Zeile (S-4, Simulator). Hebt K-9 (Teil Notiz) und K-14 auf; braucht
+    ein neues Datenfeld, zusammen mit dem Marker für eigene Notizen (WU-020).
+19. **Zutatenzeile Menge · Name · Hinweis** (E-4), Bäckerprozent nur im Entwicklungsmodus — siehe
+    Abschnitt «Zutatenzeile».
+20. **Mise en place nur als Overlay** (E-5), kein Abschnitt in der Rezeptur. Grundlage ist die
+    Ideation vom 25.10.2026 (Gefäss-Sicht D-a, Waage-Sicht D-b, Spalte «Mise (JSON)»). Die
+    Rezeptansicht braucht dafür einen Einstieg.
+21. **iPhone wird Zielgerät für Lesen und Kochen** (E-6): Rezept, Skalierung Basis/Portionen,
+    Kochmodus, Einkaufsliste. Der Entwicklungsmodus bleibt Desktop/iPad. Sofort fällig: Überlauf
+    der Skalierungszeile (Seite 491 px bei 393 px Viewport), Tab-Namen brechen Buchstabe für
+    Buchstabe um, Notiz-Overlay verdeckt alle Mengen, Zahlenfelder 13 px ohne `inputmode`.
+22. **Stückzutaten: Gewicht führt** (E-7), Stückzahl als Nebentext.
+
+Nachentschieden am selben Tag: Ausbeute-Kette (17) in neuer Spalte «Ausbeute (JSON)», Zeilennotizen
+(18) in «Mise (JSON)»; Mengenkorrekturen wandern aus dem `localStorage` geräteübergreifend in
+`Rezepte.xlsx` (FR-314). Das Batch-Formular (16) gilt auch auf dem iPhone, einspaltig — nur der
+Variantenvergleich bleibt gesperrt. FORMAT.md wird erst mit der Umsetzung um die Spalten ergänzt.
 
 ## Stand der Umstellung
 
@@ -406,6 +453,12 @@ jetzt in `Projekte/rezeptverwaltung/entscheide.md`, nicht mehr nur hier:
   vermerkte dritte Stelle `.lb-tab-schliessen:hover`; keine `:hover`-Regel enthält mehr
   `color:var(--rot)`. R-08: `display:none` aus `.railtoggle` entfernt samt Gegenregel in der
   Medienabfrage — Schalter auf Stufe W, M und K unverändert sichtbar (im Browser nachgemessen).
+- **Design-Review Rezeptansicht 15.11.2026:** Entscheide 15–22 oben sind gefallen. Entwurf
+  `design/entwurf-rezeptansicht.html` liegt vor (sieben Zeichenbretter, Rasterprüfung grün,
+  Versatz Zutat ↔ Randzelle 0 px, Lücke Menge → Name 14 px); Freigabe am Gerät und Umsetzung
+  stehen aus. Entschieden am selben Tag: die Korrektur wird in der Mengenzelle eingegeben, die Randspalte
+  trägt nur Notizen (FR-210 angepasst, Katalog v1.4.2). Gegenprobe am echten iPad
+  (Safari) offen — die Tests liefen in Viewport-Emulation.
 - Schrift lokal ablegen, falls die App ohne Netz in Fira Sans starten soll — weiterhin offen,
   unverändert seit DESIGN.md-Entscheid 3 (09.09.2026).
 - Dunkelmodus entscheiden — Backlog, unverändert.
