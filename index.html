@@ -1772,7 +1772,8 @@ td.menge[data-menge]{cursor:pointer}
    Breite, auf dem Telefon einspaltig (Felder brechen um, kein waagrechter Ueberlauf). */
 .entw-batchform{gap:0;margin-top:0;min-width:0;max-width:100%}
 .entw-batchform .bf-zeile{display:flex;flex-wrap:wrap;column-gap:24px;row-gap:0;align-items:flex-end;min-width:0}
-.entw-batchform .bf-feld{display:flex;flex-direction:column;font-size:13px;color:var(--muted);width:96px;min-width:0}
+.entw-batchform .bf-feld{display:flex;flex-direction:column;font-size:13px;color:var(--muted);width:128px;min-width:0;
+  white-space:nowrap;line-height:var(--lb-zeile)}
 .entw-batchform .bf-feld.breit{width:200px}
 .entw-batchform .bf-feld input,.entw-batchform .bf-feld select{width:100%;color:var(--ink);font-size:15px;
   height:var(--lb-zeile);min-height:var(--lb-zeile);padding:0;background-position:0 var(--lb-linie-y)}
