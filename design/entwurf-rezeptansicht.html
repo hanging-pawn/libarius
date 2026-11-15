@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>libarius — Entwurf Rezeptansicht</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="libarius.css">
+<style>
+  /* Nur fuer diese Referenzseite. Jede Hoehe ist ein Vielfaches von 28 (Kochmodus 38);
+     die Pruefung oben auf der Seite rechnet nach. Bausteine, die libarius.css noch
+     nicht kennt, stehen unter «Vorschlag Nachtrag» — sie wandern erst nach der
+     Freigabe in libarius.css. */
+  body{margin:0}
+  .blatt{padding:var(--lb-zeile) var(--lb-rand) calc(2 * var(--lb-zeile))}
+  .blatt p,.blatt h1,.blatt h2,.blatt ul{margin:0;padding:0}
+  .blatt ul{list-style:none}
+  .blatt a.link{color:var(--lb-graphit);text-underline-offset:5px;text-decoration-thickness:1px}
+  .fett{font-weight:500}
+  .text{max-width:860px;text-wrap:pretty}
+  .zeile{display:flex;align-items:baseline;height:var(--lb-zeile);gap:0 16px;min-width:0}
+  .zeile > .k{width:260px;flex:none;color:var(--lb-neben);font-size:var(--lb-klein)}
+  .zeile > .v{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .liste > li{min-height:var(--lb-zeile);max-width:980px;text-wrap:pretty}
+  .liste > li::before{content:"–";color:var(--lb-neben);display:inline-block;width:20px}
+  #pruefung b{font-weight:500}
+  .bretter{display:flex;flex-wrap:wrap;align-items:flex-start;column-gap:48px;row-gap:var(--lb-zeile)}
+  .brett-kopf{height:var(--lb-bedien)}
+  .brett-kopf p{white-space:nowrap}
+
+  /* ---------- Vorschlag Nachtrag libarius.css — Rezeptansicht (Review 15.11.2026) ----------
+     Rezeptur und Randspalte teilen sich die Zeilen: jede Zeile der Rezeptur hat rechts
+     ihre Zelle in der Randspalte (Muster AP-0315, zeilengleich). Waechst eine Seite um
+     eine Textzeile, waechst die Zeile auf beiden Seiten — Versatz 0 px per Bau. */
+  .lb-ra{--rz:609px;--rs:340px;--menge:84px;--menge-gasse:14px;--gasse:var(--lb-gasse);
+    position:relative;display:grid;grid-template-columns:var(--rz) var(--rs);
+    column-gap:calc(2 * var(--gasse) + var(--lb-rot-staerke));
+    padding-left:calc(var(--lb-rot-staerke) + var(--gasse))}
+  .lb-ra--ohne-rand{grid-template-columns:var(--rz);column-gap:0}
+  /* Randlinie links der Rezeptur (Rolle 1) und rechts vor der Randspalte (Rolle 1) */
+  .lb-ra::before,.lb-ra::after{content:"";position:absolute;top:0;bottom:0;
+    width:var(--lb-rot-staerke);background:var(--lb-rot)}
+  .lb-ra::before{left:0}
+  .lb-ra::after{left:calc(var(--lb-rot-staerke) + 2 * var(--gasse) + var(--rz))}
+  .lb-ra--ohne-rand::after{display:none}
+  .lb-zr{display:contents}
+  .lb-zr > *{min-width:0}
+
+  /* Zutatenzeile neu (E-4): Menge · Name · Hinweis. Menge Medium, rechtsbuendig in
+     fester Spalte, 14 px Luecke, dann Name; Hinweis 13 Nebentext. Kein Baeckerprozent. */
+  .lb-z,.lb-s,.lb-u{display:grid;grid-template-columns:var(--menge) minmax(0,1fr);
+    column-gap:var(--menge-gasse);align-items:baseline}
+  .lb-z > .m{text-align:right;font-weight:500;white-space:nowrap}
+  .lb-z > .n{text-wrap:pretty}
+  .lb-z .hw,.lb-s .hw{font-size:var(--lb-klein);color:var(--lb-neben);line-height:1;padding-left:6px}
+  .lb-z .soll{font-size:var(--lb-klein);color:var(--lb-neben);line-height:1;padding-left:6px;text-decoration:line-through}
+  .lb-z > .m.korr{color:var(--lb-rot)}              /* Rolle 3: neuer Wert rot */
+  .lb-z > .m.fokus{background:linear-gradient(var(--lb-graphit),var(--lb-graphit)) no-repeat
+    0 var(--lb-linie-y)/100% var(--lb-fokus-staerke)}
+  /* Arbeitsschritt (F-3): Nummer 13 in der Mengenspalte, Text ohne Menge, Satzbreite
+     hoechstens 520 px (~62 Zeichen). Die leere Mengenspalte trennt Text von Zutaten. */
+  .lb-s,.lb-u{align-items:start}   /* 13er-Ziffer neben 15er-Text: baseline zoege die Zeile auf 29 */
+  .lb-s > .m{text-align:right;font-size:var(--lb-klein);color:var(--lb-neben)}
+  .lb-s > .n{max-width:520px;text-wrap:pretty}
+  /* Notiz unter der Zeile (Stufe K, ohne Randspalte): eingerueckt auf die Namensflucht */
+  .lb-u > .n{font-size:var(--lb-klein);color:var(--lb-notiz);text-wrap:pretty}
+  .lb-u > .m{text-align:right;font-size:var(--lb-klein);color:var(--lb-notiz)}
+  /* Zelle der Randspalte: Notiz 13 in Notizfarbe, bricht um, Zeile waechst */
+  .lb-rz{font-size:var(--lb-klein);color:var(--lb-notiz);text-wrap:pretty}
+  .lb-rz--leer{color:transparent}
+  /* Auslauf (Entscheid 15.11.2026, S-4): eine mehrzeilige Notiz laeuft in leere Randzellen
+     darunter aus, die Zeile der Rezeptur bleibt 28 hoch. Nur wenn darunter keine leere
+     Zelle mehr frei ist, waechst die Zeile wie bisher. */
+  .lb-rz--lauf{position:relative}
+  .lb-rz--lauf > .t{position:absolute;left:0;right:0;top:0;z-index:1}
+  .lb-rz--feld{color:var(--lb-graphit);
+    background:linear-gradient(var(--lb-graphit),var(--lb-graphit)) no-repeat 0 var(--lb-linie-y)/100% var(--lb-fokus-staerke)}
+  .lb-rz--hover{color:var(--lb-neben)}
+  .lb-randkopf{display:flex;justify-content:space-between;align-items:flex-start;height:var(--lb-bedien)}
+  .lb-randkopf > .lbl{padding-top:var(--lb-zeile);font-size:var(--lb-klein);color:var(--lb-neben)}
+  .lb-klein-aktion{font-size:var(--lb-klein);color:var(--lb-graphit);text-decoration:underline;
+    text-underline-offset:5px;text-decoration-thickness:1px;text-decoration-color:var(--lb-neben)}
+  /* Kopf der Rezeptur: Titel 56 · Metazeile 28 · Skalierung 56 (Felder + Mise-Einstieg) */
+  .lb-skal{display:flex;flex-wrap:wrap;align-items:flex-start;column-gap:24px}
+  .lb-skal > .lb-feld{width:96px;text-align:right}
+  .lb-skal > .lb-feld .lb-etikett{justify-content:flex-end}
+  .lb-skal > .lb-bedienzeile{flex:none}
+  .lb-skal > .rechts{margin-left:auto}
+  .lb-phase{font-size:var(--lb-phase);font-weight:500}
+  .lb-phase .pf{padding-right:8px;color:var(--lb-neben);font-weight:400}
+  /* Summenstrich: Graphit 1.5 px auf der Linie — bewusst nicht Rot (drei Rollen) */
+  .lb-summe{height:var(--lb-zeile);background:linear-gradient(var(--lb-graphit),var(--lb-graphit))
+    no-repeat 0 var(--lb-linie-y)/100% 1.5px}
+  /* Formular «Batch definieren» (E-1, E-2): Felder zuerst, dann Vorschau, dann Knoepfe */
+  .lb-form-zeile{display:flex;column-gap:24px;align-items:flex-start}
+  .lb-form-zeile > .lb-feld{flex:none}
+  .lb-form-zeile > .lb-feld.breit{flex:1;min-width:0}
+  .lb-form-zeile > .zusatz{padding-top:var(--lb-zeile);font-size:var(--lb-klein);color:var(--lb-neben);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+  .lb-vt{display:grid;grid-template-columns:minmax(0,1fr) 64px 96px 96px;column-gap:12px;align-items:start}
+  .lb-vt--schmal{grid-template-columns:minmax(0,1fr) 40px 56px 64px;column-gap:8px}
+  .lb-vt > span:not(:first-child){text-align:right;white-space:nowrap}
+  .lb-vt--kopf{font-size:var(--lb-klein);color:var(--lb-neben)}
+  .lb-vt .pct{font-size:var(--lb-klein);color:var(--lb-neben)}
+  .lb-knoepfe{display:flex;column-gap:32px}
+  .lb-dd{display:inline-block}
+  .lb-dd::after{content:" ⌄";color:var(--lb-neben)}
+  /* Kochmodus: Raster 38, Menge 120 Medium, Luecke 19 */
+  .lb-kochmodus .lb-ra{--menge:120px;--menge-gasse:19px}
+  .lb-kochmodus .lb-z > .m{font-weight:500}
+
+  /* ---------- Geraetemodus (?geraet) — nur fuer die Pruefung am Geraet ----------
+     Eine Ansicht fuellt das Fenster, Stufe nach Breite wie in der App (W/M/K).
+     Mengen, Notizen, Basis und Portionen sind echte Felder: Zahlentastatur und
+     Fokus-Zoom lassen sich so in Safari pruefen. Gerechnet wird nicht. */
+  .geraet-kopf{display:flex;flex-wrap:wrap;column-gap:24px;align-items:baseline;
+    min-height:var(--lb-bedien);padding-top:var(--lb-zeile);font-size:var(--lb-klein);color:var(--lb-neben)}
+  .geraet-kopf a{color:var(--lb-graphit);text-underline-offset:5px;text-decoration-thickness:1px;text-decoration:none}
+  .geraet-kopf a.an{text-decoration:underline}
+  .ein{display:block;font:inherit;color:inherit;background:transparent;border:0;border-radius:0;padding:0;margin:0;
+    width:100%;height:var(--lb-zeile);line-height:var(--lb-zeile);text-align:inherit;outline:0;
+    -webkit-appearance:none;appearance:none;
+    background:linear-gradient(var(--lb-graphit),var(--lb-graphit)) no-repeat 0 var(--lb-linie-y)/100% var(--lb-fokus-staerke)}
+  .lb-feld .ein{background:none}
+  .geraet--phone .ein{font-size:16px}   /* unter 16 px zoomt Safari beim Fokus */
+  .lb-z > .m,.lb-rz,.lb-z > .n,.lb-s > .n{cursor:pointer}
+</style>
+</head>
+<body class="lb lb-papier">
+<main class="blatt">
+
+  <h1 class="lb-titel">Entwurf Rezeptansicht</h1>
+  <p class="lb-neben">Design-Review 15.11.2026 · Entscheide E-1 bis E-7, O-15, O-16 · Anforderungen FR-209, FR-210, FR-311 bis FR-314, NFR-23 (entwurf) · Beispieldaten</p>
+  <p class="lb-neben"><a class="link" href="index.html">Übersicht</a> · <a class="link" href="entwurf-rezeptur.html">Rezeptur (Bestand)</a> · <a class="link" href="entwurf-kochmodus.html">Kochmodus (Bestand)</a> · Review im Vault: 03_Design/2026-11-15_Design-Review_Rezeptansicht/</p>
+  <p id="pruefung" class="lb-neben">Prüfung läuft …</p>
+
+  <!-- ================================================================ 1 -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">1 Was sich ändert</h2>
+  <p class="text"><span class="fett">Die Menge steht vor dem Namen, die Notizen stehen auf der Zeile, zu der sie gehören, und die Batch-Kette rechnet bis zum Ofenlauf.</span> Bretter A–G zeigen jede Stufe; Mise en place bleibt Overlay (E-5) und ist hier nur als Einstieg gezeichnet.</p>
+  <div class="lb-luecke"></div>
+  <ul class="liste">
+    <li>Zutatenzeile «Menge · Name · Hinweis»: Menge Medium in fester Spalte 84 px, 14 px Lücke, Name, Hinweis 13 Nebentext. Bäckerprozent nur im Entwicklungsmodus (E-4). Lücke Name ↔ Menge heute 320–710 px, neu 14 px auf jeder Breite.</li>
+    <li>Arbeitsschritt: Nummer 13 Nebentext in der Mengenspalte, Text ohne Menge, höchstens 520 px Satzbreite. Die leere Mengenspalte trennt Schritte von Zutaten (F-3, Muster ChefSteps).</li>
+    <li>Randspalte «Notizen» zeilengleich: jede Zeile der Rezeptur hat rechts ihre Zelle. Notiz je Zutat und je Schritt; keine Zutatenliste mehr, kein eigener Bildlauf (E-3). Eine mehrzeilige Notiz läuft in leere Randzellen darunter aus; nur wenn dort schon eine Notiz steht, wächst die Zeile.</li>
+    <li>Mengenkorrektur direkt in der Mengenzelle: Tippen auf die Menge macht sie zum Feld, der neue Wert steht rot, das Soll durchgestrichen hinter dem Namen (Rolle 3, K-10). Übernehmen und Verwerfen stehen im Kopf der Randspalte. Entschieden 15.11.2026 (Gianluca), FR-210 entsprechend angepasst.</li>
+    <li>Stufe K (iPad hoch, iPhone): keine Randspalte und kein Overlay über dem Rezept. Notizen stehen als eigene Zeile unter ihrer Zutat bzw. ihrem Schritt, eingerückt auf die Namensflucht (N-4 behoben).</li>
+    <li>Stückzutaten: Gewicht führt, Stückzahl als Hinweis «≈ 2 Stk» (E-7).</li>
+    <li>Skalierungszeile: Basis und Portionen wie heute (E-1), dazu «Mise en place» als Einstieg ins Overlay (E-5). Auf dem iPhone in zwei Bedienzeilen, kein Überlauf (X-1).</li>
+    <li>Formular «Batch definieren» im Entwicklungsmodus: Portionsgrösse als Feld, Ausbeute-Kette bis 3 Ebenen, Menge auf jeder Ebene planbar. Felder zuerst, dann Vorschau, dann Knöpfe — unter dem Rezepttitel (M-4). Auch auf dem iPhone, einspaltig (O-16).</li>
+  </ul>
+
+  <!-- ================================================================ 2 -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">2 Masse</h2>
+  <div class="zeile"><span class="k">Zutatenzeile</span><span class="v">Menge 84 rechtsbündig, Medium · Lücke 14 · Name 15 · Hinweis 13 Nebentext · Kochmodus: Menge 120, Lücke 19</span></div>
+  <div class="zeile"><span class="k">Arbeitsschritt</span><span class="v">Nummer 13 Nebentext in der Mengenspalte · Text 15, max. 520 px · Umbruch +28 je Zeile</span></div>
+  <div class="zeile"><span class="k">W 1440 · beide Schienen</span><span class="v">Schiene 280 · Rezeptur 609 · Randspalte 340 (Bestand R-59), Randspalte zeilengleich</span></div>
+  <div class="zeile"><span class="k">M 1024 · Notizen offen</span><span class="v">Rezeptur 605 · Randspalte 240 · linke Schiene zu (höchstens eine offen, AP-0201 §2.2)</span></div>
+  <div class="zeile"><span class="k">K 820 iPad hoch</span><span class="v">Rand 24 · Rezeptur 739 · keine Randspalte, Notiz als Unterzeile</span></div>
+  <div class="zeile"><span class="k">iPhone 393</span><span class="v">Rand 24 · Gasse 16 · Rezeptur 328 · Menge 68 · Skalierung zwei Bedienzeilen</span></div>
+  <div class="zeile"><span class="k">Rot</span><span class="v">Randlinien (Rolle 1), Trenner (Rolle 2), Korrekturwert (Rolle 3) — Summenstrich der Kette ist Graphit</span></div>
+
+  <!-- ================================================================ 3 -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">3 Zeichenbretter</h2>
+  <p class="lb-neben">Echte Breite, nur die Rezeptur mit Randspalte; Kopfzeile und linke Schiene sind weggelassen. Brioche-Zopf und Zimtsterne sind Beispieldaten.</p>
+  <div class="lb-luecke"></div>
+  <div class="bretter" id="bretter"></div>
+
+  <!-- ================================================================ 4 -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">4 Verhalten</h2>
+  <ul class="liste">
+    <li>Randspalte: Tippen in eine leere Zelle öffnet ein Zeilenfeld auf derselben Linie (Brett A, «Zucker»). Leere Zellen zeigen nichts; Hover zeigt «+ Notiz» in Nebentext.</li>
+    <li>Mehrzeilige Notiz: sie läuft in leere Randzellen darunter aus, die Rezepturzeile bleibt 28 hoch und der Zutatenblock geschlossen. Nur wenn die nächste Zeile selbst eine Notiz trägt, wächst die Zeile (Entscheid 15.11.2026, S-4).</li>
+    <li>Die Randspalte scrollt mit der Rezeptur — sie ist Teil derselben Zeile, nicht eine eigene Liste. Zugeklappte Phase: ihre Notizen klappen mit.</li>
+    <li>Korrektur: Tippen auf die Menge öffnet das Feld in der Mengenzelle (Zahlentastatur, 16 px auf dem iPhone, kein Fokus-Zoom). Enter übernimmt in den Arbeitsstand, Escape verwirft die Eingabe.</li>
+    <li>Arbeitsstand (Korrekturen und Notizen) wird in Rezepte.xlsx gespeichert, Spalte «Mise (JSON)», Schlüssel Phase/Zutat bzw. Phase/Schritt (FR-314). «Phasen (JSON)» ändert nur «Ins Rezept übernehmen».</li>
+    <li>Ausbeute-Kette: Eingabe auf einer Ebene rechnet die übrigen und alle Zutaten nach. Krumme Werte bleiben stehen und werden genannt («1.33 Ofenläufe»), nicht still gerundet.</li>
+    <li>«Mise en place» öffnet das Overlay aus der Ideation vom 25.10.2026 (Gefäss-Sicht D-a, Waage D-b) in der aktuellen Skalierung.</li>
+    <li>Kochmodus: Zutatenzeile wie hier, ohne Hinweis-Umbruch; Notizen bleiben aus (K-17).</li>
+    <li>Druck: Zutatenzeile wie Brett A ohne Randspalte; Notizen drucken als Unterzeile wie auf Stufe K.</li>
+  </ul>
+
+  <!-- ================================================================ 5 -->
+  <div class="lb-trenner"></div>
+  <h2 class="lb-phasentitel">5 Weg in die Anwendung</h2>
+  <p class="lb-neben">Fundstellen in index.html, Stand 15.11.2026 (Commit 94e4fd0). Vor dem Ändern prüfen. Nichts davon ist umgesetzt.</p>
+  <div class="zeile"><span class="k">View.zutatenzeileTeile() 4541</span><span class="v">Reihenfolge Menge · Name · Hinweis; td.pct nur im Entwicklungsmodus (4579); Stückzutaten Gewicht zuerst</span></div>
+  <div class="zeile"><span class="k">View.rezept() 5562, 5648, 5661</span><span class="v">table.zutaten und ol.schritte in Zeilen mit Randzelle umbauen (Muster Entwicklungsmodus AP-0315)</span></div>
+  <div class="zeile"><span class="k">View.notizsection() 4417</span><span class="v">Liste «Mengenkorrekturen» entfällt; Kopf mit Übernehmen/Verwerfen und Rezeptnotiz bleibt</span></div>
+  <div class="zeile"><span class="k">Korrekturen 3978</span><span class="v">Ablage von localStorage «libarius.korrekturen.v1» nach «Mise (JSON)» (FR-314), lokale Einträge übernehmen, nichts löschen</span></div>
+  <div class="zeile"><span class="k">View.batchFormular() 4731</span><span class="v">Felder Portionsgrösse und Kette; Reihenfolge Felder → Vorschau → Knöpfe (M-4); neue Spalte «Ausbeute (JSON)»</span></div>
+  <div class="zeile"><span class="k">CSS 1133–1139</span><span class="v">819-px-Sperre nur noch für den Variantenvergleich, nicht für «Batch definieren» (E-1a, O-16)</span></div>
+  <div class="zeile"><span class="k">Kochmodus CSS 1290</span><span class="v">Mengenspalte 120 links statt 200 rechts</span></div>
+  <div class="zeile"><span class="k">selfTest()</span><span class="v">neu: Versatz Zutat ↔ Randzelle 0; Lücke Menge ↔ Name 14; Kette 12 g · 50 · 3 → 150 Stk / 1800 g; Korrektur-Rundlauf über «Mise (JSON)»</span></div>
+</main>
+<script>
+// Nur fuer die Referenzseite: baut die Zeichenbretter aus Beispieldaten und prueft
+// danach Raster, Zeilengleichheit und die Luecke Menge -> Name.
+(function () {
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+
+  // Brioche-Zopf, Faktor 1. [menge, name, hinweis, korrektur, notiz]
+  var BRIOCHE = {
+    name: 'Brioche-Zopf', meta: 'Backen · 3 Phasen · 12 Stk · 900 g',
+    rezeptnotiz: 'Für zwei Zöpfe ×2 rechnen; Butter dann in drei Etappen.',
+    phasen: [
+      { name: 'Vorteig', z: [['100 g', 'Weissmehl 00', ''], ['100 ml', 'Milch 3.5%', 'lauwarm'], ['15 g', 'Hefe frisch', 'zerbröckelt']],
+        s: [['Zutaten verrühren, 45 Min. bei Raumtemperatur gehen lassen.']] },
+      { name: 'Hauptteig', z: [['400 g', 'Weissmehl 00', ''], ['120 g', 'Ei', '≈ 2 Stk · zimmerwarm'], ['60 g', 'Zucker', '', null, null, 'feld'],
+            ['110 g', 'Butter', 'weich, in Stücken', '100 g', '15.03.: 110 g und eiskalt — Teig klebt weniger'], ['9 g', 'Salz', '']],
+        s: [['Alles ausser Butter 8 Min. kneten.'], ['Butter in Stücken einarbeiten, bis der Teig glänzt.'],
+            ['90 Min. gehen lassen, dann über Nacht kühl stellen.', 'Über Nacht = 10–12 h bei 5 °C']] },
+      { name: 'Formen & Backen', z: [['30 g', 'Ei', '≈ ½ Stk · verquirlt']],
+        s: [['Zopf flechten, 60 Min. gehen lassen.'], ['Mit Ei bestreichen, 180 °C, 30–35 Min. backen.', 'Umluft 170 °C reicht; nach 25 Min. prüfen, sonst zu dunkel']] }
+    ],
+    metas: [['Nährwerte', '250 kcal / Stk'], ['Kosten', 'CHF 4.48 · CHF 0.37 / Stk']]
+  };
+
+  function zelleRand(text, art) {
+    if (art === 'feld') return '<div class="lb-rz lb-rz--feld">Kristallzucker statt Puderzucker<span class="lb-einfuegemarke"></span></div>';
+    if (!text) return '<div class="lb-rz lb-rz--leer">–</div>';
+    return '<div class="lb-rz"><span class="t">' + esc(text) + '</span></div>';
+  }
+  function zutatHtml(z, opt) {
+    var menge = z[0], name = z[1], hw = z[2], soll = z[3];
+    var mKlasse = 'm' + (soll ? ' korr' : '') + (opt && opt.fokusMenge && name === 'Salz' ? ' fokus' : '');
+    return '<div class="lb-z"><span class="' + mKlasse + '"' + (soll ? ' data-soll="' + esc(soll) + '"' : '') + '>' + esc(menge) + '</span><span class="n">' + esc(name) +
+      (soll ? '<span class="soll">' + esc(soll) + '</span>' : '') + (hw ? '<span class="hw">' + esc(hw) + '</span>' : '') + '</span></div>';
+  }
+  function schrittHtml(text, nr) {
+    return '<div class="lb-s"><span class="m">' + nr + '</span><span class="n">' + esc(text) + '</span></div>';
+  }
+  function unterHtml(text) { return '<div class="lb-u"><span class="m">✎</span><span class="n">' + esc(text) + '</span></div>'; }
+  function zr(links, rechts) { return '<div class="lb-zr">' + links + (rechts === undefined ? '' : rechts) + '</div>'; }
+
+  function wert(v, b) {
+    return b.geraet ? '<input class="ein" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" value="' + v + '" aria-label="Wert">' : v;
+  }
+  function kopf(r, b) {
+    var skal;
+    if (b.phone) {
+      skal = '<div class="lb-skal"><div class="lb-feld"><span class="lb-etikett">Basis (g)</span>' + wert('500', b) + '</div>' +
+        '<div class="lb-feld"><span class="lb-etikett">Portionen</span>' + wert('12', b) + '</div></div>' +
+        '<div class="lb-skal"><button type="button" class="lb-bedienzeile"><span class="nm">Original</span></button>' +
+        '<button type="button" class="lb-bedienzeile rechts"><span class="nm">Mise en place</span><span class="zusatz">›</span></button></div>';
+    } else {
+      skal = '<div class="lb-skal"><div class="lb-feld"><span class="lb-etikett">Basis (g)</span>' + wert('500', b) + '</div>' +
+        '<div class="lb-feld"><span class="lb-etikett">Portionen</span>' + wert('12', b) + '</div>' +
+        '<button type="button" class="lb-bedienzeile"><span class="nm">Original</span></button>' +
+        '<button type="button" class="lb-bedienzeile rechts"><span class="nm">Mise en place</span><span class="zusatz">›</span></button></div>';
+    }
+    var links = '<div><h3 class="lb-titel">' + esc(r.name) + '</h3><div class="lb-neben">' + esc(r.meta) + '</div>' + skal + '</div>';
+    var rechts = b.rand
+      ? '<div><div class="lb-randkopf"><span class="lbl">Notizen</span><button type="button" class="lb-schliessen" aria-label="Notizen schliessen">×</button></div>' +
+        '<div class="lb-rz" style="color:var(--lb-graphit)">1 Korrektur offen · <span class="lb-klein-aktion">Übernehmen</span> · <span class="lb-klein-aktion">Verwerfen</span></div>' +
+        '<div class="lb-rz">' + esc(r.rezeptnotiz) + '</div></div>'
+      : undefined;
+    var h = zr(links, rechts);
+    if (!b.rand) {
+      h += zr('<div><div class="lb-rz" style="color:var(--lb-graphit)">1 Korrektur offen · <span class="lb-klein-aktion">Übernehmen</span> · <span class="lb-klein-aktion">Verwerfen</span></div>' +
+        unterHtml(r.rezeptnotiz).replace('lb-u', 'lb-u lb-u--kopf') + '</div>');
+    }
+    return h;
+  }
+  function rezeptur(r, b) {
+    var leer = b.rand ? '<div></div>' : undefined;
+    var h = kopf(r, b);
+    r.phasen.forEach(function (p, i) {
+      h += zr('<div class="lb-trenner"></div>', leer);
+      h += zr('<button type="button" class="lb-bedienzeile lb-phase"><span class="nm"><span class="pf">⌄</span>' + esc(p.name) + '</span></button>', leer);
+      p.z.forEach(function (z) {
+        h += zr(zutatHtml(z, b), b.rand ? zelleRand(z[4], z[5]) : undefined);
+        if (!b.rand && z[4]) h += zr(unterHtml(z[4]));
+      });
+      h += zr('<div class="lb-luecke"></div>', leer);
+      p.s.forEach(function (s, j) {
+        h += zr(schrittHtml(s[0], j + 1), b.rand ? zelleRand(s[1]) : undefined);
+        if (!b.rand && s[1]) h += zr(unterHtml(s[1]));
+      });
+    });
+    h += zr('<div class="lb-trenner"></div>', leer);
+    r.metas.forEach(function (m) {
+      h += zr('<button type="button" class="lb-bedienzeile"><span class="nm" style="flex:none;width:' + (b.phone ? 96 : 160) + 'px">' + esc(m[0]) +
+        '</span><span class="zusatz" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(m[1]) + '</span><span class="zusatz">›</span></button>', leer);
+    });
+    var stil = '--rz:' + b.rz + 'px;' + (b.rand ? '--rs:' + b.rs + 'px;' : '') + (b.gasse ? '--gasse:' + b.gasse + 'px;' : '') + (b.menge ? '--menge:' + b.menge + 'px;' : '');
+    return '<div class="lb-ra' + (b.rand ? '' : ' lb-ra--ohne-rand') + '" style="' + stil + '">' + h + '</div>';
+  }
+
+  // Zimtsterne: 1 Batch = 1 Blech = 50 Stk = 600 g fertig (645 g roh, Schwund 7 %).
+  // Basis fuer Baeckerprozente: Mandeln gemahlen 300 g.
+  var ZIMT = [['Mandeln gemahlen', '100.0', '300 g', '1800 g'], ['Puderzucker', '83.3', '250 g', '1500 g'],
+              ['Eiweiss', '30.0', '90 g', '540 g'], ['Zimt', '1.7', '5 g', '30 g']];
+  function feld(etikett, wert, breite, extra) {
+    return '<div class="lb-feld' + (extra || '') + '" style="' + (breite ? 'width:' + breite + 'px' : '') + '"><span class="lb-etikett">' + esc(etikett) + '</span>' + wert + '</div>';
+  }
+  function batchForm(b) {
+    var ph = b.phone, h = '';
+    h += '<h3 class="lb-titel">Zimtsterne</h3><div class="lb-neben">Entwicklung · Batch definieren · Schwund 7 % aus 4 Protokollen</div>';
+    h += '<div class="lb-luecke"></div><div class="lb-neben">Portion</div>';
+    h += '<div class="lb-form-zeile">' + feld('Portionsgrösse (g fertig)', '12', ph ? 0 : 168, ph ? ' breit' : '') + feld('heisst', 'Zimtstern', ph ? 120 : 168) + '</div>';
+    h += '<div class="lb-luecke"></div><div class="lb-neben">Ausbeute-Kette · höchstens 3 Ebenen</div>';
+    h += '<div class="lb-form-zeile">' + feld('Ebene 2', 'Blech', ph ? 0 : 168, ph ? ' breit' : '') + feld('Anzahl', '50', 72) + (ph ? '' : '<span class="zusatz">Zimtsterne je Blech</span>') + '</div>';
+    h += '<div class="lb-form-zeile">' + feld('Ebene 3', 'Ofenlauf', ph ? 0 : 168, ph ? ' breit' : '') + feld('Anzahl', '3', 72) + (ph ? '' : '<span class="zusatz">Bleche je Ofenlauf</span>') + '</div>';
+    h += '<button type="button" class="lb-bedienzeile"><span class="nm" style="color:var(--lb-neben)">+ Ebene</span></button>';
+    h += '<div class="lb-summe"></div>';
+    h += '<div>1 Ofenlauf = 3 Bleche = 150 Zimtsterne = 1800 g</div>';
+    h += '<div class="lb-neben">1 Batch (Rezept wie hinterlegt) = 1 Blech = 600 g fertig, 645 g roh</div>';
+    h += '<div class="lb-luecke"></div><div class="lb-neben">Menge planen</div>';
+    h += '<div class="lb-form-zeile">' + feld('Anzahl', '2', 72, ' lb-feld--fokus') + feld('Ebene', '<span class="lb-dd">Ofenläufe</span>', 136) +
+      (ph ? '' : '<span class="zusatz">300 Zimtsterne · 6 Bleche · 3600 g · Faktor ×6</span>') + '</div>';
+    if (ph) h += '<div class="lb-neben">300 Zimtsterne · 6 Bleche · Faktor ×6</div>';
+    h += '<div class="lb-luecke"></div>';
+    var vs = ph ? ' lb-vt--schmal' : '';
+    h += '<div class="lb-vt lb-vt--kopf' + vs + '"><span>Zutat</span><span>%</span><span>1 Batch</span><span>2 Ofenl.</span></div>';
+    ZIMT.forEach(function (z) {
+      h += '<div class="lb-vt' + vs + '"><span>' + esc(z[0]) + '</span><span class="pct">' + z[1] + '</span><span>' + z[2] + '</span><span class="fett">' + z[3] + '</span></div>';
+    });
+    h += '<div class="lb-knoepfe"><button type="button" class="lb-bedienzeile"><span class="nm fett">Batch speichern</span></button>' +
+      '<button type="button" class="lb-bedienzeile"><span class="nm">Abbrechen</span></button></div>';
+    var stil = '--rz:' + b.rz + 'px;' + (b.gasse ? '--gasse:' + b.gasse + 'px;' : '');
+    return '<div class="lb-ra lb-ra--ohne-rand" style="' + stil + '"><div class="lb-zr"><div>' + h + '</div></div></div>';
+  }
+  function kochmodus(rz) {
+    var p = BRIOCHE.phasen[1], h = '';
+    h += zr('<div class="lb-trenner"></div>');
+    h += zr('<div class="lb-phase" style="height:var(--lb-zeile)">' + esc(p.name) + '</div>');
+    p.z.forEach(function (z) { h += zr(zutatHtml(z)); });
+    h += zr('<div class="lb-luecke"></div>');
+    p.s.forEach(function (s, j) { h += zr(schrittHtml(s[0], j + 1)); });
+    return '<div class="lb-kochmodus lb-papier lb" style="padding-bottom:var(--lb-zeile)"><div class="lb-ra lb-ra--ohne-rand" style="--rz:' + (rz || 880) + 'px">' + h + '</div></div>';
+  }
+
+  var Q = new URLSearchParams(location.search);
+  if (Q.has('geraet')) { geraetModus(Q.get('geraet') || 'rezept'); return; }
+
+  var BRETTER = [
+    { titel: 'A · W 1440 · Rezeptur 609 + Notizen 340', sub: 'Korrektur Butter, Notizen an Zutat und Schritt, Zeilenfeld «Zucker»', rand: true, rz: 609, rs: 340 },
+    { titel: 'B · M 1024 · Rezeptur 605 + Notizen 240', sub: 'lange Notiz läuft in leere Randzellen darunter aus', rand: true, rz: 605, rs: 240 },
+    { titel: 'C · K iPad hoch 820 · Rezeptur 739', sub: 'keine Randspalte: Notiz als Unterzeile, nichts verdeckt', rand: false, rz: 739 },
+    { titel: 'D · iPhone 393 · Rezeptur 328', sub: 'Menge 68, Skalierung in zwei Zeilen', rand: false, rz: 328, gasse: 16, menge: 68, phone: true },
+    { titel: 'E · Entwicklungsmodus · Batch definieren', sub: 'W/M/iPad · Portionsgrösse und Kette (E-1, E-2)', form: true, rz: 640 },
+    { titel: 'F · iPhone 393 · Batch definieren', sub: 'einspaltig (O-16)', form: true, rz: 328, gasse: 16, phone: true },
+    { titel: 'G · Kochmodus iPad quer 1180', sub: 'Raster 38, Menge 120 links, Lücke 19', koch: true }
+  ];
+  var ziel = document.getElementById('bretter');
+  ziel.innerHTML = BRETTER.map(function (b) {
+    var koerper = b.koch ? kochmodus() : b.form ? batchForm(b) : rezeptur(BRIOCHE, b);
+    return '<div class="brett" data-titel="' + esc(b.titel) + '"><div class="brett-kopf"><p class="fett">' + esc(b.titel) + '</p><p class="lb-neben">' + esc(b.sub) + '</p></div>' +
+      '<div class="brett-koerper">' + koerper + '</div></div>';
+  }).join('');
+  kochAuffuellen();
+  randAuslauf(document);
+
+  // Randnotiz darf in leere Randzellen darunter auslaufen (S-4).
+  function randAuslauf(wurzel) {
+    wurzel.querySelectorAll('.lb-rz--lauf').forEach(function (z) { z.classList.remove('lb-rz--lauf'); });
+    wurzel.querySelectorAll('.lb-ra > .lb-zr > .lb-rz:not(.lb-rz--leer):not(.lb-rz--feld)').forEach(function (z) {
+      var t = z.querySelector('.t'); if (!t) return;
+      var noetig = t.getClientRects().length;   // Zeilen, die der Text heute belegt
+      if (noetig <= 1) return;
+      var frei = 0, zeile = z.parentElement.nextElementSibling;
+      while (zeile && frei < noetig - 1) {
+        var rand = zeile.children[1];
+        var leer = rand && (rand.classList.contains('lb-rz--leer') || (!rand.className && !rand.textContent.trim()));
+        if (!leer) break;
+        frei++; zeile = zeile.nextElementSibling;
+      }
+      if (frei >= noetig - 1) z.classList.add('lb-rz--lauf');
+    });
+  }
+
+  // Kochmodus-Brett auf ganze 28er-Zeilen auffuellen, damit die Seite im Raster bleibt.
+  function kochAuffuellen() {
+    document.querySelectorAll('.brett-koerper').forEach(function (k) {
+      if (!k.querySelector('.lb-kochmodus')) return;
+      k.style.height = '';
+      var h = k.getBoundingClientRect().height;
+      k.style.height = Math.ceil(h / 28) * 28 + 'px';
+    });
+  }
+
+  // --- Geraetemodus ---------------------------------------------------------
+  function geraetModus(ansicht) {
+    var main = document.querySelector('main.blatt');
+    function stufe() {
+      var w = document.documentElement.clientWidth, c = { w: w };
+      if (w >= 1280) { c.st = 'W'; c.rand = 40; c.gasse = 32; c.rs = 340; }
+      else if (w >= 860) { c.st = 'M'; c.rand = 40; c.gasse = 32; c.rs = 240; }
+      else { c.st = 'K'; c.rand = 24; c.phone = w < 600; c.gasse = c.phone ? 16 : 32; }
+      c.rz = c.rs ? Math.min(760, w - 2 * c.rand - 3 - 3 * c.gasse - c.rs) : w - 2 * c.rand - 1.5 - c.gasse;
+      c.formRz = Math.min(760, w - 2 * c.rand - 1.5 - c.gasse);
+      c.kochRz = Math.min(960, w - 2 * c.rand - 1.5 - 38);
+      return c;
+    }
+    function bauen() {
+      var c = stufe();
+      document.body.classList.toggle('geraet--phone', !!c.phone);
+      main.style.padding = '0 ' + c.rand + 'px calc(2 * var(--lb-zeile))';
+      main.style.maxWidth = 'none';
+      var links = [['rezept', 'Rezept'], ['batch', 'Batch definieren'], ['koch', 'Kochmodus']].map(function (l) {
+        return '<a href="?geraet=' + l[0] + '"' + (l[0] === ansicht ? ' class="an"' : '') + '>' + l[1] + '</a>';
+      }).join('') + '<a href="entwurf-rezeptansicht.html">Bretter</a>';
+      var koerper = ansicht === 'batch' ? batchForm({ rz: c.formRz, gasse: c.gasse, phone: c.phone })
+        : ansicht === 'koch' ? kochmodus(c.kochRz)
+        : rezeptur(BRIOCHE, { rand: !!c.rs, rz: c.rz, rs: c.rs, gasse: c.phone ? 16 : 0, menge: c.phone ? 68 : 0, phone: c.phone, geraet: true });
+      main.innerHTML = '<div class="geraet-kopf"><span>Stufe ' + c.st + ' · ' + c.w + ' px</span>' + links + '</div>' +
+        '<p id="pruefung" class="lb-neben">Prüfung läuft …</p><div class="brett-koerper">' + koerper + '</div>';
+      kochAuffuellen();
+      (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function () { randAuslauf(main); bericht(); });
+    }
+    function zahl(t) { var m = String(t).match(/([0-9.,]+)\s*(.*)/); return m ? { n: m[1], e: m[2] } : { n: t, e: '' }; }
+    function feldOeffnen(ziel, wert, attr, fertig) {
+      ziel.innerHTML = '<input class="ein" ' + attr + ' enterkeyhint="done" value="' + esc(wert) + '">';
+      var inp = ziel.querySelector('input'), zu = false;
+      function schliessen() { if (zu) return; zu = true; fertig(inp.value.trim()); bericht(); }
+      inp.addEventListener('blur', schliessen);
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') inp.blur(); if (e.key === 'Escape') { inp.value = wert; inp.blur(); } });
+      inp.focus(); inp.select();
+    }
+    function korrektur(m) {
+      var soll = m.dataset.soll || m.textContent, s0 = zahl(soll), jetzt = zahl(m.textContent);
+      m.dataset.soll = soll;
+      feldOeffnen(m, jetzt.n, 'inputmode="decimal"', function (v) {
+        var n = m.parentElement.querySelector('.n'), alt = n.querySelector('.soll');
+        if (!v || v === s0.n) { m.textContent = soll; m.classList.remove('korr'); if (alt) alt.remove(); return; }
+        m.textContent = v + ' ' + s0.e; m.classList.add('korr');
+        if (!alt) { alt = document.createElement('span'); alt.className = 'soll'; n.insertBefore(alt, n.childNodes[1] || null); }
+        alt.textContent = soll;
+      });
+    }
+    function notiz(rz) {
+      var leer = rz.classList.contains('lb-rz--leer'), t = leer ? '' : rz.textContent;
+      rz.className = 'lb-rz lb-rz--feld';
+      feldOeffnen(rz, t, 'type="text"', function (v) {
+        rz.className = 'lb-rz' + (v ? '' : ' lb-rz--leer');
+        rz.innerHTML = v ? '<span class="t">' + esc(v) + '</span>' : '–';
+        randAuslauf(main);
+      });
+    }
+    function unterzeile(nm) {
+      var zeile = nm.closest('.lb-zr'), nach = zeile.nextElementSibling, u = nach && nach.querySelector('.lb-u');
+      if (!u) {
+        var neu = document.createElement('div'); neu.className = 'lb-zr';
+        neu.innerHTML = '<div class="lb-u"><span class="m">✎</span><span class="n"></span></div>';
+        zeile.after(neu); u = neu.firstChild;
+      }
+      var n = u.querySelector('.n'), t = n.textContent;
+      feldOeffnen(n, t, 'type="text"', function (v) {
+        if (v) n.textContent = v; else u.closest('.lb-zr').remove();
+      });
+    }
+    main.addEventListener('click', function (ev) {
+      var t = ev.target;
+      if (t.closest('input, a, button')) return;
+      var m = t.closest('.lb-z > .m'); if (m) { korrektur(m); return; }
+      var rz = t.closest('.lb-ra > .lb-zr > .lb-rz'); if (rz) { notiz(rz); return; }
+      var nm = t.closest('.lb-ra--ohne-rand .lb-z > .n, .lb-ra--ohne-rand .lb-s > .n');
+      if (nm && !t.closest('.lb-kochmodus')) unterzeile(nm);
+    });
+    bauen();
+    var warte;
+    addEventListener('resize', function () { clearTimeout(warte); warte = setTimeout(bauen, 200); });
+  }
+
+  // --- Pruefung ---------------------------------------------------------------
+  function nahe(a, b) { return Math.abs(a - b) < 0.05; }
+  function rest(x, z) { return ((x % z) + z) % z; }
+  function name(el) {
+    return el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className.trim()
+      ? '.' + el.className.trim().split(/\s+/).join('.') : '');
+  }
+  function rasterPruefung() {
+    var geprueft = 0, fehler = [];
+    document.querySelectorAll('.blatt *').forEach(function (el) {
+      if (el.matches('.lb-einfuegemarke, .lb-kaestchen')) return;
+      var cs = getComputedStyle(el);
+      if (cs.display === 'inline' || cs.display === 'none' || cs.display === 'contents') return;
+      var r = el.getBoundingClientRect();
+      if (!r.height) return;
+      var koch = el.closest('.lb-kochmodus');
+      var Z = koch ? 38 : 28;
+      geprueft++;
+      if (!nahe(rest(r.height, Z), 0)) { fehler.push(name(el) + ' Höhe ' + r.height.toFixed(2)); return; }
+      if (koch) return;
+      var p = el.parentElement ? getComputedStyle(el.parentElement) : null;
+      if (p && (p.display.indexOf('flex') >= 0 || p.display.indexOf('grid') >= 0) && p.alignItems === 'baseline') return;
+      var top = r.top + window.scrollY;
+      if (!nahe(rest(top, Z), 0)) fehler.push(name(el) + ' Oberkante ' + top.toFixed(2));
+    });
+    return { geprueft: geprueft, fehler: fehler };
+  }
+  function zeilengleich() {
+    var max = 0, n = 0;
+    document.querySelectorAll('.lb-ra:not(.lb-ra--ohne-rand) > .lb-zr').forEach(function (z) {
+      if (z.children.length < 2) return;
+      var a = z.children[0].getBoundingClientRect(), b = z.children[1].getBoundingClientRect();
+      max = Math.max(max, Math.abs(a.top - b.top), Math.abs(a.height - b.height)); n++;
+    });
+    return { zeilen: n, versatz: max };
+  }
+  function luecke() {
+    var min = 1e9, max = 0;
+    document.querySelectorAll('.lb-z').forEach(function (z) {
+      var m = z.querySelector('.m'), nm = z.querySelector('.n');
+      var rg = document.createRange(); rg.selectNodeContents(m);
+      var mr = rg.getBoundingClientRect().right;
+      rg.selectNodeContents(nm.firstChild); var nl = rg.getBoundingClientRect().left;
+      var d = nl - mr; min = Math.min(min, d); max = Math.max(max, d);
+    });
+    return max ? min.toFixed(1) + '–' + max.toFixed(1) + ' px' : '–';
+  }
+  function ueberlauf() {
+    var n = 0;
+    document.querySelectorAll('.brett-koerper > *').forEach(function (k) { if (k.scrollWidth > k.clientWidth + 0.5) n++; });
+    document.querySelectorAll('.lb-ra *').forEach(function (el) {
+      if (getComputedStyle(el).display === 'inline') return;
+      if (el.scrollWidth > el.clientWidth + 0.5 && getComputedStyle(el).textOverflow !== 'ellipsis' && !el.closest('.zusatz')) n++;
+    });
+    return n;
+  }
+  function bericht() {
+    var rp = rasterPruefung(), zg = zeilengleich(), lu = luecke(), ul = ueberlauf();
+    document.getElementById('pruefung').innerHTML =
+      'Rasterprüfung: <b>' + rp.geprueft + '</b> Blöcke, ' +
+      (rp.fehler.length ? '<b>' + rp.fehler.length + ' ausserhalb</b>: ' + rp.fehler.slice(0, 5).join(' · ')
+                        : '<b>alle</b> Höhen und Oberkanten auf 28 (Kochmodus 38)') +
+      ' · Zeilengleich: <b>' + zg.zeilen + '</b> Zeilen, Versatz <b>' + zg.versatz.toFixed(1) + ' px</b>' +
+      ' · Lücke Menge → Name: <b>' + lu + '</b> · Überlauf: <b>' + ul + '</b>' +
+      (document.documentElement.scrollWidth > document.documentElement.clientWidth ? ' · <b>Seite breiter als Fenster</b>' : '');
+    window.lbPruefung = { raster: rp, zeilengleich: zg, luecke: lu, ueberlauf: ul };
+  }
+  (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve()).then(function () { randAuslauf(document); bericht(); });
+})();
+</script>
+</body>
+</html>
