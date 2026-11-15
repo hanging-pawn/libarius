@@ -1608,6 +1608,45 @@ button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)
   .korrektur-soll s::before{content:"(Soll "}
   .korrektur-soll s::after{content:")"}
 }
+
+/* ============================================================================
+   LIBAR-146 (Design-Review Rezeptansicht 15.11.2026, X-1, X-2, S-1, S-7, S-9):
+   Geraetebefunde iPhone/Safari, unabhaengig vom neuen Entwurf. Telefonstufe = unter
+   600 px (innerhalb von K); iPad hoch (744/820) bleibt unberuehrt. */
+
+/* S-7: Safari legt beim Antippen eine graue Flaeche ueber Links und Knoepfe — gegen
+   die Regel "keine Farbflaechen". Rueckmeldung nur ueber die Unterstreichung. */
+html{-webkit-tap-highlight-color:transparent}
+a:active,button:active,.lb-bedienzeile:active > .nm,.lb-sprungmarke:active .nm{
+  text-decoration:underline;text-decoration-color:var(--ink);
+  text-underline-offset:5px;text-decoration-thickness:1px}
+
+@media (max-width:599px){
+  /* X-1: die Skalierungszeile (Basis · Portionen · Original) war 401 px breit und
+     schob die Seite auf 491 px (393er iPhone). Sie nimmt jetzt die ganze Zeile unter
+     dem Titel und bricht in zwei 56-px-Zeilen um: Basis und Portionen, darunter
+     «Original». Gasse 16 statt 32 und Felder 56 statt 64 px, damit die erste
+     Zeile auch bei 375 px (Inhalt 262 px) ganz passt. */
+  .rezeptkopf .scaler{flex:1 1 100%;min-width:0;flex-wrap:wrap;
+    column-gap:16px;row-gap:0}
+  .rezeptkopf .scaler input{width:56px}
+
+  /* X-2: die linke Schiene war als Overlay 62vw breit (196 px Inhalt bei 393), die
+     Cue-Spur 112 px — den Tabnamen blieben 23 px, sie brachen Buchstabe fuer Buchstabe.
+     Auf dem Telefon: Schiene 88vw, Cue-Spur 56 px (sie traegt nur «×1.08» bzw. die
+     Phasennummer). Namen brechen damit nur noch zwischen Woertern. */
+  .rail{width:min(88vw,420px)}
+  #railLinks .lb-cornell{--lb-cue:56px;--lb-cue-gasse:8px}
+
+  /* S-1: Zahlenfelder unter 16 px loesen in Safari beim Fokus den Seitenzoom aus.
+     16 px, display:block — mit 16 px sass die Linie in Safari sonst 0.5 px neben dem
+     Raster (Simulator-Durchgang S-1); Hoehe bleibt die 56-px-Bedienzeile. */
+  input[type="number"],input[inputmode]{font-size:16px;display:block}
+
+  /* S-9: Safaris schwebende Adressleiste lag ueber den untersten Zeilen — unten Luft
+     fuer eine Bedienzeile plus die sichere Zone. */
+  body{padding-bottom:calc(var(--lb-bedien) + env(safe-area-inset-bottom))}
+}
 </style>
 </head>
 <body>
@@ -4414,6 +4453,14 @@ const View = {
 
   // AP-0204 §4: die Tabschiene — ein Eintrag je Store.offene, Cue-Spur traegt den
   // Skalierungsfaktor (nur wenn ≠ 1), aktiv = doppelt starke Graphitlinie (§4.3).
+  // LIBAR-146 (M-7): Faktor der Cue-Spur hoechstens zwei Nachkommastellen — 13/12 stand
+  // als «×1.0833333333333333» in der Schiene. Leer bei Faktor 1 (§4.2), sonst «×1.08».
+  faktorText(f){
+    const n = Number(f);
+    if(f == null || !isFinite(n) || n === 1) return "";
+    return "×" + Number(n.toFixed(2));
+  },
+
   tabs(){
     const box = el("#railTabs");
     if(!box) return;
@@ -4423,7 +4470,7 @@ const View = {
       if(!rz) return "";
       const aktiv = i === Store.aktivIdx;
       return `<div class="lb-cue-zeile lb-tab${aktiv ? " lb-tab--aktiv" : ""}" data-idx="${i}">
-        <span class="lb-cue lb-tab-cue">${t.faktor !== 1 ? "×" + t.faktor : ""}</span>
+        <span class="lb-cue lb-tab-cue">${View.faktorText(t.faktor)}</span>
         <div class="lb-tab-eintrag">
           <button type="button" class="lb-bedienzeile lb-bedienzeile--umbruch" data-tab-oeffnen="${i}">
             <span class="nm">${esc(rz.name)}${Korrekturen.hatOffene(rz.id) ? '<span class="punkt" title="Offene Korrekturen">●</span>' : ""}</span>
@@ -4961,9 +5008,9 @@ const View = {
       ? "Schwund unbekannt, 0 % angenommen"
       : "inkl. Schwund " + (Math.round(s * 1000) / 10) + " %";
     return `<div class="scaler noprint entw-batch">
-      <label>Portionen<input id="entwPortionen" type="number" min="0" step="1"
+      <label>Portionen<input id="entwPortionen" type="number" inputmode="numeric" min="0" step="1"
         value="${portionen != null ? Math.round(portionen * 10) / 10 : ""}"${portionen == null ? ' disabled title="Rezept ohne Portionenzahl"' : ""}></label>
-      <label>Batches<input id="entwBatches" type="number" min="0" step="0.1" value="${Math.round(f * 100) / 100}"></label>
+      <label>Batches<input id="entwBatches" type="number" inputmode="decimal" min="0" step="0.1" value="${Math.round(f * 100) / 100}"></label>
       <span class="lb-neben" id="entwFertiggewicht">Fertiggewicht ${fertigG != null ? Math.round(fertigG) + " g" : "—"} · ${schwundText}</span>
       ${View.aufrundenSichtbar(f) ? '<button class="ghost" id="btnAufBatch" type="button">auf vollen Batch aufrunden</button>' : ""}
       <button class="ghost" id="btnBatchDef" type="button" title="Batchgrösse und Portionen pro Batch dauerhaft festlegen">Batch definieren …</button>
@@ -4987,8 +5034,8 @@ const View = {
       </table>` : "";
     return `<div class="entw-batchform noprint" id="batchForm">
       <div class="scaler">
-        <label>Batch (g fertig, inkl. Schwund)<input id="bfBatch" type="number" min="0" step="10" value="${esc(form.batchG == null ? "" : String(form.batchG))}"${gesperrt}></label>
-        <label>Portionen pro Batch<input id="bfPortionen" type="number" min="0" step="1" value="${esc(form.portionen == null ? "" : String(form.portionen))}"${gesperrt}></label>
+        <label>Batch (g fertig, inkl. Schwund)<input id="bfBatch" type="number" inputmode="numeric" min="0" step="10" value="${esc(form.batchG == null ? "" : String(form.batchG))}"${gesperrt}></label>
+        <label>Portionen pro Batch<input id="bfPortionen" type="number" inputmode="numeric" min="0" step="1" value="${esc(form.portionen == null ? "" : String(form.portionen))}"${gesperrt}></label>
         <span class="lb-neben">${schwundText}${r.ok ? " · Portion " + g(r.portionsgroesseG) + " · Faktor ×" + nf(r.faktor, 2) : ""}</span>
       </div>
       ${r.ok ? "" : `<div class="bf-fehler warn-inline">${r.fehler.map(esc).join(" ")}</div>`}
@@ -5026,7 +5073,7 @@ const View = {
       // AP-0309/§3 Nr.7: Substitutions-Dialog ist Nebenansicht (B7), der Anstoss dazu bleibt
       // aber an der Zutatenzeile selbst — sonst waere er nicht mehr auffindbar.
       return `<div class="entw-zelle">
-        <input type="number" step="any" data-entw-zutat="${esc(sp.v)}|${r.pi}|${r.zi}"
+        <input type="number" inputmode="decimal" step="any" data-entw-zutat="${esc(sp.v)}|${r.pi}|${r.zi}"
           class="entw-wert${geaendert ? " entw-geaendert" : ""}" style="width:auto;flex:1;min-width:0"
           value="${Number.isFinite(anzeige) ? Math.round(anzeige * 100) / 100 : ""}" title="${esc(zu.name)}">${deltaHtml}
         <button type="button" class="ghost noprint" data-entw-subst="${esc(sp.v)}|${r.pi}|${r.zi}"
@@ -5290,8 +5337,8 @@ const View = {
       <div class="entw-abschnitt">
         <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Datum</span><input id="entwBewDatum" type="date" value="${esc(ov.datum)}"></label>
         ${feldsatz.kernSollIst ? `
-        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Soll (g)</span><input id="entwBewSoll" type="number" min="1" step="1" value="${esc(ov.sollG)}"></label>
-        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Ist (g)</span><input id="entwBewIst" type="number" min="1" step="1" value="${esc(ov.istG)}"></label>` : ""}
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Soll (g)</span><input id="entwBewSoll" type="number" inputmode="numeric" min="1" step="1" value="${esc(ov.sollG)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Ist (g)</span><input id="entwBewIst" type="number" inputmode="numeric" min="1" step="1" value="${esc(ov.istG)}"></label>` : ""}
         <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Gesamtnote</span><select id="entwBewBewertung">${[1,2,3,4,5].map(n => `<option value="${n}"${n === ov.bewertung ? " selected" : ""}>${n} — ${"★".repeat(n)}${"☆".repeat(5-n)}</option>`).join("")}</select></label>
         ${feldHtml}
         <h4 class="entw-zwischentitel">Merkmale (${esc(rz.verfahren || "generisch")})</h4>
@@ -5357,11 +5404,11 @@ const View = {
       </table>
       ${!ist ? '<div class="hint">Keine aktive Variante — Ist-Kennzahlen erst mit einer Variante verfügbar.</div>' : ""}
       <div class="entw-abschnitt">
-        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Hydration (%)</span><input id="zwHydration" type="number" step="0.1" value="${esc(ov.hydration)}"></label>
-        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Süsse (%)</span><input id="zwSuesse" type="number" step="0.1" value="${esc(ov.suesse)}"></label>
-        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Fett (%)</span><input id="zwFett" type="number" step="0.1" value="${esc(ov.fett)}"></label>
-        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Salz (%)</span><input id="zwSalz" type="number" step="0.1" value="${esc(ov.salz)}"></label>
-        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Kosten/Portion (CHF)</span><input id="zwKosten" type="number" step="0.01" value="${esc(ov.kosten)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Hydration (%)</span><input id="zwHydration" type="number" inputmode="decimal" step="0.1" value="${esc(ov.hydration)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Süsse (%)</span><input id="zwSuesse" type="number" inputmode="decimal" step="0.1" value="${esc(ov.suesse)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Fett (%)</span><input id="zwFett" type="number" inputmode="decimal" step="0.1" value="${esc(ov.fett)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Salz (%)</span><input id="zwSalz" type="number" inputmode="decimal" step="0.1" value="${esc(ov.salz)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Kosten/Portion (CHF)</span><input id="zwKosten" type="number" inputmode="decimal" step="0.01" value="${esc(ov.kosten)}"></label>
       </div>
       <div class="entw-abschnitt">
         <div class="hint">Zuckerart für «Rahmen herleiten» (nur nötig, wenn Süsse-Ziel gesetzt ist)</div>
@@ -5747,8 +5794,8 @@ const View = {
         const pc = leer ? "" : Math.round(Number(z.prozent) * 100 * 1000) / 1000;
         return `<div class="editorzeile" data-pi="${pi}" data-zi="${zi}">
           <input type="text" data-feld="name" value="${esc(z.name || "")}" placeholder="Zutat" list="zutatenvorschlaege">
-          <input type="number" data-feld="menge" min="0" step="any" value="${g}" title="Menge in Gramm (Basis ${rz.basisMengeG} g)">
-          <input type="number" data-feld="prozent" min="0" step="any" value="${pc}" title="Bäckerprozent">
+          <input type="number" inputmode="decimal" data-feld="menge" min="0" step="any" value="${g}" title="Menge in Gramm (Basis ${rz.basisMengeG} g)">
+          <input type="number" inputmode="decimal" data-feld="prozent" min="0" step="any" value="${pc}" title="Bäckerprozent">
           <select data-feld="einheit">${Import.EINHEITEN.map(e => `<option value="${e}"${z.einheit === e ? " selected" : ""}>${e}</option>`).join("")}</select>
           <button type="button" class="entfernen" data-entfernen title="Zutat entfernen">×</button>
         </div>`;
@@ -6004,15 +6051,15 @@ const View = {
       if(f.typ === "liste") return `<label class="lb-protokoll lb-protokoll--feld"><span class="lbl">${esc(f.label)} (kommagetrennt)</span>
           <input id="peFeld_${f.key}" data-feld="${f.key}" type="text" value="${esc(val)}"></label>`;
       if(f.typ === "zahl") return `<label class="lb-protokoll lb-protokoll--feld"><span class="lbl">${esc(f.label)}${f.einheit ? " (" + esc(f.einheit) + ")" : ""}</span>
-          <input id="peFeld_${f.key}" data-feld="${f.key}" type="number" step="any" value="${esc(val)}"></label>`;
+          <input id="peFeld_${f.key}" data-feld="${f.key}" type="number" inputmode="decimal" step="any" value="${esc(val)}"></label>`;
       return `<label class="lb-protokoll lb-protokoll--feld"><span class="lbl">${esc(f.label)}</span><input id="peFeld_${f.key}" data-feld="${f.key}" type="text" value="${esc(val)}"></label>`;
     };
     const protokollForm = pe ? `
       <div class="noprint lb-protokollform">
         <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Datum</span><input id="peDatum" type="date" value="${esc(pe.datum)}"></label>
         ${pFeldsatz.kernSollIst ? `
-        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Soll (g)</span><input id="peSoll" type="number" min="1" step="1" value="${esc(pe.soll)}"></label>
-        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Ist (g)</span><input id="peIst" type="number" min="1" step="1" value="${esc(pe.ist)}"></label>` : ""}
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Soll (g)</span><input id="peSoll" type="number" inputmode="numeric" min="1" step="1" value="${esc(pe.soll)}"></label>
+        <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Ist (g)</span><input id="peIst" type="number" inputmode="numeric" min="1" step="1" value="${esc(pe.ist)}"></label>` : ""}
         ${pFeldsatz.felder.map(peFeldInput).join("")}
         <label class="lb-protokoll lb-protokoll--feld"><span class="lbl">Notizen</span>
           <input id="peNotizen" type="text" value="${esc(pe.notizen)}" placeholder="z. B. Kruste zu hell, Ofen 10 °C höher"></label>
@@ -6061,14 +6108,14 @@ const View = {
               <div class="entw-zeile-pct"></div>
               <div class="entw-zeile-menge"></div>
               ${entwGasseHtml}
-              ${entwSpaltenOffen.map(sp => `<div class="entw-zelle"><input type="number" min="1" step="10"
+              ${entwSpaltenOffen.map(sp => `<div class="entw-zelle"><input type="number" inputmode="numeric" min="1" step="10"
                 data-entw-basismenge="${esc(sp.v)}"
                 value="${Math.round(sp.basisMengeG != null ? sp.basisMengeG : rz.basisMengeG)}"
                 title="Basismenge v${esc(sp.v)}, g"></div>`).join("")}${entwStreifenLeerHtml}
             </div>` : ""}`
             : `<div class="scaler noprint">
-            <label>Basis (g)<input id="zielBasis" type="number" min="1" step="10" value="${Math.round(rz.basisMengeG*f)}"></label>
-            <label>Portionen<input id="zielPortionen" type="number" min="1" step="1" value="${Math.round(rz.portionen*f)}"></label>
+            <label>Basis (g)<input id="zielBasis" type="number" inputmode="numeric" min="1" step="10" value="${Math.round(rz.basisMengeG*f)}"></label>
+            <label>Portionen<input id="zielPortionen" type="number" inputmode="numeric" min="1" step="1" value="${Math.round(rz.portionen*f)}"></label>
             <button class="ghost" id="btnReset">Original</button>
           </div>`}
         </div>
@@ -8607,7 +8654,18 @@ async function selfTest(){
         ["NFR06-4 Fehlermeldungen (Toast-Text) enthalten den Token nicht, auch wenn die Graph-Antwort ihn spiegelt",
           laufOk && meldungen.length === 6 && meldungen.every(m => typeof m === "string" && m.length > 0 && !m.includes(PROBE))]
       ];
-    })())
+    })()),
+    // LIBAR-146 (M-7): Faktor der Tab-Cue hoechstens zwei Nachkommastellen, leer bei 1.
+    ["LIBAR146-1 Faktor 13/12 in der Tab-Cue gerundet: «×1.08» statt «×1.0833333333333333»",
+      View.faktorText(13/12) === "×1.08"],
+    ["LIBAR146-2 Faktor 1 und fehlender Faktor: Cue leer; 2 bleibt «×2», 0.5 «×0.5», 2/3 «×0.67»",
+      View.faktorText(1) === "" && View.faktorText(undefined) === "" && View.faktorText(null) === ""
+        && View.faktorText(2) === "×2" && View.faktorText(0.5) === "×0.5" && View.faktorText(2/3) === "×0.67"],
+    ["LIBAR146-3 Tabschiene nutzt die Rundung: View.tabs() setzt die Cue ueber View.faktorText",
+      View.tabs.toString().includes("View.faktorText(t.faktor)") && !View.tabs.toString().includes('"×" + t.faktor')],
+    ["LIBAR146-4 Zahlenfelder der Skalierung mit inputmode: zielBasis/zielPortionen numeric",
+      View.rezept.toString().includes('id="zielBasis" type="number" inputmode="numeric"')
+        && View.rezept.toString().includes('id="zielPortionen" type="number" inputmode="numeric"')]
   ];
   const fehler = t.filter(x => !x[1]).map(x => x[0]);
   return { anzahl:t.length, fehler };
