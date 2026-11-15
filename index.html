@@ -2317,7 +2317,10 @@ const Model = {
           // LIBAR-150: Spalte "Mise (JSON)" (Notizen/Korrekturen je Zeile). Fehlt sie: leeres
           // Mise-Objekt. Ungueltiger Inhalt laesst das Rezept laden (mise null, miseFehler) —
           // die Zelle wird dann nie ueberschrieben.
-          iMise = i("Mise (JSON)");
+          iMise = i("Mise (JSON)"),
+          // LIBAR-154 (FR-312, Entscheid O-15): Spalte "Ausbeute (JSON)" (Ausbeute-Kette). Fehlt sie
+          // oder ist sie leer: keine Kette (ausbeuteLeer). Unlesbar: Rezept laedt, ausbeute null.
+          iAusbeute = i("Ausbeute (JSON)");
     const rezepte = [], fehlerhaft = [];
     for(let r = 1; r < aoa.length; r++){
       const row = aoa[r];
@@ -2371,6 +2374,8 @@ const Model = {
           phasen, backprotokoll, protokoll, entwicklung,
           mise: iMise > -1 ? Model.parseMise(row[iMise]) : Model.miseLeer(),
           miseFehler: iMise > -1 && Model.parseMise(row[iMise]) === null ? "Mise (JSON) ist kein gültiges Objekt" : null,
+          ausbeute: iAusbeute > -1 ? Model.parseAusbeute(row[iAusbeute]) : Model.ausbeuteLeer(),
+          ausbeuteFehler: iAusbeute > -1 && Model.parseAusbeute(row[iAusbeute]) === null ? "Ausbeute (JSON) ist keine gültige Kette" : null,
           _raw: { zeile: r, spalten: header, werte: row }
         });
       }catch(e){
@@ -2444,6 +2449,42 @@ const Model = {
       return m;
     }
     return null;
+  },
+
+  // LIBAR-154 (FR-312, Entscheid O-15): Spalte «Ausbeute (JSON)» je Rezept — die frei benennbare
+  // Ausbeute-Kette (Entscheid 17, hoechstens drei Ebenen ueber der Portion) in der Form, die
+  // Calc.ausbeuteKette/mengeAufEbene rechnen: { v, portionG, portionName, ebenen:[{ name, anzahl }] }.
+  // portionG null = noch keine Kette. Schema offen wie Mise: fremde Wurzelschluessel und fremde
+  // Felder einer Ebene bleiben beim Rundlauf erhalten. Rein, ohne Netz/DOM.
+  AUSBEUTE_SPALTE: "Ausbeute (JSON)",
+  ausbeuteLeer(){ return { v:1, portionG:null, portionName:"", ebenen:[] }; },
+  // Zellwert -> Objekt. Leer/fehlend -> ausbeuteLeer(). Ungueltig (kein JSON, kein Objekt,
+  // portionG nicht positiv, ebenen kein Array, mehr als 3 Ebenen, Anzahl nicht positiv,
+  // Name kein Text) -> null: die Zelle wird dann nie ueberschrieben.
+  parseAusbeute(wert){
+    const istObj = o => o != null && typeof o === "object" && !Array.isArray(o);
+    const positiv = n => typeof n === "number" && Number.isFinite(n) && n > 0;
+    if(wert == null || (typeof wert === "string" && wert.trim() === "")) return Model.ausbeuteLeer();
+    let o;
+    try{ o = typeof wert === "string" ? JSON.parse(wert) : null; }catch(e){ return null; }
+    if(!istObj(o)) return null;
+    if(o.portionG != null && !positiv(o.portionG)) return null;
+    if(o.portionName != null && typeof o.portionName !== "string") return null;
+    if(o.ebenen != null && !Array.isArray(o.ebenen)) return null;
+    const ebenen = o.ebenen || [];
+    if(ebenen.length > 3) return null;
+    if(ebenen.some(e => !istObj(e) || !positiv(e.anzahl) || (e.name != null && typeof e.name !== "string"))) return null;
+    return { ...o, v: o.v != null ? o.v : 1, portionG: o.portionG != null ? o.portionG : null,
+      portionName: o.portionName || "", ebenen: ebenen.map(e => ({ ...e, name: e.name || "" })) };
+  },
+  // Objekt -> Zellwert. v, portionG, portionName, ebenen zuerst (Ebene: name, anzahl zuerst),
+  // danach uebrige Schluessel unveraendert. Ungueltiges Objekt -> null (nichts schreiben).
+  ausbeuteSchreiben(ausbeute){
+    const a = ausbeute || Model.ausbeuteLeer();
+    const { v, portionG, portionName, ebenen, ...rest } = a;
+    const text = JSON.stringify({ v: v != null ? v : 1, portionG: portionG != null ? portionG : null, portionName: portionName || "",
+      ebenen: (ebenen || []).map(e => { const { name, anzahl, ...r } = e || {}; return { name: name || "", anzahl, ...r }; }), ...rest });
+    return Model.parseAusbeute(text) === null ? null : text;
   },
 
   // LIBAR-151 (FR-314): Kochkorrekturen wandern aus localStorage in «Mise (JSON)». Ein
@@ -7286,6 +7327,45 @@ async function selfTest(){
     l150.ergUnlesbar = await miseZelleSchreiben(l150.gwUnlesbar, { ...basis150, header:kopf150Mit, altWert:"{kaputt" });
   }catch(e){ l150.fehler = e; }
 
+  // LIBAR-154: Schreibweg "Ausbeute (JSON)" ueber gemockte Graph-Schicht (Muster LIBAR150).
+  const l154 = {};
+  try{
+    const kopf = ["Rezept-ID","Name","Basis-Menge (g)","Phasen (JSON)","Geändert"];
+    const kopfMit = [...kopf, "Ausbeute (JSON)"];
+    const mock = (eTag, wirftBei) => {
+      const log = [];
+      return { log,
+        async getItemMeta(){ log.push(["meta"]); return { eTag }; },
+        async backup(){ log.push(["backup"]); return "b.xlsx"; },
+        async updateCell(pfad, sheet, addr, wert){
+          if(wirftBei && wirftBei.addr === addr && wirftBei.mal-- > 0){ log.push(["fehl", addr]); throw new Error("mock " + addr); }
+          log.push(["cell", addr, wert]); return true; } };
+    };
+    const zimt = { portionG:12, portionName:"Zimtstern", ebenen:[{ name:"Blech", anzahl:50 }, { name:"Ofenlauf", anzahl:3 }] };
+    l154.zimt = zimt;
+    const basis = { rezeptePfad:"/T/Rezepte.xlsx", sheetName:"Rezepte", zeileExcel:4, aktuellerETag:"E1", ausbeute:zimt };
+    l154.kopf = kopf; l154.kopfMit = kopfMit;
+    l154.addrMit = Model.zelladresse(kopfMit, "Ausbeute (JSON)", 4);
+    l154.addrOhne = XLSX.utils.encode_col(kopf.length);
+    l154.gwMit = mock("E1");
+    l154.ergMit = await ausbeuteZelleSchreiben(l154.gwMit, { ...basis, header:kopfMit, altWert:'{"v":1,"portionG":10,"portionName":"","ebenen":[]}' });
+    l154.gwNeu = mock("E1");
+    l154.ergNeu = await ausbeuteZelleSchreiben(l154.gwNeu, { ...basis, header:kopf, altWert:null });
+    l154.gwKonflikt = mock("E2");
+    l154.ergKonflikt = await ausbeuteZelleSchreiben(l154.gwKonflikt, { ...basis, header:kopfMit, altWert:"" });
+    l154.gwOhneETag = mock("E1");
+    l154.ergOhneETag = await ausbeuteZelleSchreiben(l154.gwOhneETag, { ...basis, aktuellerETag:null, header:kopfMit, altWert:"" });
+    l154.gwRollback = mock("E1", { addr: l154.addrOhne + "4", mal: 1 });
+    l154.ergRollback = await ausbeuteZelleSchreiben(l154.gwRollback, { ...basis, header:kopf, altWert:null });
+    l154.gwRollbackMit = mock("E1", { addr: l154.addrMit, mal: 1 });
+    l154.ergRollbackMit = await ausbeuteZelleSchreiben(l154.gwRollbackMit, { ...basis, header:kopfMit, altWert:'{"v":1,"portionG":10,"ebenen":[]}' });
+    l154.gwUnlesbar = mock("E1");
+    l154.ergUnlesbar = await ausbeuteZelleSchreiben(l154.gwUnlesbar, { ...basis, header:kopfMit, altWert:"{kaputt" });
+    l154.gwUngueltig = mock("E1");
+    l154.ergUngueltig = await ausbeuteZelleSchreiben(l154.gwUngueltig, { ...basis, header:kopfMit, altWert:"",
+      ausbeute:{ portionG:12, ebenen:[{anzahl:1},{anzahl:1},{anzahl:1},{anzahl:1}] } });
+  }catch(e){ l154.fehler = e; }
+
   // LIBAR-151: zwei Geraete ueber EINER gemockten Arbeitsmappe (AOA + eTag, jede Zelle zaehlt
   // den eTag hoch). laden() = Reload eines Geraets: parseRezepte auf einer Kopie + aktueller eTag.
   const l151 = {};
@@ -9065,6 +9145,55 @@ async function selfTest(){
               && brot[2].name === "Ofen" && brot[3].portionen === 24 && brot[3].g === 12000; })
       ];
     })(),
+    // ---- LIBAR-154 (FR-312) Spalte «Ausbeute (JSON)» (Werte oben vor t, l154).
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, !l154.fehler && fn() === true]; }catch(e){ return [name, false]; } };
+      const zellen = gw => gw.log.filter(x => x[0] === "cell");
+      const buchstabe = (kopf, sp) => XLSX.utils.encode_col(kopf.indexOf(sp));
+      return [
+        fall("LIBAR154-1 Rundlauf parseAusbeute(ausbeuteSchreiben(x)): Zimtstern 12 g · Blech 50 · Ofenlauf 3 rechnet weiter 150 Stk = 1800 g; fremde Schluessel bleiben",
+          () => { const x = Model.parseAusbeute(Model.ausbeuteSchreiben({ ...l154.zimt, extra:{ a:1 } }));
+            const k = Calc.ausbeuteKette(x);
+            return x.portionG === 12 && x.portionName === "Zimtstern" && x.ebenen.length === 2 && x.extra.a === 1
+              && k[2].portionen === 150 && k[2].g === 1800
+              && Model.ausbeuteSchreiben(x) === Model.ausbeuteSchreiben(Model.parseAusbeute(Model.ausbeuteSchreiben(x))); }),
+        fall("LIBAR154-2 leer/null -> keine Kette (portionG null, Calc.ausbeuteKette null); ungueltig -> null: kaputtes JSON, Array, 4 Ebenen, Anzahl 0, portionG -5, ebenen als Objekt",
+          () => { const leer = Model.parseAusbeute("");
+            return leer.portionG === null && leer.ebenen.length === 0 && Calc.ausbeuteKette(leer) === null
+              && Model.parseAusbeute(null).portionG === null
+              && [ "{kaputt", "[1]", '{"portionG":12,"ebenen":[{"anzahl":1},{"anzahl":1},{"anzahl":1},{"anzahl":1}]}',
+                   '{"portionG":12,"ebenen":[{"name":"Blech","anzahl":0}]}', '{"portionG":-5}', '{"portionG":12,"ebenen":{}}' ]
+                 .every(w => Model.parseAusbeute(w) === null); }),
+        fall("LIBAR154-3 Spalte vorhanden: Backup vor dem Schreiben, genau eine Zelle «Ausbeute (JSON)», nie Phasen (JSON)/Geändert",
+          () => { const c = zellen(l154.gwMit), i = l154.gwMit.log.findIndex(x => x[0] === "backup"), j = l154.gwMit.log.findIndex(x => x[0] === "cell");
+            return l154.ergMit.ergebnis === "ok" && c.length === 1 && c[0][1] === l154.addrMit && i > -1 && i < j
+              && Model.parseAusbeute(c[0][2]).ebenen[1].name === "Ofenlauf" && l154.ergMit.spalteAngelegt === null
+              && !c.some(x => x[1].startsWith(buchstabe(l154.kopfMit, "Phasen (JSON)")) || x[1].startsWith(buchstabe(l154.kopfMit, "Geändert"))); }),
+        fall("LIBAR154-4 Spalte fehlt: Kopfzelle hinter dem genutzten Bereich (F1) beim ersten Schreiben, dann F4 — keine bestehende Spalte beruehrt",
+          () => { const c = zellen(l154.gwNeu);
+            return l154.ergNeu.ergebnis === "ok" && c.length === 2 && c[0][1] === l154.addrOhne + "1" && c[0][2] === "Ausbeute (JSON)"
+              && c[1][1] === l154.addrOhne + "4" && l154.ergNeu.spalteAngelegt === l154.kopf.length && l154.addrOhne === "F"; }),
+        fall("LIBAR154-5 eTag fremd oder fehlend -> «konflikt», kein Backup, keine Zelle",
+          () => [l154.gwKonflikt, l154.gwOhneETag].every(gw => !gw.log.some(x => x[0] === "backup" || x[0] === "cell"))
+            && l154.ergKonflikt.ergebnis === "konflikt" && l154.ergOhneETag.ergebnis === "konflikt"),
+        fall("LIBAR154-6 Teilfehler: neue Kopfzelle geschrieben, Datenzelle scheitert -> Kopfzelle auf leer zurueckgerollt; bei vorhandener Spalte bleibt der alte Wert",
+          () => { const c = zellen(l154.gwRollback), c2 = zellen(l154.gwRollbackMit);
+            return l154.ergRollback.ergebnis === "fehler" && l154.ergRollback.zurueckgerollt === true
+              && c.length === 2 && c[1][1] === l154.addrOhne + "1" && c[1][2] === ""
+              && l154.ergRollbackMit.ergebnis === "fehler" && c2.length === 0; }),
+        fall("LIBAR154-7 bestehende Zelle unlesbar -> «fehler» lesen, kein Backup, keine Zelle; ungueltige Kette (4 Ebenen) -> «fehler» plan, kein Aufruf",
+          () => l154.ergUnlesbar.ergebnis === "fehler" && l154.ergUnlesbar.stufe === "lesen" && l154.gwUnlesbar.log.length === 0
+            && l154.ergUngueltig.ergebnis === "fehler" && l154.ergUngueltig.stufe === "plan" && l154.gwUngueltig.log.length === 0),
+        fall("LIBAR154-8 parseRezepte liest «Ausbeute (JSON)»: gueltig -> rz.ausbeute; unlesbar -> Rezept laedt, ausbeute null + ausbeuteFehler; ohne Spalte -> keine Kette",
+          () => { const h = ["Rezept-ID","Name","Phasen (JSON)","Ausbeute (JSON)"];
+            const ok = Model.parseRezepte([h, ["R1","A","[]",Model.ausbeuteSchreiben(l154.zimt)]]).rezepte[0];
+            const kaputt = Model.parseRezepte([h, ["R2","B","[]","{kaputt"]]);
+            const ohne = Model.parseRezepte([h.slice(0,3), ["R3","C","[]"]]).rezepte[0];
+            return ok.ausbeute.portionG === 12 && ok.ausbeuteFehler === null && Calc.ausbeuteKette(ok.ausbeute)[1].portionen === 50
+              && kaputt.rezepte.length === 1 && kaputt.rezepte[0].ausbeute === null && !!kaputt.rezepte[0].ausbeuteFehler
+              && ohne.ausbeute.portionG === null && ohne.ausbeuteFehler === null; })
+      ];
+    })(),
     // ---- LIBAR-151 (FR-314) localStorage-Korrekturen nach «Mise (JSON)» (Werte oben vor t, l151).
     ...(() => {
       const fall = (name, fn) => { try{ return [name, !l151.fehler && fn() === true]; }catch(e){ return [name, false]; } };
@@ -9372,13 +9501,22 @@ async function batchDefinitionSchreiben(gateway, { rezeptePfad, sheetName, heade
 // "Phasen (JSON)" und nie eine andere Spalte; "Geändert" bleibt stehen (Notizen aendern das Rezept
 // nicht). altWert = bisheriger Zellinhalt (rz._raw); ist er unlesbar, wird nichts geschrieben.
 async function miseZelleSchreiben(gateway, { rezeptePfad, sheetName, header, zeileExcel, aktuellerETag, mise, altWert }){
-  const SP = Model.MISE_SPALTE;
   const text = Model.miseSchreiben(mise);
   if(!mise || Model.parseMise(text) === null) return { ergebnis:"fehler", stufe:"plan", meldung:"Ungültige Mise-Daten" };
-  if(text.length > 32767) return { ergebnis:"fehler", stufe:"groesse", meldung:"Mise (JSON) überschreitet 32'767 Zeichen" };
+  return jsonSpalteSchreiben(gateway, { rezeptePfad, sheetName, header, zeileExcel, aktuellerETag, altWert, text,
+    spalte: Model.MISE_SPALTE, stufe:"mise", lesbar: w => Model.parseMise(w) !== null });
+}
+
+// LIBAR-154: gemeinsamer Schreibweg der JSON-Spalten «Mise (JSON)» und «Ausbeute (JSON)»
+// (aus miseZelleSchreiben herausgeloest, Verhalten unveraendert): Groesse pruefen -> alte Zelle
+// lesbar? -> eTag (fremd/fehlend = Konflikt, nichts geschrieben) -> Backup -> fehlende Kopfzelle
+// hinter dem genutzten Bereich, dann die Datenzelle -> bei Fehler Rollback -> eTag neu. Beruehrt
+// keine andere Spalte (auch nicht "Phasen (JSON)" oder "Geändert").
+async function jsonSpalteSchreiben(gateway, { rezeptePfad, sheetName, header, zeileExcel, aktuellerETag, altWert, text, spalte: SP, stufe, lesbar }){
+  if(text.length > 32767) return { ergebnis:"fehler", stufe:"groesse", meldung: SP + " überschreitet 32'767 Zeichen" };
   const altLeer = altWert == null || altWert === "";
-  if(!altLeer && Model.parseMise(altWert) === null)
-    return { ergebnis:"fehler", stufe:"lesen", meldung:"Bestehende Zelle Mise (JSON) ist unlesbar — nichts geschrieben" };
+  if(!altLeer && !lesbar(altWert))
+    return { ergebnis:"fehler", stufe:"lesen", meldung:"Bestehende Zelle " + SP + " ist unlesbar — nichts geschrieben" };
   if(!Array.isArray(header) || !(zeileExcel >= 2)) return { ergebnis:"fehler", stufe:"plan", meldung:"Zeile oder Kopfzeile fehlt" };
   let meta;
   try{ meta = await gateway.getItemMeta(rezeptePfad); }
@@ -9386,11 +9524,11 @@ async function miseZelleSchreiben(gateway, { rezeptePfad, sheetName, header, zei
   if(!aktuellerETag || meta.eTag !== aktuellerETag) return { ergebnis:"konflikt" };
 
   const vorhanden = header.indexOf(SP);
-  const spalte = vorhanden > -1 ? vorhanden : header.length;
-  const buchstabe = XLSX.utils.encode_col(spalte);
+  const spalteIdx = vorhanden > -1 ? vorhanden : header.length;
+  const buchstabe = XLSX.utils.encode_col(spalteIdx);
   const ziele = [];
   if(vorhanden === -1) ziele.push({ stufe:"kopf", addr: buchstabe + "1", neu: SP, alt: "" });
-  ziele.push({ stufe:"mise", addr: buchstabe + zeileExcel, neu: text, alt: altLeer ? "" : altWert });
+  ziele.push({ stufe, addr: buchstabe + zeileExcel, neu: text, alt: altLeer ? "" : altWert });
 
   try{ await gateway.backup(rezeptePfad); }
   catch(e){ return { ergebnis:"fehler", stufe:"backup", meldung: e.message }; }
@@ -9409,7 +9547,16 @@ async function miseZelleSchreiben(gateway, { rezeptePfad, sheetName, header, zei
   }
   let neuerETag = null;
   try{ neuerETag = (await gateway.getItemMeta(rezeptePfad)).eTag; }catch(e){ neuerETag = null; }
-  return { ergebnis:"ok", geschrieben, neuerETag, spalteAngelegt: vorhanden === -1 ? spalte : null };
+  return { ergebnis:"ok", geschrieben, neuerETag, spalteAngelegt: vorhanden === -1 ? spalteIdx : null };
+}
+
+// LIBAR-154 (FR-312): Ausbeute-Kette eines Rezepts nach «Ausbeute (JSON)» — derselbe Schreibweg
+// wie Mise (Backup, eTag, Spalte beim ersten Schreiben, Rollback). altWert = bisheriger Zellinhalt.
+async function ausbeuteZelleSchreiben(gateway, { rezeptePfad, sheetName, header, zeileExcel, aktuellerETag, ausbeute, altWert }){
+  const text = ausbeute ? Model.ausbeuteSchreiben(ausbeute) : null;
+  if(text == null) return { ergebnis:"fehler", stufe:"plan", meldung:"Ungültige Ausbeute-Kette" };
+  return jsonSpalteSchreiben(gateway, { rezeptePfad, sheetName, header, zeileExcel, aktuellerETag, altWert, text,
+    spalte: Model.AUSBEUTE_SPALTE, stufe:"ausbeute", lesbar: w => Model.parseAusbeute(w) !== null });
 }
 
 // LIBAR-151: nach einem erfolgreichen Mise-Schreiben den Lesestand des Rezepts nachfuehren —

@@ -181,6 +181,39 @@ beide. Danach wird der lokale Schlüssel umbenannt zu `libarius.korrekturen.back
 gelöscht. Ab dann schreibt jede Änderung (1.5 s nach der letzten Eingabe) die Zelle; bei fremdem eTag
 wird frisch gelesen und feldweise gemischt (eigene Änderung gewinnt nur, wo sie geändert hat).
 
+### Ausbeute (LIBAR-154)
+
+Excel-Spalte «Ausbeute (JSON)» in `Rezepte.xlsx`, je Rezept die frei benennbare Ausbeute-Kette
+(FR-312, Entscheid 17 und O-15 vom 15.11.2026 — eigene Spalte, weicht von LIBAR-39 «keine neuen
+Spalten» ab). Nicht Teil des Austauschformats `rezept/1` (Export und Import lassen sie weg).
+
+```json
+{ "v": 1, "portionG": 12, "portionName": "Zimtstern",
+  "ebenen": [ { "name": "Blech", "anzahl": 50 }, { "name": "Ofenlauf", "anzahl": 3 } ] }
+```
+
+| Feld | Typ | Pflicht | Bemerkung |
+|---|---|---|---|
+| `v` | number | nein | Schemaversion, Default `1` |
+| `portionG` | number \| null | nein | Fertiggewicht einer Portion in g, > 0; `null` = noch keine Kette |
+| `portionName` | string | nein | Name der Portion («Zimtstern», «Laib»); leer → «Portion» |
+| `ebenen` | array | nein | höchstens 3 Ebenen über der Portion, je `{ name, anzahl }`: `anzahl` > 0 = Einheiten der Stufe darunter je Einheit dieser Stufe (50 Zimtsterne je Blech, 3 Bleche je Ofenlauf) |
+| *weitere* | beliebig | nein | Schema offen — unbekannte Schlüssel (auch in einer Ebene) werden unverändert zurückgeschrieben |
+
+Gerechnet wird mit `Calc.ausbeuteKette` / `Calc.mengeAufEbene` (LIBAR-153): 1 Ofenlauf = 3 Bleche =
+150 Zimtsterne = 1800 g.
+
+**Lesen:** Fehlt die Spalte oder ist die Zelle leer, gilt `{ "v": 1, "portionG": null, "portionName": "", "ebenen": [] }`.
+Ungültiges JSON, ein Array, `portionG` ≤ 0, mehr als 3 Ebenen oder eine Anzahl ≤ 0: das Rezept lädt
+trotzdem (`ausbeute` null, `ausbeuteFehler`), die Zelle gilt als unlesbar und wird **nie** überschrieben.
+
+**Schreiben** (`ausbeuteZelleSchreiben`, gemeinsamer Weg `jsonSpalteSchreiben` mit «Mise (JSON)»):
+eTag prüfen (fremd oder fehlend → Konflikt, nichts geschrieben) → Backup der Datei → Zelle schreiben.
+Fehlt die Spalte, legt der erste Schreibvorgang die Kopfzelle «Ausbeute (JSON)» in der ersten Spalte
+hinter dem genutzten Bereich an; bestehende Zellen bleiben unberührt. Scheitert die Datenzelle nach
+angelegter Kopfzelle, wird die Kopfzelle wieder geleert (Rollback). «Phasen (JSON)» und «Geändert»
+schreibt dieser Pfad nie. Grenze 32'767 Zeichen pro Zelle (Excel).
+
 ## Prüfung
 
 `Import.pruefen(daten)` validiert gegen dieses Schema und liefert
