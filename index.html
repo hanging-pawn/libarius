@@ -9102,7 +9102,11 @@ async function selfTest(){
               && a.opts.headers.Authorization === "Bearer " + PROBE
               && Object.entries(a.opts.headers).every(([h, v]) => h === "Authorization" || !String(v).includes(PROBE)))],
         ["NFR06-4 Fehlermeldungen (Toast-Text) enthalten den Token nicht, auch wenn die Graph-Antwort ihn spiegelt",
-          laufOk && meldungen.length === 6 && meldungen.every(m => typeof m === "string" && m.length > 0 && !m.includes(PROBE))]
+          laufOk && meldungen.length === 6 && meldungen.every(m => typeof m === "string" && m.length > 0 && !m.includes(PROBE))],
+        // LIBAR-87: Entscheid LIBAR-84 E2 (b) Option A (15.11.2026) — der MSAL-Cache bleibt im
+        // localStorage (Login gilt ueber Tabs und Neustarts); NFR-06 nennt das ausdruecklich.
+        ["NFR06-5 Data.init setzt cacheLocation gemaess Entscheid LIBAR-84 E2 (b) A: \"localStorage\" (nicht sessionStorage)",
+          /cacheLocation\s*:\s*"localStorage"/.test(Data.init.toString()) && !/sessionStorage/.test(Data.init.toString())]
       ];
     })()),
     // ---- LIBAR-153 Ausbeute-Kette und Portionsgroesse (Calc, rein).
