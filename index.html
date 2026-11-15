@@ -1765,6 +1765,43 @@ td.menge[data-menge]{cursor:pointer}
   body table.zutaten.mz td.rand,ol.schritte li > .rand,.kopf-zeile > .notizkopf{display:none}
   ol.schritte.mit-rand li{display:block}
 }
+
+/* LIBAR-155 (FR-311, FR-312, E-1/E-1a/E-2, O-16, S-6; Entwurf Bretter E/F): Formular
+   «Batch definieren» — Felder mit Etikett darueber (56-px-Bedienzeile), Kette, Summenstrich
+   in Graphit (bewusst nicht Rot), Menge planen, Vorschau mit Baeckerprozent, Knoepfe. Jede
+   Breite, auf dem Telefon einspaltig (Felder brechen um, kein waagrechter Ueberlauf). */
+.entw-batchform{gap:0;margin-top:0;min-width:0;max-width:100%}
+.entw-batchform .bf-zeile{display:flex;flex-wrap:wrap;column-gap:24px;row-gap:0;align-items:flex-end;min-width:0}
+.entw-batchform .bf-feld{display:flex;flex-direction:column;font-size:13px;color:var(--muted);width:96px;min-width:0}
+.entw-batchform .bf-feld.breit{width:200px}
+.entw-batchform .bf-feld input,.entw-batchform .bf-feld select{width:100%;color:var(--ink);font-size:15px;
+  height:var(--lb-zeile);min-height:var(--lb-zeile);padding:0;background-position:0 var(--lb-linie-y)}
+.entw-batchform .bf-zusatz{font-size:13px;color:var(--muted);line-height:var(--lb-zeile);min-width:0;overflow-wrap:anywhere}
+.entw-batchform .bf-abschnitt{padding-top:var(--lb-zeile)}
+.entw-batchform .bf-klein{height:var(--lb-zeile);min-height:var(--lb-zeile);font-size:13px;color:var(--muted);padding:0}
+.entw-batchform .bf-plus{height:var(--lb-bedien);min-height:var(--lb-bedien)}
+.entw-batchform .bf-summe{height:var(--lb-zeile);background:linear-gradient(var(--ink),var(--ink))
+  no-repeat 0 var(--lb-linie-y)/100% 1.5px}
+.entw-batchform .bf-text{line-height:var(--lb-zeile);overflow-wrap:anywhere}
+.entw-batchform .bf-vt{display:grid;grid-template-columns:minmax(0,1fr) 48px 80px 80px 88px;column-gap:12px;
+  line-height:var(--lb-zeile);font-variant-numeric:tabular-nums}
+.entw-batchform .bf-vt > span:not(:first-child){text-align:right;white-space:nowrap}
+.entw-batchform .bf-vt > span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.entw-batchform .bf-vt--kopf{font-size:13px;color:var(--muted);margin-top:var(--lb-zeile)}
+.entw-batchform .bf-vt .pct{font-size:13px;color:var(--muted)}
+.entw-batchform .bf-vt .fett{font-weight:500}
+.entw-batchform .bf-fehler{height:auto}
+/* Einspaltig nach der Breite des Formulars selbst (Containerabfrage), nicht des Fensters. */
+.entw-batchform{container-type:inline-size}
+@container (max-width:599px){
+  .entw-batchform .bf-zeile{column-gap:16px}
+  .entw-batchform .bf-feld.breit{width:100%}
+  .entw-batchform .bf-vt{grid-template-columns:minmax(0,1fr) 36px 64px 72px;column-gap:8px}
+  .entw-batchform .bf-bisher{display:none}
+}
+@media (max-width:599px){
+  .entw-batchform .bf-feld input,.entw-batchform .bf-feld select{font-size:16px}
+}
 </style>
 </head>
 <body>
@@ -5544,25 +5581,95 @@ const View = {
     const schwundText = schwund == null ? "Schwund unbekannt, 0 % angenommen" : "Schwund " + (Math.round(s * 1000) / 10) + " %";
     const g = v => v == null || !Number.isFinite(v) ? "—" : (Math.round(v * 10) / 10) + " g";
     const gesperrt = form.speichert ? " disabled" : "";
+    const z = Calc.ausbeuteZahl;
+    // LIBAR-155 (FR-311, FR-312, E-1/E-2, S-6): Portionsgroesse als Feld, Ausbeute-Kette mit
+    // bis zu zwei frei benannten Ebenen ueber der Portion (Stueck · Blech · Ofenlauf), Summe,
+    // «Menge planen» auf jeder Ebene. Reihenfolge Felder -> Kette -> Summe -> Planen ->
+    // Vorschau -> Knoepfe (Entwurf Bretter E/F). Gerechnet wird nur ueber Calc (LIBAR-153).
+    const kette = View.batchFormKette(form);
+    const stufen = Calc.ausbeuteKette(kette);
+    const batchG = Number(form.batchG);
+    const ebenen = form.ebenen || [];
+    const portionName = (form.portionName || "").trim() || "Portion";
+    const kettenName = [portionName, ...ebenen.map((e, k) => (e.name || "").trim() || "Ebene " + (k + 2))].join(" → ");
+    const feld = (id, etikett, wert, attr, breit) => `<label class="bf-feld${breit ? " breit" : ""}">${esc(etikett)}<input id="${id}" ${attr} value="${esc(wert == null ? "" : String(wert))}"${gesperrt}></label>`;
+    const zahlAttr = 'type="text" inputmode="decimal" enterkeyhint="done"';
+    const ebenenHtml = ebenen.map((e, k) => {
+      const unten = k === 0 ? portionName : ((ebenen[k - 1].name || "").trim() || "Ebene " + (k + 1));
+      return `<div class="bf-zeile">
+        ${feld("bfEbeneName" + k, "Ebene " + (k + 2), e.name, 'type="text" enterkeyhint="done" data-bf-ebene-name="' + k + '"', true)}
+        ${feld("bfEbeneAnzahl" + k, "Anzahl", e.anzahl, zahlAttr + ' data-bf-ebene-anzahl="' + k + '"')}
+        <span class="bf-zusatz">${esc(unten)} je ${esc((e.name || "").trim() || "Ebene " + (k + 2))}</span>
+        ${k === ebenen.length - 1 ? `<button type="button" class="bf-klein" data-bf-ebene-weg="${k}"${gesperrt}>entfernen</button>` : ""}
+      </div>`;
+    }).join("");
+    // Summe: oberste Ebene ausgedrueckt in allen darunter, dann Gewicht (Graphit, nicht Rot).
+    let summe = "";
+    if(stufen && stufen.length > 1){
+      const oben = stufen[stufen.length - 1];
+      summe = "1 " + esc(oben.name) + stufen.slice(0, -1).reverse().map(st => " = " + z(oben.portionen / st.portionen) + " × " + esc(st.name)).join("")
+        + " = " + z(oben.g) + " g";
+    }else if(stufen){
+      summe = "1 " + esc(stufen[0].name) + " = " + z(stufen[0].g) + " g";
+    }
+    // Batchbezug: 1 Batch in der hoechsten Ebene, die er mindestens einmal fuellt.
+    let bezug = "";
+    if(stufen && batchG > 0){
+      const n = batchG / kette.portionG;
+      let st = stufen[0];
+      stufen.forEach(x => { if(n / x.portionen >= 1 - 1e-9) st = x; });
+      bezug = "1 Batch (Rezept wie hinterlegt) = " + z(n / st.portionen) + " × " + esc(st.name) + " = " + z(batchG) + " g fertig, "
+        + z(batchG / (1 - s)) + " g roh";
+    }
+    const planIdx = Math.min(Number(form.planEbene) || 0, stufen ? stufen.length - 1 : 0);
+    const plan = stufen ? Calc.mengeAufEbene(kette, planIdx, Number(String(form.planAnzahl).replace(",", ".")), batchG > 0 ? batchG : null) : null;
+    const planText = plan ? plan.jeEbene.map(e => z(e.anzahl) + " × " + esc(e.name)).join(" · ") + " · " + z(plan.g) + " g"
+      + (plan.faktor != null ? " · Faktor ×" + z(plan.faktor) : "") : "";
+    const planHtml = stufen ? `
+      <div class="lb-neben bf-abschnitt">Menge planen</div>
+      <div class="bf-zeile">
+        ${feld("bfPlanAnzahl", "Anzahl", form.planAnzahl, zahlAttr)}
+        <label class="bf-feld">Ebene<select id="bfPlanEbene"${gesperrt}>${stufen.map((st, k) => `<option value="${k}"${k === planIdx ? " selected" : ""}>${esc(st.name)}</option>`).join("")}</select></label>
+        <span class="bf-zusatz" id="bfPlanText">${planText}</span>
+      </div>` : "";
+    const fehlerKette = form.ketteGeaendert && !stufen && (form.portionG !== "" && form.portionG != null || ebenen.length)
+      ? "Ausbeute-Kette: Portionsgrösse und jede Anzahl müssen Zahlen grösser 0 sein." : "";
+    const flach = Calc.zutatenFlach(rz);
+    const planF = plan && plan.faktor != null ? plan.faktor : null;
     const vorschau = r.ok ? `
-      <table class="zutaten bf-vorschau">
-        <tr><th>Zutat</th><th class="num">bisher</th><th class="num">neu</th></tr>
-        ${r.vorschau.map(v => `<tr><td>${esc(v.name)}</td><td class="num">${g(v.altG)}</td><td class="num">${g(v.neuG)}</td></tr>`).join("")}
-        <tr><td>Sollgewicht</td><td class="num">${g(r.sollAlt)}</td><td class="num">${g(r.sollNeu)}</td></tr>
-      </table>` : "";
+      <div class="bf-vt bf-vt--kopf"><span>Zutat</span><span>%</span><span class="bf-bisher">bisher</span><span>1 Batch</span><span>${planF != null ? esc(z(Number(String(form.planAnzahl).replace(",", ".")))) + " " + esc(stufen[planIdx].name) : "Plan"}</span></div>
+      ${r.vorschau.map((v, i) => `<div class="bf-vt"><span>${esc(v.name)}</span><span class="pct">${flach[i] && typeof flach[i].prozent === "number" ? (flach[i].prozent * 100).toFixed(1) : "—"}</span><span class="bf-bisher">${g(v.altG)}</span><span>${g(v.neuG)}</span><span class="fett">${planF != null ? g(v.neuG * planF) : "—"}</span></div>`).join("")}
+      <div class="bf-vt"><span>Sollgewicht</span><span></span><span class="bf-bisher">${g(r.sollAlt)}</span><span>${g(r.sollNeu)}</span><span class="fett">${planF != null && r.sollNeu != null ? g(r.sollNeu * planF) : "—"}</span></div>` : "";
     return `<div class="entw-batchform noprint" id="batchForm">
-      <div class="scaler">
-        <label>Batch (g fertig, inkl. Schwund)<input id="bfBatch" type="number" inputmode="numeric" min="0" step="10" value="${esc(form.batchG == null ? "" : String(form.batchG))}"${gesperrt}></label>
-        <label>Portionen pro Batch<input id="bfPortionen" type="number" inputmode="numeric" min="0" step="1" value="${esc(form.portionen == null ? "" : String(form.portionen))}"${gesperrt}></label>
-        <span class="lb-neben">${schwundText}${r.ok ? " · Portion " + g(r.portionsgroesseG) + " · Faktor ×" + nf(r.faktor, 2) : ""}</span>
+      <div class="lb-neben">Entwicklung · Batch definieren · ${schwundText}${r.ok ? " · Faktor ×" + nf(r.faktor, 2) : ""}</div>
+      <div class="bf-zeile">
+        ${feld("bfBatch", "Batch (g fertig, inkl. Schwund)", form.batchG, 'type="number" inputmode="numeric" min="0" step="10"', true)}
+        ${feld("bfPortionen", "Portionen pro Batch", form.portionen, 'type="number" inputmode="decimal" min="0" step="1"')}
       </div>
-      ${r.ok ? "" : `<div class="bf-fehler warn-inline">${r.fehler.map(esc).join(" ")}</div>`}
+      <div class="lb-neben bf-abschnitt">Portion</div>
+      <div class="bf-zeile">
+        ${feld("bfPortionG", "Portionsgrösse (g fertig)", form.portionG, zahlAttr, true)}
+        ${feld("bfPortionName", "heisst", form.portionName, 'type="text" enterkeyhint="done"')}
+        ${r.ok ? `<span class="bf-zusatz">Portion ${g(r.portionsgroesseG)}</span>` : ""}
+      </div>
+      <div class="lb-neben bf-abschnitt">Ausbeute-Kette · höchstens 3 Ebenen · ${esc(kettenName)}</div>
+      ${ebenenHtml}
+      ${ebenen.length < 2 ? `<button type="button" class="bf-klein bf-plus" id="bfEbenePlus"${gesperrt}>+ Ebene</button>` : ""}
+      ${stufen ? `<div class="bf-summe"></div><div class="bf-text">${summe}</div>${bezug ? `<div class="lb-neben bf-text">${bezug}</div>` : ""}` : ""}
+      ${planHtml}
+      ${r.ok && !fehlerKette ? "" : `<div class="bf-fehler warn-inline">${[...r.fehler, fehlerKette].filter(Boolean).map(esc).join(" ")}</div>`}
       ${vorschau}
       <div class="actions">
-        <button id="bfSpeichern" type="button"${r.ok && !form.speichert ? "" : " disabled"}>${form.speichert ? "Speichert …" : "Batch speichern"}</button>
+        <button id="bfSpeichern" type="button"${r.ok && !fehlerKette && !form.speichert ? "" : " disabled"}>${form.speichert ? "Speichert …" : "Batch speichern"}</button>
         <button id="bfAbbrechen" class="ghost" type="button"${gesperrt}>Abbrechen</button>
       </div>
     </div>`;
+  },
+  // LIBAR-155: Formularzustand -> Kette in der Form von «Ausbeute (JSON)» / Calc.ausbeuteKette.
+  batchFormKette(form){
+    const n = v => { const x = Number(String(v == null ? "" : v).replace(",", ".")); return v === "" || v == null || !Number.isFinite(x) ? null : x; };
+    return { portionG: n(form.portionG), portionName: (form.portionName || "").trim(),
+      ebenen: (form.ebenen || []).map(e => ({ name: (e.name || "").trim(), anzahl: n(e.anzahl) })) };
   },
 
   entwZelle(sp, r, rz, basisPhasen){
@@ -6654,7 +6761,8 @@ const View = {
             <label>Basis (g)<input id="zielBasis" type="number" inputmode="numeric" min="1" step="10" value="${Math.round(rz.basisMengeG*f)}"></label>
             <label>Portionen<input id="zielPortionen" type="number" inputmode="numeric" min="1" step="1" value="${Math.round(rz.portionen*f)}"></label>
             <button class="ghost" id="btnReset">Original</button>
-          </div>`}
+          </div>
+          ${Store.batchForm && Store.batchForm.rezeptId === rz.id ? View.batchFormular(rz, schwund, Store.batchForm) : ""}`}
         </div>
         ${notizModus === "aus" ? "" : '<div class="notizkopf noprint" id="notizKopf"></div>'}
         </div>
@@ -6777,6 +6885,16 @@ const View = {
     if(el("#btnBatchDef")) el("#btnBatchDef").addEventListener("click", () => App.batchFormOeffnen());
     if(el("#bfBatch")) el("#bfBatch").addEventListener("input", e => App.batchFormEingabe("batchG", e.target.value));
     if(el("#bfPortionen")) el("#bfPortionen").addEventListener("input", e => App.batchFormEingabe("portionen", e.target.value));
+    // LIBAR-155: Portion, Kette, Menge planen.
+    if(el("#bfPortionG")) el("#bfPortionG").addEventListener("input", e => App.batchFormEingabe("portionG", e.target.value));
+    if(el("#bfPortionName")) el("#bfPortionName").addEventListener("input", e => App.batchFormEingabe("portionName", e.target.value));
+    document.querySelectorAll("[data-bf-ebene-name]").forEach(inp => inp.addEventListener("input", e => App.batchFormEingabe("ebeneName" + inp.dataset.bfEbeneName, e.target.value)));
+    document.querySelectorAll("[data-bf-ebene-anzahl]").forEach(inp => inp.addEventListener("input", e => App.batchFormEingabe("ebeneAnzahl" + inp.dataset.bfEbeneAnzahl, e.target.value)));
+    document.querySelectorAll("[data-bf-ebene-weg]").forEach(b => b.addEventListener("click", () => App.batchFormEbene(false)));
+    if(el("#bfEbenePlus")) el("#bfEbenePlus").addEventListener("click", () => App.batchFormEbene(true));
+    if(el("#bfPlanAnzahl")) el("#bfPlanAnzahl").addEventListener("input", e => App.batchFormEingabe("planAnzahl", e.target.value));
+    if(el("#bfPlanEbene")) el("#bfPlanEbene").addEventListener("change", e => App.batchFormEingabe("planEbene", e.target.value));
+    document.querySelectorAll("#batchForm input").forEach(inp => inp.addEventListener("focus", () => View.insBild(inp)));
     if(el("#bfAbbrechen")) el("#bfAbbrechen").addEventListener("click", () => { Store.batchForm = null; View.rezept(); });
     if(el("#bfSpeichern")) el("#bfSpeichern").addEventListener("click", () => App.batchFormSpeichern());
     // AP-0306: alle Phasen vor dem Druckdialog aufklappen (details.phase[open], nicht nur
@@ -9611,6 +9729,44 @@ async function selfTest(){
               && u.dataset.unter === "1/3" && u.cells[1].textContent === "eiskalt" && modi === "rand,unter,unter,aus"; })
       ];
     })(),
+    // ---- LIBAR-155 (FR-311, FR-312) Batch-Formular mit Portionsgroesse und Ausbeute-Kette.
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, fn() === true]; }catch(e){ return [name, false]; } };
+      // Beispiel A8: Zimtsterne, 1 Batch = 1 Blech = 50 Stk = 600 g fertig (Schwund 7 %).
+      const zimt = { id:"T155", basisMengeG:300, sollgewichtG:600 / 0.93, portionen:50, einheit:"Stk",
+        phasen:[{ name:"Teig", zutaten:[{ name:"Mandeln gemahlen", prozent:1, einheit:"g" }, { name:"Puderzucker", prozent:0.8333, einheit:"g" },
+          { name:"Eiweiss", prozent:0.3, einheit:"g" }, { name:"Zimt", prozent:0.0167, einheit:"g" }] }] };
+      const form = extra => ({ rezeptId:"T155", batchG:600, portionen:50, portionG:12, portionName:"Zimtstern",
+        ebenen:[{ name:"Blech", anzahl:50 }, { name:"Ofenlauf", anzahl:3 }], planAnzahl:"2", planEbene:2, ...(extra || {}) });
+      const html = f => View.batchFormular(zimt, 0.07, f);
+      return [
+        fall("LIBAR155-1 Beispiel A8 im Formular: 1 Ofenlauf = 3 Bleche = 150 Zimtsterne = 1800 g; 1 Batch = 1 Blech = 600 g; 2 Ofenlaeufe -> 300 Stk, 6 Bleche, 3600 g, ×6; Vorschau Mandeln 1800 g",
+          () => { const h = html(form());
+            return h.includes("1 Ofenlauf = 3 × Blech = 150 × Zimtstern = 1800 g")
+              && h.includes("1 Batch (Rezept wie hinterlegt) = 1 × Blech = 600 g fertig")
+              && h.includes("300 × Zimtstern · 6 × Blech · 2 × Ofenlauf · 3600 g · Faktor ×6")
+              && h.includes("Zimtstern → Blech → Ofenlauf") && h.includes("1800 g") && h.includes('id="bfPortionG"') && h.includes("100.0"); }),
+        fall("LIBAR155-2 Reihenfolge Felder -> Kette -> Summe -> Menge planen -> Vorschau -> Knoepfe; «+ Ebene» nur unter 3 Ebenen; Summenstrich ohne Rot",
+          () => { const h = html(form()), h1 = html(form({ ebenen:[{ name:"Blech", anzahl:50 }], planEbene:1 }));
+            const i = t => h.indexOf(t);
+            return i('id="bfBatch"') < i('id="bfPortionG"') && i('id="bfPortionG"') < i('id="bfEbeneName0"') && i('id="bfEbeneName1"') < i("bf-summe")
+              && i("bf-summe") < i('id="bfPlanAnzahl"') && i('id="bfPlanAnzahl"') < i("bf-vt--kopf") && i("bf-vt--kopf") < i('id="bfSpeichern"')
+              && !h.includes('id="bfEbenePlus"') && h1.includes('id="bfEbenePlus"') && h1.includes("1 Blech = 50 × Zimtstern = 600 g")
+              && ![...document.querySelectorAll("style")].some(st => /\.bf-summe\{[^}]*--rot/.test(st.textContent)); }),
+        fall("LIBAR155-3 ungueltige Kette (Anzahl 0) -> Fehler, Speichern gesperrt; ohne Kette bleibt das Formular wie LIBAR-44",
+          () => { const h = html(form({ ebenen:[{ name:"Blech", anzahl:"0" }], ketteGeaendert:true }));
+            const h0 = html({ rezeptId:"T155", batchG:600, portionen:50 });
+            return /id="bfSpeichern"[^>]*disabled/.test(h) && h.includes("Ausbeute-Kette:")
+              && /id="bfSpeichern"(?![^>]*disabled)/.test(h0) && !h0.includes("bf-summe"); }),
+        fall("LIBAR155-4 einspaltig ohne waagrechten Ueberlauf bei 328 px (iPhone 393) und 680 px (iPad mini 744)",
+          () => [328, 680].every(b => { const box = document.createElement("div");
+            box.style.cssText = "position:absolute;left:-5000px;top:0;width:" + b + "px";
+            box.innerHTML = html(form()); document.body.appendChild(box);
+            try{ return [box, ...box.querySelectorAll("*")].every(e => e.scrollWidth <= e.clientWidth + 0.5 || getComputedStyle(e).display === "inline"
+                || getComputedStyle(e).textOverflow === "ellipsis") && box.scrollWidth <= b + 0.5; }
+            finally{ box.remove(); } }))
+      ];
+    })(),
     // ---- LIBAR-85/NFR-12: Erklaertext vor der Anmeldung. Gemockte msalApp protokolliert, ob der
     // Hinweis beim Aufruf von loginPopup sichtbar war; alles wird danach zurueckgestellt.
     ...(await (async () => {
@@ -10819,15 +10975,48 @@ const App = {
     const rz = Store.aktuellesRezept;
     if(!rz) return;
     const fertig = Calc.gesamtmengeFertigG(rz, Calc.schwundAktuell(rz.protokoll), 1);
-    Store.batchForm = { rezeptId: rz.id, batchG: fertig != null ? Math.round(fertig) : "",
-      portionen: rz.portionen != null ? rz.portionen : "", speichert:false };
+    const batchG = fertig != null ? Math.round(fertig) : "";
+    // LIBAR-155: Portion und Kette aus «Ausbeute (JSON)»; ohne Kette die heutige Portionsgroesse
+    // (Batch / Portionen) als Vorschlag — geschrieben wird die Kette erst, wenn sie angefasst wird.
+    const a = rz.ausbeute && rz.ausbeute.portionG != null ? rz.ausbeute : null;
+    const vorschlag = batchG && rz.portionen > 0 ? Math.round(batchG / rz.portionen * 10) / 10 : "";
+    const ebenen = a ? a.ebenen.map(e => ({ name: e.name || "", anzahl: e.anzahl })) : [];
+    Store.batchForm = { rezeptId: rz.id, batchG,
+      portionen: rz.portionen != null ? rz.portionen : "", speichert:false,
+      portionG: a ? a.portionG : vorschlag, portionName: a ? a.portionName : "",
+      ebenen, planAnzahl: "1", planEbene: ebenen.length, ketteGeaendert: false };
+    View.rezept();
+  },
+  // LIBAR-155: Ebene der Ausbeute-Kette anfuegen (hoechstens 2 ueber der Portion = 3 Ebenen)
+  // bzw. die oberste wieder entfernen.
+  batchFormEbene(plus){
+    const f = Store.batchForm;
+    if(!f || f.speichert) return;
+    f.ebenen = f.ebenen || [];
+    if(plus && f.ebenen.length < 2) f.ebenen.push({ name:"", anzahl:"" });
+    if(!plus) f.ebenen.pop();
+    f.planEbene = Math.min(Number(f.planEbene) || 0, f.ebenen.length);
+    f.ketteGeaendert = true;
     View.rezept();
   },
   batchFormEingabe(feld, wert){
     if(!Store.batchForm || Store.batchForm.speichert) return;
     const aktiv = document.activeElement;
     const id = aktiv && aktiv.id, pos = aktiv && aktiv.selectionStart;
-    Store.batchForm[feld] = wert;
+    const f = Store.batchForm;
+    const zahl = v => { const x = Number(String(v).replace(",", ".")); return v !== "" && Number.isFinite(x) && x > 0 ? x : null; };
+    const r2 = v => Math.round(v * 100) / 100;
+    const m = /^ebene(Name|Anzahl)(\d)$/.exec(feld);
+    if(m){ const e = f.ebenen[Number(m[2])]; if(e) e[m[1] === "Name" ? "name" : "anzahl"] = wert; f.ketteGeaendert = true; }
+    else f[feld] = wert;
+    if(feld === "portionG" || feld === "portionName") f.ketteGeaendert = true;
+    // Portionsgroesse <-> Portionen pro Batch (Calc.portionsgroesseNeu): der Batch bleibt, die
+    // jeweils andere Zahl folgt; aendert sich der Batch, folgt die Portionenzahl.
+    if((feld === "portionG" || feld === "batchG") && zahl(f.batchG) && zahl(f.portionG)){
+      const n = Calc.portionsgroesseNeu(zahl(f.batchG), zahl(f.portionG));
+      if(n) f.portionen = r2(n.portionen);
+    }
+    if(feld === "portionen" && zahl(f.batchG) && zahl(f.portionen)) f.portionG = r2(zahl(f.batchG) / zahl(f.portionen));
     View.rezept();
     if(id){
       const neu = document.getElementById(id);
@@ -10841,10 +11030,26 @@ const App = {
     if(!form || form.speichert || !rz || rz.id !== form.rezeptId) return;
     const r = Model.batchFormPruefen(rz, form.batchG, form.portionen, Calc.schwundAktuell(rz.protokoll));
     if(!r.ok){ View.meldung(r.fehler.join(" ") + " Nichts gespeichert.", "err", "Eingabe prüfen"); View.rezept(); return; }
+    // LIBAR-155 (FR-312): Kette nur schreiben, wenn sie angefasst wurde und sich unterscheidet.
+    const kette = View.batchFormKette(form);
+    let ausbeute = null;
+    if(form.ketteGeaendert){
+      const alt = rz.ausbeute || Model.ausbeuteLeer();
+      ausbeute = { ...alt, portionG: kette.portionG, portionName: kette.portionName,
+        ebenen: kette.ebenen.map((e, k) => ({ ...((alt.ebenen || [])[k] || {}), name: e.name, anzahl: e.anzahl })) };
+      if(!Calc.ausbeuteKette(ausbeute) || Model.ausbeuteSchreiben(ausbeute) == null){
+        View.meldung("Ausbeute-Kette: Portionsgrösse und jede Anzahl müssen Zahlen grösser 0 sein. Nichts gespeichert.", "err", "Eingabe prüfen");
+        View.rezept(); return;
+      }
+      if(Model.ausbeuteSchreiben(ausbeute) === Model.ausbeuteSchreiben(alt)) ausbeute = null;
+    }
     form.speichert = true;
     View.rezept();
     let ok = false;
-    try{ ok = await App.batchDefinitionSpeichern(rz, { batchFertigG: Number(form.batchG), portionen: Number(form.portionen) }); }
+    try{
+      ok = await App.batchDefinitionSpeichern(rz, { batchFertigG: Number(form.batchG), portionen: Number(form.portionen) });
+      if(ok && ausbeute) ok = await App.ausbeuteSpeichern(rz, ausbeute);
+    }
     catch(e){ View.meldung("Speichern fehlgeschlagen: " + e.message, "err", "Fehler beim Speichern"); }
     form.speichert = false;
     if(ok){ Store.batchForm = null; Store.faktor = 1; }
@@ -10855,6 +11060,44 @@ const App = {
   // Aufrufer (Formular LIBAR-44) uebergibt { batchFertigG } und/oder { portionen }. Liefert true
   // bei Erfolg. Store wird erst NACH erfolgreichem Schreiben nachgefuehrt; Konflikt -> dieselbe
   // Konfliktmeldung wie beim Protokoll, Bestand neu laden. Schwund bleibt unberuehrt.
+  // LIBAR-155 (FR-312, A9): Ausbeute-Kette ueber ausbeuteZelleSchreiben (LIBAR-154: Backup, eTag,
+  // Spalte beim ersten Schreiben, Rollback). Konflikt -> Bestand neu laden, Formular bleibt mit
+  // den Eingaben offen (Store.batchForm wird nur bei Erfolg geleert). -> true bei Erfolg.
+  async ausbeuteSpeichern(rz, ausbeute){
+    const verbunden = Store.rezepteWorkbook && Data.verfuegbar() && msalApp && msalApp.getActiveAccount();
+    if(!verbunden){ View.meldung("Keine OneDrive-Verbindung — Ausbeute-Kette nicht gespeichert.", "warn", "Nicht gespeichert"); return false; }
+    if(!rz._raw || !Store.rezepteETag){
+      View.meldung("Der Stand von Rezepte.xlsx konnte zuletzt nicht bestätigt werden — der Bestand wird neu geladen. "
+        + "Bitte danach erneut speichern.", "warn", "Stand wird geprüft");
+      await App.datenLaden(msalApp.getActiveAccount());
+      App.rezeptOeffnen(rz.id);
+      return false;
+    }
+    const SP = Model.AUSBEUTE_SPALTE, header = rz._raw.spalten, i = header.indexOf(SP);
+    const altWert = i > -1 && rz._raw.werte ? rz._raw.werte[i] : null;
+    const erg = await ausbeuteZelleSchreiben(Data, { rezeptePfad: CONFIG.rezeptePfad, sheetName: Store.rezepteSheetName,
+      header, zeileExcel: rz._raw.zeile + 1, aktuellerETag: Store.rezepteETag, ausbeute, altWert });
+    if(erg.ergebnis === "konflikt"){
+      View.meldung("Rezepte.xlsx wurde zwischenzeitlich extern geändert — Bestand wird neu geladen. "
+        + "Das Formular bleibt offen, bitte erneut speichern.", "warn", "Konflikt erkannt");
+      await App.datenLaden(msalApp.getActiveAccount());
+      App.rezeptOeffnen(rz.id);
+      return false;
+    }
+    if(erg.ergebnis !== "ok"){
+      View.meldung("Ausbeute-Kette nicht gespeichert: " + (erg.meldung || erg.ergebnis) + " — Rezepte.xlsx nicht verändert.", "err", "Fehler beim Speichern");
+      return false;
+    }
+    (erg.geschrieben || []).forEach(g => workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, g.addr, g.wert));
+    if(erg.spalteAngelegt != null && header.indexOf(SP) === -1) header[erg.spalteAngelegt] = SP;
+    const j = header.indexOf(SP);
+    if(j > -1 && rz._raw.werte) rz._raw.werte[j] = Model.ausbeuteSchreiben(ausbeute);
+    rz.ausbeute = Model.parseAusbeute(Model.ausbeuteSchreiben(ausbeute));
+    Store.rezepteETag = erg.neuerETag;
+    View.meldung("Ausbeute-Kette gespeichert, Backup in " + (CONFIG.backupOrdner || "/Backups") + " angelegt.", "ok", "Gespeichert");
+    return true;
+  },
+
   async batchDefinitionSpeichern(rz, { batchFertigG, portionen } = {}){
     const schwund = Calc.schwundAktuell(rz.protokoll);
     const zellen = [];
@@ -11408,8 +11651,11 @@ const App = {
   // "zwei Spalten neben der Rezeptur auf ihrer Mindestbreite" — Rahmen 147 + Rezeptur 420 +
   // 2 × 126 = 819 px (Stufe K). Ab W/M (>= 860) ist die Rechnung ohnehin immer erfuellt.
   entwModusOeffnen(){
+    // LIBAR-155 (E-1a, O-16): die 819-px-Sperre gilt nur noch fuer den Variantenvergleich —
+    // «Batch definieren» oeffnet auf jeder Breite, schmal direkt unter dem Rezeptkopf.
     if(window.innerWidth < 819){
-      View.meldung("Zwei Varianten nebeneinander brauchen 819 px — Gerät drehen.", "warn", "Entwicklungsmodus");
+      View.meldung("Der Variantenvergleich braucht 819 px — Gerät drehen. «Batch definieren» ist hier offen.", "warn", "Entwicklungsmodus");
+      App.batchFormOeffnen();
       return;
     }
     Store.entwOverlayOffen = true;
