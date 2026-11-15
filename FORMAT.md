@@ -141,6 +141,37 @@ produktive Rezeptur ist weiterhin als Version abrufbar.
 
 **Grössenwarnung:** Die App warnt ab 25'000 Zeichen pro Zelle (Excel-Limit 32'767).
 
+### Mise (LIBAR-150)
+
+Excel-Spalte «Mise (JSON)» in `Rezepte.xlsx`, je Rezept ein Objekt (FR-210, FR-314, Entscheid
+O-15 vom 15.11.2026). Sie trägt die Zeilennotizen und Mengenkorrekturen aus der Küche und ist
+**nicht** Teil des Austauschformats `rezept/1` (Export und Import lassen sie weg). Sollmengen
+in «Phasen (JSON)» ändert nur «Ins Rezept übernehmen» — dieser Pfad schreibt sie nie.
+
+```json
+{ "v": 1,
+  "notizen":     { "0/1": "Butter weich, nicht flüssig", "1/s2": "Ofen 10 Min. früher an" },
+  "korrekturen": { "0/1": 130 } }
+```
+
+| Feld | Typ | Pflicht | Bemerkung |
+|---|---|---|---|
+| `v` | number | nein | Schemaversion, Default `1` |
+| `notizen` | object | nein | Schlüssel `"<Phase>/<Zutat>"` (Zutatenzeile) oder `"<Phase>/s<Schritt>"` (Schrittzeile), alle Indizes 0-basiert wie in `phasen`; Wert: Text |
+| `korrekturen` | object | nein | Schlüssel nur `"<Phase>/<Zutat>"`; Wert: Ist-Menge in g, Zahl ≥ 0 |
+| *weitere* | beliebig | nein | Schema offen — z. B. Gefässe und Hinweise des Mise-Overlays (EM-1). Unbekannte Schlüssel werden gelesen und unverändert zurückgeschrieben |
+
+**Lesen:** Fehlt die Spalte oder ist die Zelle leer, gilt `{ "v": 1, "notizen": {}, "korrekturen": {} }`.
+Ungültiges JSON, ein Array oder `notizen`/`korrekturen` als Nicht-Objekt: das Rezept lädt trotzdem,
+die Zelle gilt als unlesbar und wird **nie** überschrieben.
+
+**Schreiben** (`miseZelleSchreiben`): eTag prüfen (fremd oder fehlend → Konflikt, nichts
+geschrieben) → Backup der Datei → Zelle schreiben. Fehlt die Spalte, legt der erste Schreibvorgang
+die Kopfzelle «Mise (JSON)» in der ersten Spalte hinter dem genutzten Bereich an; bestehende
+Zellen bleiben unberührt. Scheitert die Datenzelle nach angelegter Kopfzelle, wird die Kopfzelle
+wieder geleert (Rollback). «Geändert» bleibt stehen — Notizen ändern das Rezept nicht.
+Grenze 32'767 Zeichen pro Zelle (Excel).
+
 ## Prüfung
 
 `Import.pruefen(daten)` validiert gegen dieses Schema und liefert
