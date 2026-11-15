@@ -1609,6 +1609,13 @@ button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)
   .korrektur-soll s::after{content:")"}
 }
 
+/* LIBAR-147 (Design-Review 15.11.2026, M-4): das Batch-Formular stand ueber dem Rezepttitel
+   (order 0 vor h2 order 1), und darin zog `.rezeptkopf .scaler{order:2}` die Felder hinter
+   Vorschau und Knoepfe. Jetzt: Titel, Felder, Hinweis, Vorschau, Knoepfe (Entwurf Brett E)
+   — das Formular auf eine eigene Zeile nach dem Kopf, innen gilt die Reihenfolge des Markups. */
+.rezeptkopf > .entw-batchform{order:4;flex:0 0 100%;min-width:0}
+.rezeptkopf .entw-batchform .scaler{order:0}
+
 /* ============================================================================
    LIBAR-146 (Design-Review Rezeptansicht 15.11.2026, X-1, X-2, S-1, S-7, S-9):
    Geraetebefunde iPhone/Safari, unabhaengig vom neuen Entwurf. Telefonstufe = unter
