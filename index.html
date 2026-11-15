@@ -1693,6 +1693,78 @@ body.vollbild ol.schritte li::before,body.vollbild table.zutaten.mz .hw,body.vol
   body table.zutaten.mz td.menge,body table.zutaten.mz td.menge.korr{color:#000}
   body table.zutaten.mz .korrektur-soll{color:#000}
 }
+
+/* LIBAR-152 (Design-Review 15.11.2026, E-3/E-3a, S-2 bis S-5, FR-210; Entwurf
+   design/entwurf-rezeptansicht.html Bretter A-D): Notizen zeilengleich in der Randspalte.
+   Jede Zeile der Rezeptur (Zutat <tr>, Schritt <li>) traegt rechts ihre eigene Randzelle;
+   die Zeile wird dafuer um Gasse + Randlinie + Gasse + Schienenbreite nach rechts VERLAENGERT
+   und liegt damit genau ueber der Spalte der rechten Schiene (Muster AP-0315/AP-0317:
+   eingehaengt, nie positioniert). Eine Zeile waechst auf beiden Seiten gleich — Versatz 0 px
+   per Bau, und sie scrollt mit, weil sie Teil derselben Zeile ist. Die Schiene selbst fuehrt
+   im Randmodus keine Liste mehr: ihr Inhalt ist aus, nur der Kopf («Notizen», ×) bleibt und
+   scrollt mit (nicht sticky), sonst laege er beim Scrollen ueber den Randzellen. */
+body{--rand-rs:340px;--notiz:color-mix(in srgb, var(--ink) 75%, var(--muted));--rand-gasse:calc(2 * var(--lb-gasse) + var(--lb-rot-staerke));
+  --rand-ext:calc(var(--rand-gasse) + var(--rand-rs))}
+@media (max-width:1279px){body{--rand-rs:var(--lb-schiene,240px)}}
+body.rand-zeilen .rail--rechts{position:static;max-height:none}
+body.rand-zeilen .rail--rechts .railinhalt{display:none}
+body table.zutaten.mz.mit-rand{width:calc(100% + var(--rand-ext))}
+body table.zutaten.mz td.rand{width:var(--rand-ext);padding:0 0 0 var(--rand-gasse);
+  font-size:13px;color:var(--notiz,var(--muted));text-wrap:pretty;cursor:pointer;position:relative}
+ol.schritte.mit-rand li{display:grid;grid-template-columns:minmax(0,1fr) var(--rand-rs);
+  column-gap:var(--rand-gasse);max-width:none;width:calc(100% + var(--rand-ext))}
+ol.schritte.mit-rand li > .st{max-width:520px}
+ol.schritte li > .rand{font-size:13px;color:var(--notiz,var(--muted));text-wrap:pretty;cursor:pointer;
+  position:relative;min-height:var(--lb-zeile)}
+/* Auslauf (S-4): eine mehrzeilige Notiz laeuft in leere Randzellen darunter aus — die Zeile
+   bleibt 28 hoch. View.randAuslauf() setzt die Klasse nur, wenn darunter genug leere Zellen
+   folgen; sonst waechst die Zeile wie oben. */
+.rand.lauf > .t{position:absolute;top:0;right:0;z-index:1}
+td.rand.lauf > .t{left:var(--rand-gasse)}
+li > .rand.lauf > .t{left:0}
+.rand.leer:hover::after{content:"+ Notiz";color:var(--muted)}
+/* Kopf der Randspalte (S-5): offene Korrekturen, Uebernehmen/Verwerfen auf eigener Zeile,
+   Rezeptnotiz. Unter dem Schienenkopf (56) beginnend, damit er ihn nicht ueberdeckt. */
+.kopf-zeile{display:block}
+body.rand-zeilen .kopf-zeile.mit-rand{display:grid;grid-template-columns:minmax(0,1fr) var(--rand-rs);
+  column-gap:var(--rand-gasse);width:calc(100% + var(--rand-ext));align-items:start}
+.notizkopf{font-size:13px;color:var(--muted)}
+.kopf-zeile.mit-rand > .notizkopf{padding-top:var(--lb-bedien)}
+.notizkopf .nk-zeile{min-height:var(--lb-zeile);line-height:var(--lb-zeile);color:var(--ink)}
+.notizkopf .nk-aktionen{display:flex;column-gap:16px;height:var(--lb-zeile)}
+.notizkopf .nk-aktionen button{height:var(--lb-zeile);min-height:var(--lb-zeile);font-size:13px;padding:0;
+  text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px;text-decoration-color:var(--muted)}
+.notizkopf textarea{width:100%;font-size:13px;min-height:calc(2 * var(--lb-zeile))}
+.notizkopf .msg{font-size:13px}
+/* Stufe K und geschlossene Schiene: keine Randspalte, kein Overlay — die Notiz steht als
+   eigene Zeile unter ihrer Zutat bzw. ihrem Schritt, eingerueckt auf die Namensflucht. */
+body table.zutaten.mz tr.unterzeile td{font-size:13px;color:var(--notiz,var(--muted));cursor:pointer}
+body table.zutaten.mz tr.unterzeile td.menge{font-weight:400;color:var(--muted)}
+ol.schritte li.unterzeile{counter-increment:none;font-size:13px;color:var(--notiz,var(--muted));cursor:pointer}
+ol.schritte li.unterzeile::before{content:"✎"}
+.notizkopf .kopfnotiz{cursor:pointer;min-height:var(--lb-zeile);line-height:var(--lb-zeile);white-space:pre-wrap}
+/* Eingaben in der Zeile (E-3a): Menge wird zum Feld in ihrer Zelle, die Einheit bleibt
+   daneben stehen (S-3). 28 hoch, Graphitlinie auf der Rasterlinie, kein Rahmen. */
+td.menge[data-menge]{cursor:pointer}
+.zeilen-ein{display:block;width:100%;height:var(--lb-zeile);min-height:var(--lb-zeile);padding:0;margin:0;
+  line-height:var(--lb-zeile);font:inherit;color:var(--ink);border:0;border-radius:0;outline:0;
+  -webkit-appearance:none;appearance:none;background:transparent;
+  background-image:linear-gradient(var(--ink),var(--ink));background-repeat:no-repeat;
+  background-position:0 var(--lb-linie-y);background-size:100% var(--lb-fokus-staerke)}
+.zeilen-ein:focus{background-size:100% var(--lb-fokus-staerke)}
+.menge-feld{display:flex;justify-content:flex-end;align-items:baseline;gap:4px}
+.menge-feld .zeilen-ein{width:auto;flex:1;min-width:0;text-align:right;font-weight:500}
+.menge-feld .einh{flex:none;font-weight:500}
+@media (pointer:coarse){.zeilen-ein{font-size:16px}}
+@media (max-width:859px){
+  /* Stufe K: keine rechte Schiene, kein Overlay ueber dem Rezept (N-4). */
+  #btnRailRechts,.rail--rechts{display:none !important}
+}
+@media print{
+  body table.zutaten.mz.mit-rand,ol.schritte.mit-rand li{width:100%}
+  body table.zutaten.mz td.rand,ol.schritte li > .rand,.kopf-zeile > .notizkopf{display:none}
+  ol.schritte.mit-rand li{display:block}
+}
 </style>
 </head>
 <body>
@@ -2498,12 +2570,18 @@ const Model = {
     const g = Number(k.ist) / f;
     return Number.isFinite(g) && g >= 0 ? g : null;
   },
-  kxHatInhalt(kx){ return !!(kx && ((kx.zutaten && Object.keys(kx.zutaten).length) || (typeof kx.notiz === "string" && kx.notiz.trim()))); },
+  kxHatInhalt(kx){ return !!(kx && ((kx.zutaten && Object.keys(kx.zutaten).length) || (typeof kx.notiz === "string" && kx.notiz.trim())
+    || (kx.notizen && Object.keys(kx.notizen).length))); },
   // Mise -> Arbeitsstand-Eintrag (Form von korrekturenModul): faktorBeiEingabe 1, damit
   // Calc.korrekturAktuell(k, f) = g * f gilt.
   kxAusMise(mise, rz){
-    const kx = { zutaten:{}, notiz: (mise && typeof mise.rezeptnotiz === "string") ? mise.rezeptnotiz : "", uebernommen:[] };
+    const kx = { zutaten:{}, notiz: (mise && typeof mise.rezeptnotiz === "string") ? mise.rezeptnotiz : "", uebernommen:[], notizen:{} };
     if(!mise) return kx;
+    // LIBAR-152 (FR-210): Zeilennotizen je Zutat/Schritt in den Arbeitsstand.
+    Object.keys(mise.notizen || {}).forEach(key => {
+      const t = mise.notizen[key];
+      if(Model.MISE_NOTIZ_RE.test(key) && typeof t === "string" && t.trim()) kx.notizen[key] = t;
+    });
     Object.keys(mise.korrekturen || {}).forEach(key => {
       const g = Number(mise.korrekturen[key]);
       if(!Model.MISE_ZUTAT_RE.test(key) || !Number.isFinite(g) || g < 0) return;
@@ -2514,10 +2592,19 @@ const Model = {
     });
     return kx;
   },
-  // Arbeitsstand ist die Wahrheit: korrekturen und rezeptnotiz aus kx, Zeilennotizen und alle
-  // fremden Wurzelschluessel bleiben unveraendert. Gibt ein NEUES Objekt zurueck.
+  // Arbeitsstand ist die Wahrheit: korrekturen und rezeptnotiz aus kx, alle fremden
+  // Wurzelschluessel bleiben unveraendert. Zeilennotizen (LIBAR-152) kommen aus kx.notizen,
+  // fehlt das Feld (Arbeitsstand von vor LIBAR-152), bleiben die der Zelle stehen.
+  // Gibt ein NEUES Objekt zurueck.
   miseMitKx(mise, kx){
     const m = mise ? { ...mise, notizen: { ...(mise.notizen || {}) }, korrekturen: {} } : Model.miseLeer();
+    if(kx && kx.notizen && typeof kx.notizen === "object"){
+      m.notizen = {};
+      Object.keys(kx.notizen).forEach(key => {
+        const t = kx.notizen[key];
+        if(Model.MISE_NOTIZ_RE.test(key) && typeof t === "string" && t.trim()) m.notizen[key] = t.trim();
+      });
+    }
     Object.keys((kx && kx.zutaten) || {}).forEach(key => {
       if(!Model.MISE_ZUTAT_RE.test(key)) return;
       const g = Model.miseKorrekturWert(kx.zutaten[key]);
@@ -2541,6 +2628,14 @@ const Model = {
       if(g == null) return;
       if(m.korrekturen[key] === undefined){ m.korrekturen[key] = g; neu++; }
       else if(Math.abs(Number(m.korrekturen[key]) - g) > 1e-9) konflikte++;
+    });
+    // LIBAR-152: Zeilennotizen dieses Geraets wie Korrekturen — fehlende kommen dazu, eine
+    // andere bestehende bleibt stehen (lokale lebt in der Sicherung weiter).
+    Object.keys((lokal && lokal.notizen) || {}).forEach(key => {
+      const t = lokal.notizen[key];
+      if(!Model.MISE_NOTIZ_RE.test(key) || typeof t !== "string" || !t.trim()) return;
+      if(m.notizen[key] === undefined){ m.notizen[key] = t.trim(); neu++; }
+      else if(m.notizen[key] !== t.trim()) konflikte++;
     });
     const l = lokal && typeof lokal.notiz === "string" ? lokal.notiz.trim() : "";
     const r = typeof m.rezeptnotiz === "string" ? m.rezeptnotiz.trim() : "";
@@ -4368,7 +4463,11 @@ function korrekturenModul(ablage){
     const w = ablage.lesen();
     return (w && typeof w === "object" && !Array.isArray(w)) ? w : {};
   };
+  // LIBAR-152 (FR-210): ein Eintrag kann zusaetzlich notizen tragen = Zeilennotizen je
+  // Zutat/Schritt ("<i>/<j>", "<i>/s<k>"). Das Feld entsteht erst mit der ersten Notiz —
+  // bestehende Eintraege behalten ihre Form unveraendert (LIBAR36-2).
   const leer = () => ({ zutaten:{}, notiz:"", uebernommen:[] });
+  const notizenNachfuehren = (mein, g) => { if(mein.notizen || Object.keys(g.notizen).length) mein.notizen = g.notizen; };
   const gleich = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
   // LIBAR-38: Stand jedes Eintrags, wie dieser Tab ihn zuletzt in der Ablage gesehen hat.
   // Das ist die Grundlage des Dreiwege-Vergleichs in mischen(): nur was ICH gegenueber
@@ -4397,19 +4496,24 @@ function korrekturenModul(ablage){
     // bleibt er geloescht — sonst springen Loeschungen zurueck.
     mischen(mein, frisch, alt){
       mein = mein || leer(); frisch = frisch || leer(); alt = alt || leer();
-      const mz = mein.zutaten || {}, fz = frisch.zutaten || {}, az = alt.zutaten || {};
-      const zutaten = {};
-      Object.keys(fz).forEach(key => {
-        const ichHabeGeloescht = az[key] !== undefined && mz[key] === undefined;
-        if(ichHabeGeloescht) return;
-        zutaten[key] = (mz[key] !== undefined && !gleich(mz[key], az[key])) ? mz[key] : fz[key];
-      });
-      Object.keys(mz).forEach(key => {
-        if(key in zutaten) return;
-        // unveraendert und in der Ablage nicht mehr vorhanden: der andere Tab hat geloescht
-        if(az[key] !== undefined && gleich(mz[key], az[key])) return;
-        zutaten[key] = mz[key];
-      });
+      // LIBAR-152: dieselbe Schluesselregel fuer Zutatenkorrekturen und Zeilennotizen.
+      const schluesselweise = (mz, fz, az) => {
+        const erg = {};
+        Object.keys(fz).forEach(key => {
+          const ichHabeGeloescht = az[key] !== undefined && mz[key] === undefined;
+          if(ichHabeGeloescht) return;
+          erg[key] = (mz[key] !== undefined && !gleich(mz[key], az[key])) ? mz[key] : fz[key];
+        });
+        Object.keys(mz).forEach(key => {
+          if(key in erg) return;
+          // unveraendert und in der Ablage nicht mehr vorhanden: der andere Tab hat geloescht
+          if(az[key] !== undefined && gleich(mz[key], az[key])) return;
+          erg[key] = mz[key];
+        });
+        return erg;
+      };
+      const zutaten = schluesselweise(mein.zutaten || {}, frisch.zutaten || {}, alt.zutaten || {});
+      const notizen = schluesselweise(mein.notizen || {}, frisch.notizen || {}, alt.notizen || {});
       const notiz = (mein.notiz || "") !== (alt.notiz || "") ? (mein.notiz || "") : (frisch.notiz || "");
       // uebernommen ist ein Protokoll (§6.3): nie kuerzen, Eintraege beider Tabs behalten
       const uebernommen = (frisch.uebernommen || []).slice();
@@ -4418,7 +4522,7 @@ function korrekturenModul(ablage){
         const t = JSON.stringify(e);
         if(!bekannt.has(t)){ uebernommen.push(e); bekannt.add(t); }
       });
-      return { zutaten, notiz, uebernommen };
+      return { zutaten, notiz, uebernommen, notizen };
     },
     // Ablage neu lesen, den Eintrag von rezeptId feldweise mit dem fremden Stand mischen,
     // zurueckschreiben. Fremde Eintraege bleiben unveraendert und werden in den Arbeitsstand
@@ -4429,7 +4533,7 @@ function korrekturenModul(ablage){
       const frisch = lesen();
       const mein = K.alle[rezeptId];
       const g = K.mischen(mein, frisch[rezeptId], basisVon(rezeptId));
-      mein.zutaten = g.zutaten; mein.notiz = g.notiz; mein.uebernommen = g.uebernommen;
+      mein.zutaten = g.zutaten; mein.notiz = g.notiz; mein.uebernommen = g.uebernommen; notizenNachfuehren(mein, g);
       frisch[rezeptId] = mein;
       ablage.schreiben(frisch);
       K.alle = frisch;
@@ -4443,7 +4547,7 @@ function korrekturenModul(ablage){
       Object.keys(K.alle).forEach(id => {
         const mein = K.alle[id];
         const g = K.mischen(mein, frisch[id], basisVon(id));
-        mein.zutaten = g.zutaten; mein.notiz = g.notiz; mein.uebernommen = g.uebernommen;
+        mein.zutaten = g.zutaten; mein.notiz = g.notiz; mein.uebernommen = g.uebernommen; notizenNachfuehren(mein, g);
         frisch[id] = mein;
       });
       K.alle = frisch;
@@ -4460,7 +4564,7 @@ function korrekturenModul(ablage){
     // AP-0201 §3.4: die Rezeptliste in B1 markiert Rezepte mit offenen Korrekturen mit einem Punkt.
     hatOffene(rezeptId){
       const k = K.alle[rezeptId];
-      return !!(k && (Object.keys(k.zutaten).length || (k.notiz && k.notiz.trim())));
+      return !!(k && (Object.keys(k.zutaten).length || (k.notiz && k.notiz.trim()) || Object.keys(k.notizen || {}).length));
     }
   };
   return K;
@@ -4600,7 +4704,7 @@ window.addEventListener("storage", e => {
   View.liste(); // Punktmarkierung offener Korrekturen (§3.4)
   if(!rz) return;
   // Ein fokussiertes Notizfeld nicht ueberschreiben — sonst verliert der Tippende seinen Text.
-  const notizFokus = document.activeElement && document.activeElement.id === "korrekturNotiz";
+  const notizFokus = View.tipptGerade();
   if(!notizFokus && JSON.stringify(Korrekturen.alle[rz.id] || null) !== vorher) View.rezept();
 });
 
@@ -4987,6 +5091,11 @@ const View = {
   // Zustände leer/gefüllt wie B1/B2. Jede Änderung wirkt sofort (AP-0203 §6.2: "Bestätigung
   // nötig: nein") — es gibt kein "Speichern" ausser fuer den ausdruecklichen Uebernahmeweg.
   notizsection(){
+    // LIBAR-152 (FR-210, E-3, S-5): die Schiene fuehrt keine Zutatenliste «Mengenkorrekturen»
+    // mehr — Korrekturen stehen in der Mengenzelle, Notizen auf ihrer Zeile. Geblieben ist der
+    // Kopf: offene Korrekturen, «Ins Rezept übernehmen»/«Verwerfen» auf eigener Zeile und die
+    // Rezeptnotiz. Er steht in #notizKopf (View.rezept): neben dem Rezeptkopf in der Randspalte
+    // (Modus "rand") oder darunter (Modus "unter", Stufe K / Schiene zu).
     const box = el("#panelKochen");
     const rz = Store.aktuellesRezept;
     if(!rz){ box.innerHTML = '<div class="empty">Kein Rezept gewählt.</div>'; return; }
@@ -4996,64 +5105,38 @@ const View = {
       box.innerHTML = '<div class="empty">Kochkorrekturen sind während der Entwicklung gesperrt.</div>';
       return;
     }
+    box.innerHTML = '<div class="empty">Notizen stehen auf ihrer Zeile in der Rezeptur.</div>';
+    const kopf = el("#notizKopf");
+    if(!kopf) return;
+    const modus = View.notizModus();
     const kx = Korrekturen.get(rz.id);
     const anzahl = Object.keys(kx.zutaten).length;
-
-    const phasenHtml = rz.phasen.map((p, i) => {
-      if(!p.zutaten.length) return "";
-      const zeilen = p.zutaten.map((z, j) => {
-        const key = i + "/" + j;
-        const k = kx.zutaten[key];
-        // Reine Zahl ohne Einheitensuffix — die Einheit steht bereits im eigenen <span>
-        // daneben, und ein type="number"-Feld braucht einen parsbaren Wert.
-        const platzhalter = Math.round(Calc.mengeG(z, rz.basisMengeG, Store.faktor) * 10) / 10;
-        const wert = k ? Math.round(Calc.korrekturAktuell(k, Store.faktor) * 10) / 10 : "";
-        return `<div class="korrekturzeile">
-          <span class="nm">${esc(z.name)}</span>
-          <input type="number" min="0" step="any" inputmode="decimal" data-korrektur="${esc(key)}"
-            placeholder="${platzhalter}" value="${wert}">
-          <span class="einheit">${esc(z.einheit)}</span>
-          ${k ? `<button class="ghost" data-korrektur-loeschen="${esc(key)}">Zurücksetzen</button>` : ""}
-        </div>`;
-      }).join("");
-      return `<div class="korrekturphase"><h4>${esc(p.name)}</h4>${zeilen}</div>`;
-    }).join("");
-
-    const uebernahme = anzahl ? `
-      <div class="actions noprint" style="margin-top:.8rem">
-        <button id="btnKorrekturUebernehmen">Ins Rezept übernehmen (${anzahl})</button>
-        <button class="ghost" id="btnKorrekturenVerwerfen">Korrekturen verwerfen</button>
+    const korrHtml = anzahl ? `
+      <div class="nk-zeile">${anzahl} Korrektur${anzahl === 1 ? "" : "en"} offen</div>
+      <div class="nk-aktionen">
+        <button type="button" id="btnKorrekturUebernehmen">Ins Rezept übernehmen</button>
+        <button type="button" id="btnKorrekturenVerwerfen">Verwerfen</button>
       </div>
       ${Store.korrekturUebernehmenOffen ? View.korrekturUebernehmenVorschau(rz, kx) : ""}` : "";
+    const notizText = kx.notiz || "";
+    const rezeptnotiz = (modus === "rand" || View.kopfNotizOffen === rz.id)
+      ? `<textarea id="korrekturNotiz" placeholder="Rezeptnotiz — was beim Kochen dazukommt…">${esc(notizText)}</textarea>`
+      : `<div class="kopfnotiz" id="kopfNotiz">${notizText.trim() ? "✎ " + esc(notizText) : '<span style="color:var(--muted)">+ Rezeptnotiz</span>'}</div>`;
+    kopf.innerHTML = korrHtml + rezeptnotiz;
 
-    box.innerHTML = `
-      <section class="card">
-        <h2>Notiz</h2>
-        <div class="body">
-          <textarea id="korrekturNotiz" style="width:100%;min-height:5rem"
-            placeholder="Freie Notiz — was beim Kochen dazukommt…">${esc(kx.notiz)}</textarea>
-        </div>
-      </section>
-      <section class="card">
-        <h2>Mengenkorrekturen</h2>
-        <div class="body">
-          ${phasenHtml || '<div class="empty">Keine Zutaten.</div>'}
-          ${uebernahme}
-        </div>
-      </section>`;
-
-    el("#korrekturNotiz").addEventListener("input", e => {
-      kx.notiz = e.target.value;
-      Korrekturen.speichern(rz.id);
+    const ta = el("#korrekturNotiz");
+    if(ta){
+      ta.addEventListener("input", e => {
+        kx.notiz = e.target.value;
+        Korrekturen.speichern(rz.id);
+      });
+      ta.addEventListener("focus", () => View.insBild(ta));
+      if(modus !== "rand") ta.addEventListener("blur", () => { View.kopfNotizOffen = null; View.notizsection(); View.liste(); });
+    }
+    el("#kopfNotiz") && el("#kopfNotiz").addEventListener("click", () => {
+      View.kopfNotizOffen = rz.id; View.notizsection();
+      const t = el("#korrekturNotiz"); if(t) t.focus();
     });
-    box.querySelectorAll("[data-korrektur]").forEach(inp =>
-      inp.addEventListener("change", e => {
-        const wert = e.target.value.trim();
-        if(!wert){ App.korrekturLoeschen(rz.id, e.target.dataset.korrektur); return; }
-        App.korrekturSetzen(rz.id, e.target.dataset.korrektur, Number(wert));
-      }));
-    box.querySelectorAll("[data-korrektur-loeschen]").forEach(btn =>
-      btn.addEventListener("click", () => App.korrekturLoeschen(rz.id, btn.dataset.korrekturLoeschen)));
     el("#btnKorrekturUebernehmen") && el("#btnKorrekturUebernehmen").addEventListener("click", () => {
       Store.korrekturUebernehmenOffen = true; View.notizsection();
     });
@@ -5065,6 +5148,98 @@ const View = {
     el("#btnKorrekturUebernehmenAbbrechen") && el("#btnKorrekturUebernehmenAbbrechen").addEventListener("click", () => {
       Store.korrekturUebernehmenOffen = false; View.notizsection();
     });
+    View.randAuslauf(el("#rezeptbereich"));
+  },
+  kopfNotizOffen: null,
+  letzterNotizModus: null,
+
+  // LIBAR-152 (S-2): die Tastatur darf die bearbeitete Zeile nie verdecken — Safari scrollt
+  // sie nicht von selbst ins Bild. Nach dem Aufgehen der Tastatur ein zweites Mal.
+  insBild(elm){
+    if(!elm || !elm.scrollIntoView) return;
+    try{ elm.scrollIntoView({ block:"center" }); }catch(e){ elm.scrollIntoView(); }
+    setTimeout(() => { if(document.activeElement === elm){ try{ elm.scrollIntoView({ block:"center" }); }catch(e){} } }, 350);
+  },
+  // Tippt gerade jemand in ein Notiz- oder Mengenfeld? Dann nicht neu zeichnen.
+  tipptGerade(){
+    const a = document.activeElement;
+    return !!(a && (a.id === "korrekturNotiz" || (a.classList && a.classList.contains("zeilen-ein"))));
+  },
+  // Ein Feld in einer Zelle oeffnen: Enter/Verlassen uebernimmt, Escape verwirft.
+  zeilenFeld(ziel, wert, attr, fertig){
+    const vorher = ziel.innerHTML;
+    ziel.innerHTML = `<input class="zeilen-ein" ${attr} enterkeyhint="done" value="${esc(wert)}">`;
+    const inp = ziel.querySelector("input");
+    let zu = false;
+    const schliessen = abbruch => {
+      if(zu) return; zu = true;
+      if(abbruch){ ziel.innerHTML = vorher; View.rezept(); return; }
+      fertig(inp.value.trim());
+    };
+    inp.addEventListener("blur", () => schliessen(false));
+    inp.addEventListener("keydown", e => {
+      if(e.key === "Enter"){ e.preventDefault(); schliessen(false); }
+      if(e.key === "Escape"){ e.preventDefault(); schliessen(true); }
+    });
+    inp.addEventListener("focus", () => View.insBild(inp));
+    inp.focus();
+    try{ inp.select(); }catch(e){}
+    return inp;
+  },
+  // LIBAR-152: Antippen in der Rezeptur — Menge (Korrektur in der Zelle, E-3a), Randzelle
+  // (Notiz auf derselben Linie) und auf Stufe K der Name (Notiz als Unterzeile). Ein Zuhoerer
+  // am Rezeptbereich; das Feld lebt bis zum Verlassen im DOM, danach zeichnet View.rezept neu.
+  zeilenEreignisse(rz){
+    const rb = el("#rezeptbereich");
+    if(!rb || Store.entwOverlayOffen) return;
+    const modus = View.notizModus();
+    rb.querySelectorAll("td.menge[data-menge]").forEach(td => td.addEventListener("click", () => {
+      if(td.querySelector("input")) return;
+      const key = td.dataset.menge, einh = td.dataset.einheit || "";
+      const [i, j] = key.split("/").map(Number);
+      const z = rz.phasen[i] && rz.phasen[i].zutaten[j];
+      if(!z) return;
+      const kk = Korrekturen.get(rz.id).zutaten[key];
+      const soll = Calc.mengeG(z, rz.basisMengeG, Store.faktor);
+      const jetzt = kk ? Calc.korrekturAktuell(kk, Store.faktor) : soll;
+      const zahl = g => Math.round(g * 10) / 10;
+      td.innerHTML = '<span class="menge-feld"></span>';
+      const feld = td.firstChild;
+      View.zeilenFeld(feld, String(zahl(jetzt)), 'type="text" inputmode="decimal" data-menge-feld aria-label="Menge ' + esc(z.name) + '"', v => {
+        const n = Number(String(v).replace(",", "."));
+        if(!v || !Number.isFinite(n) || n <= 0 || Math.abs(n - zahl(soll)) < 0.05) App.korrekturLoeschen(rz.id, key);
+        else App.korrekturSetzen(rz.id, key, n);
+      });
+      feld.insertAdjacentHTML("beforeend", `<span class="einh">${esc(einh)}</span>`);
+    }));
+    if(modus === "aus") return;
+    const notiz = key => (Korrekturen.get(rz.id).notizen || {})[key] || "";
+    rb.querySelectorAll(".rand[data-rand]").forEach(zelle => zelle.addEventListener("click", () => {
+      if(zelle.querySelector("input")) return;
+      const key = zelle.dataset.rand;
+      zelle.classList.remove("leer", "lauf");
+      View.zeilenFeld(zelle, notiz(key), 'type="text" data-rand-feld aria-label="Notiz"', v => App.zeilenNotizSetzen(rz.id, key, v));
+    }));
+    if(modus !== "unter") return;
+    // Unterzeile bearbeiten (vorhanden) oder anlegen (Antippen des Namens bzw. Schritttexts).
+    const unterOeffnen = (zeile, key) => {
+      let u = zeile.nextElementSibling;
+      if(!(u && u.dataset && u.dataset.unter === key)){
+        zeile.insertAdjacentHTML("afterend", zeile.tagName === "TR" ? View.unterzeileZutatHtml(key, "")
+          : `<li class="unterzeile" data-unter="${esc(key)}"></li>`);
+        u = zeile.nextElementSibling;
+      }
+      const ziel = u.tagName === "TR" ? u.querySelector("td.name") : u;
+      if(ziel.querySelector("input")) return;
+      View.zeilenFeld(ziel, notiz(key), 'type="text" data-rand-feld aria-label="Notiz"', v => App.zeilenNotizSetzen(rz.id, key, v));
+    };
+    rb.querySelectorAll("table.zutaten.mz tr[data-zeile] td.name").forEach(td => td.addEventListener("click", () => {
+      const tr = td.parentElement; unterOeffnen(tr, tr.dataset.zeile);
+    }));
+    rb.querySelectorAll("ol.schritte li[data-zeile]").forEach(li => li.addEventListener("click", () => unterOeffnen(li, li.dataset.zeile)));
+    rb.querySelectorAll("[data-unter]").forEach(u => u.addEventListener("click", () => {
+      const zeile = u.previousElementSibling; if(zeile) unterOeffnen(zeile, u.dataset.unter);
+    }));
   },
 
   // AP-0203 §3 Schritt 2 (Vorschau), hier auf den schmalen Fall "nur Phasen (JSON), nur
@@ -5167,12 +5342,52 @@ const View = {
 
   // AP-0315 (libarius-gestaltung): entwZellenHtml (optional) haengt fertig gerenderte
   // <td class="entw-td"> je offener Variante an — dieselbe <tr>, dieselbe Zeile (AP-0205 §3.1).
-  zutatenzeile(z, rz, faktor, korrektur, entwZellenHtml){
+  zutatenzeile(z, rz, faktor, korrektur, entwZellenHtml, opt){
     // LIBAR-149 (E-4): Menge (fest, rechtsbuendig) · Name · Sollmenge · Hinweis. Kein
     // Bäckerprozent — das steht nur noch in der Entwicklungs-Grid-Zeile.
+    // LIBAR-152 (E-3a): opt.key macht die Mengenzelle antippbar (Korrektur in der Zelle);
+    // opt.einheit/opt.wert tragen Einheit und Zahl fuer das Feld.
     const t = View.zutatenzeileTeile(z, rz, faktor, korrektur);
-    return `<tr><td class="menge${t.korrigiert ? " korr" : ""}">${t.wertHtml}</td>
+    const o = opt || {};
+    const mengeAttr = o.key ? ` data-menge="${esc(o.key)}" data-einheit="${esc(t.einheit || "")}"` : "";
+    return `<tr${o.key ? ` data-zeile="${esc(o.key)}"` : ""}><td class="menge${t.korrigiert ? " korr" : ""}"${mengeAttr}>${t.wertHtml}</td>
       <td class="name">${t.nameHtml}${t.sollHtml}${t.hinweisHtml}</td>${entwZellenHtml || ""}</tr>`;
+  },
+
+  // LIBAR-152 (FR-210, E-3): wo stehen die Zeilennotizen? "rand" = Randspalte zeilengleich
+  // (Stufe W/M bei offener rechter Schiene), "unter" = eigene Zeile unter der Zutat/dem Schritt
+  // (Stufe K, Schiene zu), "aus" = Kochmodus (K-17) und Entwicklungsmodus (Korrekturen gesperrt).
+  notizModus(){
+    if(Layout.state.vollbild || Store.entwOverlayOffen) return "aus";
+    if(Layout.stufe() !== "k" && Layout.state.rechts) return "rand";
+    return "unter";
+  },
+  // Randzelle bzw. Unterzeile einer Zeile. key "<i>/<j>" (Zutat) oder "<i>/s<k>" (Schritt).
+  randZelleHtml(key, text, tag){
+    const leer = !(text && String(text).trim());
+    return `<${tag} class="rand${leer ? " leer" : ""}" data-rand="${esc(key)}">${leer ? "" : `<span class="t">${esc(text)}</span>`}</${tag}>`;
+  },
+  unterzeileZutatHtml(key, text){
+    return `<tr class="unterzeile" data-unter="${esc(key)}"><td class="menge">✎</td><td class="name">${esc(text)}</td></tr>`;
+  },
+  // S-4: eine mehrzeilige Randnotiz laeuft in leere Randzellen darunter aus. Erst alle
+  // Kandidaten herausnehmen (absolut), dann je Notiz die Hoehe der eigenen Zeile plus der
+  // folgenden leeren Zeilen (nur Geschwister derselben Liste) gegen die Texthoehe rechnen.
+  randAuslauf(wurzel){
+    const zellen = [...(wurzel || document).querySelectorAll(".rand:not(.leer)")];
+    zellen.forEach(z => z.classList.add("lauf"));
+    zellen.forEach(z => {
+      const t = z.querySelector(".t"); if(!t) return;
+      const zeile = z.closest("tr, li"); if(!zeile) return;
+      const noetig = t.getBoundingClientRect().height;
+      let platz = zeile.getBoundingClientRect().height, n = zeile.nextElementSibling;
+      while(platz + 0.5 < noetig && n){
+        const r = n.querySelector(":scope > .rand");
+        if(!r || !r.classList.contains("leer")) break;
+        platz += n.getBoundingClientRect().height; n = n.nextElementSibling;
+      }
+      if(platz + 0.5 < noetig) z.classList.remove("lauf");
+    });
   },
 
   // AP-0315, AP-0205 §3.1: dieselbe Zutatenzeile als Grid-Zeile (statt <tr>) — braucht die
@@ -6172,6 +6387,8 @@ const View = {
       document.body.classList.remove("entw-offen");
       document.body.style.removeProperty("--entw-breite");
       document.body.style.removeProperty("--entw-rezept-breite");
+      document.body.classList.remove("rand-zeilen");
+      View.letzterNotizModus = null;
       Layout.entwGeometrie();
       View.einkaufsliste();
       View.menue();
@@ -6182,6 +6399,11 @@ const View = {
     // AP-0303: Korrekturablage dieses Rezepts — Zutatenzeile, Einkaufsliste und die
     // Notizsection selbst lesen alle von hier, damit nirgends eine zweite Wahrheit entsteht.
     const kx = Korrekturen.get(rz.id);
+    // LIBAR-152: Zeilennotizen (kx.notizen, Ablage «Mise (JSON)») und wo sie stehen.
+    const notizModus = View.notizModus();
+    const notizen = kx.notizen || {};
+    document.body.classList.toggle("rand-zeilen", notizModus === "rand");
+    View.letzterNotizModus = notizModus;
     const schwund = Calc.schwundAktuell(rz.protokoll);
     const k = Calc.kosten(rz, f, schwund);
     // AP-0307: Feldsatz des zugeordneten Verfahrens — steuert sowohl die Protokollliste
@@ -6240,8 +6462,14 @@ const View = {
             <div class="entw-zeile-pct">—</div><div class="entw-zeile-menge">—</div>${entwZellenHtmlGrid(r)}`;
         }).join("")}</div>` : "";
       }else{
+        // LIBAR-152: Randzelle je Zeile (Modus "rand") oder Notiz als Unterzeile ("unter").
         zt = p.zutaten.length
-          ? `<table class="zutaten mz">${p.zutaten.map((z, j) => View.zutatenzeile(z, rz, f, kx.zutaten[i + "/" + j])).join("")}</table>` : "";
+          ? `<table class="zutaten mz${notizModus === "rand" ? " mit-rand" : ""}">${p.zutaten.map((z, j) => {
+              const key = i + "/" + j, nz = notizen[key];
+              const randHtml = notizModus === "rand" ? View.randZelleHtml(key, nz, "td") : "";
+              return View.zutatenzeile(z, rz, f, kx.zutaten[key], randHtml, { key })
+                + (notizModus === "unter" && nz ? View.unterzeileZutatHtml(key, nz) : "");
+            }).join("")}</table>` : "";
       }
       let sc;
       if(zEntw){
@@ -6254,7 +6482,12 @@ const View = {
         </div>` : "";
       }else{
         sc = p.schritte.length
-          ? `<ol class="schritte">${p.schritte.map(s => `<li>${esc(s.text)}</li>`).join("")}</ol>` : "";
+          ? `<ol class="schritte${notizModus === "rand" ? " mit-rand" : ""}">${p.schritte.map((s, k) => {
+              const key = i + "/s" + k, nz = notizen[key];
+              if(notizModus === "rand") return `<li data-zeile="${key}"><span class="st">${esc(s.text)}</span>${View.randZelleHtml(key, nz, "div")}</li>`;
+              return `<li data-zeile="${key}">${esc(s.text)}</li>`
+                + (notizModus === "unter" && nz ? `<li class="unterzeile" data-unter="${key}">${esc(nz)}</li>` : "");
+            }).join("")}</ol>` : "";
       }
       // AP-0205 §3.3: die Phasen-Summary traegt je Spalte die Zahl der geaenderten Werte —
       // damit man beim Zuklappen nicht ins Leere sieht.
@@ -6386,6 +6619,7 @@ const View = {
 
     el("#rezeptbereich").innerHTML = `
       <section class="card">
+        <div class="kopf-zeile${notizModus === "rand" ? " mit-rand" : ""}">
         <div class="body rezeptkopf">
           <h2>${esc(rz.name)}</h2>
           <!-- AP-0304: Der Kopf traegt nur noch, was beim Kochen zaehlt (Wireframe W,
@@ -6421,6 +6655,8 @@ const View = {
             <label>Portionen<input id="zielPortionen" type="number" inputmode="numeric" min="1" step="1" value="${Math.round(rz.portionen*f)}"></label>
             <button class="ghost" id="btnReset">Original</button>
           </div>`}
+        </div>
+        ${notizModus === "aus" ? "" : '<div class="notizkopf noprint" id="notizKopf"></div>'}
         </div>
       </section>
 
@@ -6621,6 +6857,8 @@ const View = {
       });
     }
     View.entwEreignisse(rz);
+    View.zeilenEreignisse(rz);
+    View.randAuslauf(el("#rezeptbereich"));
     // AP-0315-Nacharbeit (§1.4): erst nach dem Einfuegen ins DOM ist die Geometrie
     // verlaesslich messbar. Aendert sich dabei etwas, ist genau EIN erneuter Aufbau noetig
     // (die neue Spaltenzahl selbst kann nicht wieder ueberlaufen), kein Endlosaufruf.
@@ -6930,10 +7168,16 @@ const Layout = {
     // AP-0304 (libarius-gestaltung), O-20/R-09: kein Reiter mehr in der rechten Schiene, sie
     // fuehrt nur noch #panelKochen (Notizen) — die Sichtbarkeit von #panelEntwicklung folgt
     // seither Store.entwOverlayOffen statt Layout.state.rechtsTab (View.rezept()).
-    const overlayOffen = Layout.stufe() === "k" && (Layout.state.links || Layout.state.rechts);
+    // LIBAR-152 (N-4): auf Stufe K gibt es keine rechte Schiene mehr (kein Overlay ueber dem
+    // Rezept) — Notizen stehen dort als Unterzeile. Darum zaehlt sie fuer den Schleier nicht.
+    const overlayOffen = Layout.stufe() === "k" && Layout.state.links;
     el("#scrim").hidden = !overlayOffen;
     // AP-0317: Schienenwechsel verschieben die Rezeptur — das Blendover folgt ihrer Randlinie.
     if(Layout.entwGeometrie) Layout.entwGeometrie();
+    // LIBAR-152: Schiene auf/zu oder Stufenwechsel wechselt Randspalte <-> Unterzeile — die
+    // Zeilen werden anders gebaut, also neu zeichnen (nicht waehrend einer Eingabe).
+    if(typeof View !== "undefined" && View.letzterNotizModus && Store.aktuellesRezept
+       && View.notizModus() !== View.letzterNotizModus && !View.tipptGerade()) View.rezept();
   },
 
   // Regel M (AP-0201 §2.2): bei M/K höchstens eine Schiene offen — das Öffnen
@@ -9298,6 +9542,75 @@ async function selfTest(){
             }finally{ box.remove(); } })
       ];
     })(),
+    // ---- LIBAR-152 (FR-210, E-3/E-3a, S-4) Notizen zeilengleich in der Randspalte, Ablage «Mise (JSON)».
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, fn() === true]; }catch(e){ return [name, false]; } };
+      const brioche = { basisMengeG:500, portionen:12 };
+      return [
+        fall("LIBAR152-1 Arbeitsstand: Zeilennotizen werden je Schluessel gemischt (meine Aenderung gewinnt, fremde bleibt, Loeschen bleibt geloescht); Eintrag ohne Notizen behaelt seine Form",
+          () => { const K = korrekturenModul({ lesen: () => ({}), schreiben(){} });
+            const alt = { zutaten:{}, notiz:"", uebernommen:[], notizen:{ "0/1":"a", "0/s0":"b", "1/2":"c" } };
+            const mein = { zutaten:{}, notiz:"", uebernommen:[], notizen:{ "0/1":"a neu", "0/s0":"b" } };      // 1/2 geloescht
+            const frisch = { zutaten:{}, notiz:"", uebernommen:[], notizen:{ "0/1":"a", "0/s0":"b fremd", "1/2":"c", "2/s1":"d" } };
+            const g = K.mischen(mein, frisch, alt);
+            let geschrieben = null;
+            const K2 = korrekturenModul({ lesen: () => ({ R:{ zutaten:{}, notiz:"x", uebernommen:[] } }), schreiben(w){ geschrieben = w; } });
+            K2.get("R").notiz = "y"; K2.speichern("R");
+            return g.notizen["0/1"] === "a neu" && g.notizen["0/s0"] === "b fremd" && g.notizen["1/2"] === undefined && g.notizen["2/s1"] === "d"
+              && geschrieben && !("notizen" in geschrieben.R) && geschrieben.R.notiz === "y"; }),
+        fall("LIBAR152-2 «Mise (JSON)»: kxAusMise liest Zeilennotizen, miseMitKx schreibt sie aus kx (leer entfernt), ohne kx.notizen bleiben die der Zelle",
+          () => { const mise = Model.parseMise('{"v":1,"notizen":{"1/3":"eiskalt","1/s2":"10–12 h","x":"fremd"},"korrekturen":{},"gefaesse":[1]}');
+            const kx = Model.kxAusMise(mise, null);
+            kx.notizen["0/0"] = "neu"; delete kx.notizen["1/s2"];
+            const m = Model.miseMitKx(mise, kx);
+            const m2 = Model.miseMitKx(mise, { zutaten:{}, notiz:"" });
+            return kx.notizen["1/3"] === "eiskalt" && !("x" in kx.notizen) && m.notizen["0/0"] === "neu" && m.notizen["1/3"] === "eiskalt"
+              && m.notizen["1/s2"] === undefined && m.gefaesse[0] === 1 && m2.notizen["1/s2"] === "10–12 h"
+              && Model.kxHatInhalt({ zutaten:{}, notiz:"", notizen:{ "0/0":"n" } }) && Model.parseMise(Model.miseSchreiben(m)).notizen["0/0"] === "neu"; }),
+        fall("LIBAR152-3 Uebernahme lokaler Zeilennotizen nach «Mise (JSON)»: fehlende kommen dazu, andere bestehende bleibt (Konflikt gezaehlt)",
+          () => { const u = Model.miseUebernahme(Model.parseMise('{"notizen":{"0/1":"fern"}}'), { zutaten:{}, notiz:"", notizen:{ "0/1":"lokal", "0/s0":"neu" } });
+            return u.mise.notizen["0/1"] === "fern" && u.mise.notizen["0/s0"] === "neu" && u.neu === 1 && u.konflikte === 1; }),
+        fall("LIBAR152-4 Randspalte zeilengleich: jede Zeile traegt ihre Randzelle, Versatz 0 px; zweizeilige Notiz an Butter laeuft aus, Salz direkt darunter (28 px)",
+          () => { const box = document.createElement("div");
+            box.style.cssText = "position:absolute;left:-5000px;top:0;width:605px;--rand-rs:240px;--rand-ext:calc(var(--rand-gasse) + 240px)";
+            const zs = [["Ei",0.24],["Zucker",0.12],["Butter",0.2],["Salz",0.018]].map(([name, prozent]) => ({ name, prozent, einheit:"g", rohstoff:null }));
+            const notiz = { "1/2":"15.03.: 110 g und eiskalt — Teig klebt weniger, Butter in drei Etappen", "1/0":"zimmerwarm" };
+            box.innerHTML = `<table class="zutaten mz mit-rand"><tbody>${zs.map((z, j) => View.zutatenzeile(z, brioche, 1, null,
+                View.randZelleHtml("1/" + j, notiz["1/" + j], "td"), { key: "1/" + j })).join("")}</tbody></table>
+              <ol class="schritte mit-rand"><li data-zeile="1/s0"><span class="st">Alles ausser Butter 8 Min. kneten.</span>${View.randZelleHtml("1/s0", "Notiz", "div")}</li></ol>`;
+            document.body.appendChild(box);
+            try{
+              View.randAuslauf(box);
+              const zeilen = [...box.querySelectorAll("tr, li")];
+              const versatz = Math.max(...zeilen.map(r => { const a = r.getBoundingClientRect(), b = r.querySelector(":scope > .rand").getBoundingClientRect();
+                return Math.max(Math.abs(a.top - b.top), Math.abs(a.height - b.height)); }));
+              const butter = box.querySelector('tr[data-zeile="1/2"]'), salz = box.querySelector('tr[data-zeile="1/3"]');
+              const t = butter.querySelector(".rand .t").getBoundingClientRect().height;
+              const ausgelaufen = t <= 56.5 ? (butter.getBoundingClientRect().height === 28 && butter.querySelector(".rand").classList.contains("lauf")
+                && Math.abs(salz.getBoundingClientRect().top - butter.getBoundingClientRect().bottom) < 0.05) : true;
+              const tabelle = box.querySelector("table").getBoundingClientRect().width;
+              return versatz < 0.05 && ausgelaufen && t > 28 && Math.abs(tabelle - (605 + 2 * 32 + 1.5 + 240)) < 0.6
+                && zeilen.every(r => r.querySelector(":scope > .rand")) && !box.querySelector('tr[data-zeile="1/1"] .rand .t'); }
+            finally{ box.remove(); } }),
+        fall("LIBAR152-5 Mengenzelle antippbar (data-menge, Einheit), Unterzeile auf Stufe K, Notiz-Modus nach Stufe/Schiene/Kochmodus",
+          () => { const d = document.createElement("tbody");
+            d.innerHTML = View.zutatenzeile({ name:"Butter", prozent:0.2, einheit:"g", rohstoff:null }, brioche, 1, null, "", { key:"1/3" })
+              + View.unterzeileZutatHtml("1/3", "eiskalt");
+            const tr = d.firstElementChild, u = d.lastElementChild;
+            const st = { ...Layout.state }, eo = Store.entwOverlayOffen, stufe = Layout.stufe;
+            let modi;
+            try{
+              Store.entwOverlayOffen = false;
+              Layout.stufe = () => "w"; Layout.state.vollbild = false; Layout.state.rechts = true; const a = View.notizModus();
+              Layout.state.rechts = false; const b = View.notizModus();
+              Layout.stufe = () => "k"; Layout.state.rechts = true; const c = View.notizModus();
+              Layout.state.vollbild = true; const e = View.notizModus();
+              modi = [a, b, c, e].join(",");
+            }finally{ Object.assign(Layout.state, st); Store.entwOverlayOffen = eo; Layout.stufe = stufe; }
+            return tr.cells[0].dataset.menge === "1/3" && tr.cells[0].dataset.einheit === "g" && tr.dataset.zeile === "1/3"
+              && u.dataset.unter === "1/3" && u.cells[1].textContent === "eiskalt" && modi === "rand,unter,unter,aus"; })
+      ];
+    })(),
     // ---- LIBAR-85/NFR-12: Erklaertext vor der Anmeldung. Gemockte msalApp protokolliert, ob der
     // Hinweis beim Aufruf von loginPopup sichtbar war; alles wird danach zurueckgestellt.
     ...(await (async () => {
@@ -10221,6 +10534,21 @@ const App = {
     View.liste();
   },
 
+  // LIBAR-152 (FR-210, FR-314): Zeilennotiz je Zutat ("<i>/<j>") oder Schritt ("<i>/s<k>")
+  // setzen; leer entfernt sie. Ablage wie Korrekturen: Arbeitsstand -> localStorage bzw. nach
+  // der Anmeldung «Mise (JSON)» (App.miseSyncPlanen ueber die Mise-Ablage).
+  zeilenNotizSetzen(rezeptId, key, text){
+    if(!Model.MISE_NOTIZ_RE.test(String(key))) return;
+    const kx = Korrekturen.get(rezeptId);
+    if(!kx.notizen) kx.notizen = {};
+    const t = typeof text === "string" ? text.trim() : "";
+    const alt = kx.notizen[key] || "";
+    if(t) kx.notizen[key] = t; else delete kx.notizen[key];
+    if(alt !== t) Korrekturen.speichern(rezeptId);
+    View.rezept();
+    View.liste();
+  },
+
   // AP-0201 §3.5: "Löschen nur ausdrücklich, je Rezept, mit Rückfrage."
   korrekturenVerwerfen(rezeptId){
     const kx = Korrekturen.get(rezeptId);
@@ -10291,7 +10619,7 @@ const App = {
       App.miseBasis[fr.id] = frK;
       if(!mein){ if(Model.kxHatInhalt(frK)) Korrekturen.alle[fr.id] = frK; return; }
       const g = Korrekturen.mischen(mein, frK, basis);
-      mein.zutaten = g.zutaten; mein.notiz = g.notiz;
+      mein.zutaten = g.zutaten; mein.notiz = g.notiz; mein.notizen = g.notizen;
       if(Model.miseSchreiben(Model.miseMitKx(fr.mise, mein)) !== Model.miseSchreiben(fr.mise)) App.miseSyncPlanen(fr.id);
     });
   },
@@ -10327,8 +10655,8 @@ const App = {
         if(erg.ergebnis === "ok") Store.rezepteETag = erg.eTag;
         App.miseBasis[id] = Model.kxAusMise(rz.mise, rz);
         if(erg.kx){
-          kx.zutaten = erg.kx.zutaten; kx.notiz = erg.kx.notiz;
-          const tippt = document.activeElement && document.activeElement.id === "korrekturNotiz";
+          kx.zutaten = erg.kx.zutaten; kx.notiz = erg.kx.notiz; kx.notizen = erg.kx.notizen || {};
+          const tippt = View.tipptGerade();
           if(Store.aktuellesRezept && Store.aktuellesRezept.id === id && !tippt) View.rezept();
           View.liste();
         }
