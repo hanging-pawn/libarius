@@ -2576,6 +2576,53 @@ const Calc = {
   // Weniger als ein Batch wird auf einen ganzen Batch aufgerundet; ab 1 bleibt der Faktor.
   aufrundenAufBatch(faktor){ return (faktor > 0 && faktor < 1) ? 1 : faktor; },
 
+  // LIBAR-153 (FR-311, FR-312, Entscheide E-1/E-2 vom 15.11.2026): Ausbeute-Kette ueber der
+  // Portion. kette = { portionG, portionName, ebenen:[{ name, anzahl }] } — ebenen[i].anzahl
+  // zaehlt die Einheiten der Ebene darunter (z. B. 50 Zimtsterne je Blech, 3 Bleche je
+  // Ofenlauf). Hoechstens drei frei benannte Ebenen ueber der Portion. Alle Gewichte sind
+  // Fertiggewicht inkl. Schwund (wie LIBAR-41). Reine Funktionen; fehlende, 0, negative oder
+  // nicht endliche Werte -> null, nie NaN/Infinity. Krumme Werte bleiben ungerundet stehen und
+  // tragen ganz:false — gerundet wird nur in der Anzeige (Calc.ausbeuteZahl).
+  ausbeutePositiv(v){ return typeof v === "number" && Number.isFinite(v) && v > 0; },
+  // -> [{ name, portionen (Portionen je 1 Einheit dieser Ebene), g }] ab Ebene 0 = Portion.
+  ausbeuteKette(kette){
+    if(!kette || !Calc.ausbeutePositiv(kette.portionG)) return null;
+    const ebenen = Array.isArray(kette.ebenen) ? kette.ebenen : [];
+    if(ebenen.length > 3 || ebenen.some(e => !e || !Calc.ausbeutePositiv(e.anzahl))) return null;
+    const stufen = [{ name: kette.portionName || "Portion", portionen: 1, g: kette.portionG }];
+    for(const e of ebenen){
+      const unten = stufen[stufen.length - 1];
+      const portionen = unten.portionen * e.anzahl, g = portionen * kette.portionG;
+      if(!Number.isFinite(portionen) || !Number.isFinite(g)) return null;
+      stufen.push({ name: e.name || ("Ebene " + (stufen.length + 1)), portionen, g });
+    }
+    return stufen;
+  },
+  // Menge auf einer beliebigen Ebene planen: anzahl Einheiten der Ebene ebeneIndex (0 = Portion).
+  // batchG = Fertiggewicht von 1 Batch (Rezept wie hinterlegt) fuer den Faktor; fehlt es, bleibt
+  // faktor null, die Kette rechnet trotzdem. -> { portionen, g, faktor, jeEbene:[{ name, anzahl, ganz }] }
+  mengeAufEbene(kette, ebeneIndex, anzahl, batchG){
+    const stufen = Calc.ausbeuteKette(kette);
+    if(!stufen || !Number.isInteger(ebeneIndex) || ebeneIndex < 0 || ebeneIndex >= stufen.length) return null;
+    if(!Calc.ausbeutePositiv(anzahl)) return null;
+    const portionen = anzahl * stufen[ebeneIndex].portionen, g = portionen * kette.portionG;
+    if(!Number.isFinite(portionen) || !Number.isFinite(g)) return null;
+    const ganz = v => Math.abs(v - Math.round(v)) < 1e-9;
+    const f = Calc.ausbeutePositiv(batchG) ? g / batchG : null;
+    return { portionen, g, faktor: f != null && Number.isFinite(f) ? f : null,
+      jeEbene: stufen.map(st => { const n = portionen / st.portionen; return { name: st.name, anzahl: n, ganz: ganz(n) }; }) };
+  },
+  // Portionsgroesse im Batch-Formular aendern: Batch (g fertig) bleibt, die Portionenzahl folgt.
+  // -> { portionG, portionen, ganz } oder null.
+  portionsgroesseNeu(batchG, portionG){
+    if(!Calc.ausbeutePositiv(batchG) || !Calc.ausbeutePositiv(portionG)) return null;
+    const n = batchG / portionG;
+    if(!Number.isFinite(n)) return null;
+    return { portionG, portionen: n, ganz: Math.abs(n - Math.round(n)) < 1e-9 };
+  },
+  // Anzeige: hoechstens zwei Nachkommastellen, krumme Werte sichtbar («1.33»), nie still gerundet.
+  ausbeuteZahl(n){ return n == null || !Number.isFinite(n) ? "—" : String(Number(n.toFixed(2))); },
+
   alsStueck(g, rohstoff){
     if(!rohstoff || !rohstoff.einheitsgroesse || rohstoff.standardeinheit !== "stk") return null;
     return { stueck: g / rohstoff.einheitsgroesse, g };
@@ -8766,6 +8813,46 @@ async function selfTest(){
           laufOk && meldungen.length === 6 && meldungen.every(m => typeof m === "string" && m.length > 0 && !m.includes(PROBE))]
       ];
     })()),
+    // ---- LIBAR-153 Ausbeute-Kette und Portionsgroesse (Calc, rein).
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, fn() === true]; }catch(e){ return [name, false]; } };
+      const zimt = { portionG:12, portionName:"Zimtstern", ebenen:[{ name:"Blech", anzahl:50 }, { name:"Ofenlauf", anzahl:3 }] };
+      const kein = v => v === null;
+      return [
+        fall("LIBAR153-1 12 g/Stk, 50/Blech, 3 Bleche/Ofenlauf -> 1 Ofenlauf = 150 Stk = 1800 g",
+          () => { const k = Calc.ausbeuteKette(zimt); const m = Calc.mengeAufEbene(zimt, 2, 1, 600);
+            return k.length === 3 && k[2].name === "Ofenlauf" && k[2].portionen === 150 && k[2].g === 1800 && k[1].g === 600
+              && m.portionen === 150 && m.g === 1800 && m.jeEbene[1].anzahl === 3; }),
+        fall("LIBAR153-2 2 Ofenlaeufe -> 300 Stk, 6 Bleche, Faktor ×6 bei 1 Batch = 1 Blech = 600 g",
+          () => { const m = Calc.mengeAufEbene(zimt, 2, 2, 600);
+            return m.portionen === 300 && m.jeEbene[1].anzahl === 6 && m.jeEbene[1].ganz && m.g === 3600 && nah(m.faktor, 6); }),
+        fall("LIBAR153-3 4 Bleche -> 200 Stk, 1.33 Ofenlaeufe (ungerundet, ganz:false, Anzeige «1.33»)",
+          () => { const m = Calc.mengeAufEbene(zimt, 1, 4, 600);
+            return m.portionen === 200 && nah(m.jeEbene[2].anzahl, 4/3, 1e-9) && m.jeEbene[2].ganz === false
+              && Calc.ausbeuteZahl(m.jeEbene[2].anzahl) === "1.33" && nah(m.faktor, 4); }),
+        fall("LIBAR153-4 Portionsgroesse 108 -> 120 g bei Batch 1080 g -> 9 Portionen je Batch",
+          () => { const vor = Calc.portionsgroesseNeu(1080, 108), neu = Calc.portionsgroesseNeu(1080, 120);
+            return vor.portionen === 10 && neu.portionen === 9 && neu.ganz === true && neu.portionG === 120; }),
+        fall("LIBAR153-5 Eingabe auf Portionsebene: 13 Stk -> 0.26 Bleche, 156 g, Faktor 0.26",
+          () => { const m = Calc.mengeAufEbene(zimt, 0, 13, 600);
+            return m.g === 156 && nah(m.jeEbene[1].anzahl, 0.26) && nah(m.faktor, 0.26) && m.jeEbene[0].ganz; }),
+        fall("LIBAR153-6 fehlende oder 0-Werte -> null, nie NaN/Infinity (auch ohne Batchgewicht nur faktor null)",
+          () => kein(Calc.ausbeuteKette(null)) && kein(Calc.ausbeuteKette({ portionG:0, ebenen:[] }))
+            && kein(Calc.ausbeuteKette({ portionG:12, ebenen:[{ name:"Blech", anzahl:0 }] }))
+            && kein(Calc.ausbeuteKette({ portionG:12, ebenen:[{ name:"B" , anzahl:NaN }] }))
+            && kein(Calc.ausbeuteKette({ portionG:12, ebenen:[1,2,3,4].map(i => ({ name:"E" + i, anzahl:2 })) }))
+            && kein(Calc.mengeAufEbene(zimt, 2, 0, 600)) && kein(Calc.mengeAufEbene(zimt, 5, 1, 600))
+            && kein(Calc.mengeAufEbene(zimt, 2, Infinity, 600)) && Calc.mengeAufEbene(zimt, 2, 1, 0).faktor === null
+            && Calc.mengeAufEbene(zimt, 2, 1, undefined).faktor === null
+            && kein(Calc.portionsgroesseNeu(1080, 0)) && kein(Calc.portionsgroesseNeu(null, 120)) && kein(Calc.portionsgroesseNeu(1080, -5))
+            && Calc.ausbeuteZahl(null) === "—" && Calc.ausbeuteZahl(NaN) === "—"),
+        fall("LIBAR153-7 Kette nur mit Portion (keine Ebene) und drei Ebenen erlaubt; Namen frei (Laib · Gärkorb · Ofen)",
+          () => { const nur = Calc.ausbeuteKette({ portionG:500, ebenen:[] });
+            const brot = Calc.ausbeuteKette({ portionG:500, portionName:"Laib", ebenen:[{ name:"Gärkorb", anzahl:1 }, { name:"Ofen", anzahl:8 }, { name:"Tag", anzahl:3 }] });
+            return nur.length === 1 && nur[0].name === "Portion" && brot.length === 4 && brot[0].name === "Laib"
+              && brot[2].name === "Ofen" && brot[3].portionen === 24 && brot[3].g === 12000; })
+      ];
+    })(),
     // LIBAR-146 (M-7): Faktor der Tab-Cue hoechstens zwei Nachkommastellen, leer bei 1.
     // ---- LIBAR-150 Spalte "Mise (JSON)" (Werte oben vor t asynchron ermittelt, l150).
     ...(() => {
