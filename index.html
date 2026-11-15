@@ -1609,6 +1609,16 @@ button.lb-cue:hover{text-decoration:underline;text-decoration-color:var(--muted)
   .korrektur-soll s::after{content:")"}
 }
 
+/* LIBAR-85 (NFR-12): Erklaerung vor der Anmeldung — Notizheft-Raster, keine Farbflaeche.
+   Jede Aussage eine 28-px-Zeile (bricht auf schmalen Breiten auf weitere 28er-Zeilen um), der
+   Knopf eine 56-px-Bedienzeile (Tippziel >= 44 px, FR-207). */
+.zugriff[hidden]{display:none}
+.zugriff-liste{margin:0;padding:0;list-style:none}
+.zugriff-liste li{line-height:var(--lb-zeile);padding-left:16px;text-indent:-16px}
+.zugriff-liste li::before{content:"–";display:inline-block;width:16px;text-indent:0;color:var(--muted)}
+.zugriff-liste b{font-weight:500}
+.zugriff .lb-bedienzeile{width:auto}
+
 /* LIBAR-147 (Design-Review 15.11.2026, M-4): das Batch-Formular stand ueber dem Rezepttitel
    (order 0 vor h2 order 1), und darin zog `.rezeptkopf .scaler{order:2}` die Felder hinter
    Vorschau und Knoepfe. Jetzt: Titel, Felder, Hinweis, Vorschau, Knoepfe (Entwurf Brett E)
@@ -1755,6 +1765,18 @@ a:active,button:active,.lb-bedienzeile:active > .nm,.lb-sprungmarke:active .nm{
   <div class="lb-randlinie lb-randlinie--links noprint" aria-hidden="true"></div>
 
   <div class="inhalt">
+    <!-- LIBAR-85 (NFR-12, Entscheid LIBAR-84 E3 A): ohne Anmeldung erklaert die Startansicht,
+         was die App mit OneDrive tut, BEVOR sie Zugriff verlangt. App.zugriffErklaerungAktualisieren()
+         blendet den Hinweis aus, sobald ein Konto aktiv ist. -->
+    <section class="card zugriff noprint" id="zugriffErklaerung" aria-labelledby="zugriffTitel">
+      <h2 id="zugriffTitel">Beispieldaten · was libarius mit OneDrive tut</h2>
+      <ul class="zugriff-liste">
+        <li>Liest und schreibt nur <b>Rezepte.xlsx</b> und <b>Rohstoffe.xlsx</b> im gewählten OneDrive-Ordner.</li>
+        <li>Vor jedem Schreiben entsteht eine Sicherung im Ordner <b>Backups</b>. Gelöscht wird nie.</li>
+        <li>Das Anmeldetoken bleibt in diesem <b>Browser</b> und geht nur an Microsoft — libarius hat keinen eigenen Server.</li>
+      </ul>
+      <button type="button" class="lb-bedienzeile" id="btnZugriffAnmelden"><span class="nm">Mit OneDrive anmelden</span></button>
+    </section>
     <div id="meldungen"></div>
     <div id="rezeptbereich"></div>
   </div>
@@ -8853,6 +8875,45 @@ async function selfTest(){
               && brot[2].name === "Ofen" && brot[3].portionen === 24 && brot[3].g === 12000; })
       ];
     })(),
+    // ---- LIBAR-85/NFR-12: Erklaertext vor der Anmeldung. Gemockte msalApp protokolliert, ob der
+    // Hinweis beim Aufruf von loginPopup sichtbar war; alles wird danach zurueckgestellt.
+    ...(await (async () => {
+      const box = el("#zugriffErklaerung");
+      const sichtbar = () => !!box && !box.hidden && getComputedStyle(box).display !== "none" && box.getClientRects().length > 0;
+      const angemeldetJetzt = el("#btnLogin") && el("#btnLogin").classList.contains("angemeldet");
+      const r = { start: sichtbar(), text: box ? box.textContent : "" };
+      const sicher = { msal: msalApp, ipad: Data.istIPad, laden: App.datenLaden, hidden: box ? box.hidden : null };
+      const log = [];
+      try{
+        if(box) box.hidden = true;   // Hinweis vorher weg — loginKlick muss ihn wieder zeigen
+        msalApp = { getActiveAccount: () => null, setActiveAccount(){},
+          loginPopup: async () => { log.push(["popup", sichtbar()]); return { account:{ username:"nfr12" } }; },
+          loginRedirect: async () => { log.push(["redirect", sichtbar()]); } };
+        Data.istIPad = () => false;
+        App.datenLaden = async () => { log.push(["laden"]); };
+        await App.loginKlick();
+        msalApp = { getActiveAccount: () => ({ username:"nfr12" }) };
+        App.zugriffErklaerungAktualisieren();
+        r.mitKonto = sichtbar();
+        msalApp = { getActiveAccount: () => null };
+        App.zugriffErklaerungAktualisieren();
+        r.ohneKonto = sichtbar();
+      }catch(e){ r.fehler = e; }
+      finally{
+        msalApp = sicher.msal; Data.istIPad = sicher.ipad; App.datenLaden = sicher.laden;
+        if(box) box.hidden = sicher.hidden;
+      }
+      return [
+        ["NFR12-1 Start ohne Konto: #zugriffErklaerung sichtbar, Text nennt Rezepte.xlsx, Backups und Browser",
+          !!box && (angemeldetJetzt || r.start) && ["Rezepte.xlsx", "Rohstoffe.xlsx", "Backups", "Browser"].every(w => r.text.includes(w))],
+        ["NFR12-2 Klick auf «Anmelden» ohne Konto: Hinweis war beim Aufruf von loginPopup sichtbar (auch wenn er vorher weg war)",
+          !r.fehler && log.length === 2 && log[0][0] === "popup" && log[0][1] === true && log[1][0] === "laden"],
+        ["NFR12-3 Mit gueltigem Konto: Hinweis nicht sichtbar; ohne Konto wieder sichtbar",
+          !r.fehler && r.mitKonto === false && r.ohneKonto === true],
+        ["NFR12-4 Badge «Beispieldaten» und 2 eingebaute Beispielrezepte unveraendert",
+          BEISPIEL_REZEPTE.length === 2 && (angemeldetJetzt || el("#modus").textContent.trim() === "Beispieldaten")]
+      ];
+    })()),
     // LIBAR-146 (M-7): Faktor der Tab-Cue hoechstens zwei Nachkommastellen, leer bei 1.
     // ---- LIBAR-150 Spalte "Mise (JSON)" (Werte oben vor t asynchron ermittelt, l150).
     ...(() => {
@@ -9238,6 +9299,7 @@ const App = {
     // darin loest die eigentliche An-/Abmeldung aus.
     App.kontomenuInit();
     el("#btnKonto").addEventListener("click", App.loginKlick);
+    el("#btnZugriffAnmelden").addEventListener("click", () => App.loginKlick());
     el("#btnAltDB").addEventListener("click", () => { App.kontomenuSchliessen(); App.altDBKlick(); });
     el("#btnImport").addEventListener("click", App.importOeffnen);
     el("#btnExportAlle").addEventListener("click", () => { App.kontomenuSchliessen(); App.exportAlle(); });
@@ -9321,8 +9383,19 @@ const App = {
     el("#btnLogin").setAttribute("aria-expanded", "false");
   },
 
+  // LIBAR-85 (NFR-12): Hinweis sichtbar, solange kein Konto aktiv ist; weg, sobald angemeldet.
+  zugriffErklaerungAktualisieren(){
+    const box = el("#zugriffErklaerung");
+    if(!box) return;
+    let angemeldet = false;
+    try{ angemeldet = !!(msalApp && msalApp.getActiveAccount && msalApp.getActiveAccount()); }catch(e){ angemeldet = false; }
+    box.hidden = angemeldet;
+  },
+
   async loginKlick(){
     App.kontomenuSchliessen();
+    // LIBAR-85: die Erklaerung steht, bevor der Login-Dialog erscheint (auch wenn sie zuvor weg war).
+    App.zugriffErklaerungAktualisieren();
     if(!Data.verfuegbar()){ View.meldung("Konfiguration fehlt — clientId nicht gesetzt.", "err", "Anmeldung nicht möglich"); return; }
     try{
       const konto = await Data.login();
@@ -9337,6 +9410,7 @@ const App = {
     // den Namen) statt an wechselndem Text auf dem Kopfzeilen-Knopf; die
     // Textzeile mit Namen und Abmelden-Aktion lebt jetzt im Konto-Menü.
     const name = konto.username || konto.name || "Konto";
+    App.zugriffErklaerungAktualisieren();
     el("#btnLogin").classList.add("angemeldet");
     el("#btnLogin").title = "Angemeldet als " + name;
     el("#btnKonto").textContent = "Abmelden (" + name + ")";
