@@ -1,0 +1,32 @@
+# Versuch 01: Weitertraining (format_type raw) auf dem Quellenkorpus, LoRA.
+# Zweck: Strecke Korpus → Unsloth (MLX) → Adapter → Chat auf dem Mac Studio einmal durchlaufen.
+# Kein Ersatz für LIBAR-118 (Basismodellwahl) und LIBAR-128 (erstes Modell auf destillierten Beispielen).
+# Pfade relativ zu kochassistent-llm/. CLI-Flags überschreiben die Werte (z. B. --model, --max-steps).
+model: unsloth/Qwen3.5-4B
+data:
+  local_dataset:
+    - daten/korpus/v01/train.jsonl
+  format_type: raw
+training:
+  training_type: lora
+  max_seq_length: 2048
+  load_in_4bit: false        # MLX auf Apple Silicon: bf16 passt bei 4B locker in den Speicher
+  output_dir: modelle/versuch-01
+  num_epochs: 1
+  learning_rate: 1.0e-4
+  batch_size: 4
+  gradient_accumulation_steps: 4
+  warmup_steps: 20
+  save_steps: 200
+  weight_decay: 0.01
+  random_seed: 3407
+  packing: false            # MLX kennt kein Packing (Unsloth fällt sonst selbst zurück)
+  gradient_checkpointing: unsloth
+lora:
+  lora_r: 32
+  lora_alpha: 32
+  lora_dropout: 0.0
+  target_modules: q_proj,k_proj,v_proj,o_proj,gate_proj,up_proj,down_proj
+logging:
+  enable_tensorboard: true
+  tensorboard_dir: modelle/versuch-01/tb

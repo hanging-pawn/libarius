@@ -1,0 +1,39 @@
+{
+  "project_name": "kochassistent-versuch-01",
+  "model_name": "unsloth/Qwen3.5-4B",
+  "training_type": "LoRA/QLoRA",
+  "format_type": "raw",
+  "local_datasets": [
+    "/Users/edal/.unsloth/studio/assets/datasets/uploads/41bc0252a49341a0879406576a100cfd_kochassistent-v01-train.jsonl"
+  ],
+  "local_eval_datasets": [
+    "/Users/edal/.unsloth/studio/assets/datasets/uploads/2009974985294ebabff5519a9d6b7dd2_kochassistent-v01-valid.jsonl"
+  ],
+  "eval_steps": 0.25,
+  "load_in_4bit": false,
+  "max_seq_length": 2048,
+  "num_epochs": 1,
+  "learning_rate": "1e-4",
+  "batch_size": 4,
+  "gradient_accumulation_steps": 4,
+  "warmup_steps": 20,
+  "save_steps": 200,
+  "weight_decay": 0.01,
+  "random_seed": 3407,
+  "packing": false,
+  "use_lora": true,
+  "lora_r": 32,
+  "lora_alpha": 32,
+  "lora_dropout": 0.0,
+  "target_modules": [
+    "q_proj",
+    "k_proj",
+    "v_proj",
+    "o_proj",
+    "gate_proj",
+    "up_proj",
+    "down_proj"
+  ],
+  "gradient_checkpointing": "unsloth",
+  "train_on_completions": false
+}
