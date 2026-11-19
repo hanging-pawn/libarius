@@ -9,6 +9,7 @@ modelle/**
 # Schlüssel und lokale Konfiguration
 .env
 konfig/*.lokal.*
+konfig/*.gestartet.json
 
 # Python
 .venv/
