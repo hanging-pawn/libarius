@@ -1,6 +1,7 @@
 """Trainingslauf in der Unsloth-Studio-App starten und verfolgen (REQ-021, LIBAR-117).
 
-  starten  Datensätze hochladen, Pfade in die Konfiguration einsetzen, Lauf starten.
+  starten  Datensätze hochladen, Pfade in die Konfiguration einsetzen, Lauf starten. Bricht ab, wenn das Basismodell
+           nicht vollständig auf dem Studio liegt (kein stiller Download); bewusst: --download-erlauben.
            Die eingesetzte Konfiguration landet neben der Vorlage als <name>.gestartet.json (Datenstand je Lauf).
   status   Phase, Schritt, Verlust und Eval-Verlust des aktuellen Laufs.
   warten   Bis der gestartete Lauf endet; trägt den neuen Adapter in <name>.gestartet.json ein und gibt ihn aus.
@@ -18,11 +19,13 @@ import sys
 import time
 from pathlib import Path
 
+from kochassistent.modelle import ModellFehlt, sicherstellen
 from kochassistent.studio_api import api, hochladen
 
 
-def starten(konfig: Path, train: Path, valid: Path | None) -> None:
+def starten(konfig: Path, train: Path, valid: Path | None, download_erlaubt: bool = False) -> None:
     k = json.loads(konfig.read_text(encoding="utf-8"))
+    sicherstellen(k["model_name"], download_erlaubt)  # vor dem Hochladen: kein Lauf, der erst 50 GB lädt
     lauf = k.get("project_name", konfig.stem)
     k["local_datasets"] = [hochladen(train, f"{lauf}-train.jsonl")]
     k["local_eval_datasets"] = [hochladen(valid, f"{lauf}-valid.jsonl")] if valid else []
@@ -88,6 +91,7 @@ def main(argv=None) -> int:
     s.add_argument("--konfig", type=Path, required=True)
     s.add_argument("--train", type=Path, required=True)
     s.add_argument("--valid", type=Path)
+    s.add_argument("--download-erlauben", action="store_true", help="Basismodell darf von Hugging Face geladen werden")
     sub.add_parser("status")
     w = sub.add_parser("warten")
     w.add_argument("--konfig", type=Path, required=True)
@@ -95,7 +99,12 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.befehl == "warten":
         return warten(a.konfig)
-    {"starten": lambda: starten(a.konfig, a.train, a.valid), "status": status, "adapter": adapter}[a.befehl]()
+    try:
+        {"starten": lambda: starten(a.konfig, a.train, a.valid, a.download_erlauben), "status": status,
+         "adapter": adapter}[a.befehl]()
+    except ModellFehlt as exc:
+        print(exc, file=sys.stderr)
+        return 2
     return 0
 
 
