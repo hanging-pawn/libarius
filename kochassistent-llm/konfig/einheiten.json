@@ -1,0 +1,146 @@
+{
+  "version": 1,
+  "beschreibung": "Historische Einheiten mit metrischem Wert und Herkunft des Werts (REQ-007). Gilt für das Pilotbuch G1 (Davidis, Bielefeld 1849, Preussen) und dessen spätere Auflage G1b. Andere Quellen ergänzen eigene Einträge mit eigenem Gültigkeitsraum.",
+  "sicherheit_stufen": {
+    "amtlich": "gesetzlich definierter Wert",
+    "abgeleitet": "aus einem amtlichen Wert über ein amtliches Verhältnis gerechnet",
+    "buch": "Verhältnis steht in der Quelle selbst",
+    "konvention": "Haushaltsmass ohne Norm; heute übliche Gleichsetzung, Streuung gross",
+    "kein_wert": "Angabe ist nicht in eine metrische Menge umrechenbar; bleibt im Original"
+  },
+  "einheiten": [
+    {
+      "id": "pfund", "formen": ["Pfund", "Pfd.", "Pfd"], "groesse": "masse",
+      "metrisch": {"wert": 467.711, "einheit": "g"}, "sicherheit": "amtlich",
+      "herkunft": "Preussische Mass- und Gewichtsordnung vom 16. Mai 1816: 1 Pfund = 467,711 g. Bielefeld war 1849 preussisch. Das Zollpfund (500 g, Verordnung vom 31.10.1839) galt bis 1858 nur im Zollverkehr; ab 1.7.1858 ist das preussische Pfund 500 g (gilt für G1b, Auflage 1858). Quelle: de.wikipedia.org, Alte Masse und Gewichte (Preussen), abgerufen 2026-11-26.",
+      "abweichend": {"G1b": {"wert": 500.0, "einheit": "g", "herkunft": "Preussen ab 1.7.1858: Pfund = 500 g (Zollpfund)"}}
+    },
+    {
+      "id": "loth", "formen": ["Loth", "Lot", "Lth.", "Lth"], "groesse": "masse",
+      "metrisch": {"wert": 14.616, "einheit": "g"}, "sicherheit": "amtlich",
+      "herkunft": "Preussen 1816: 1 Lot = 1/32 Pfund = 14,616 g. Quelle wie Pfund.",
+      "abweichend": {"G1b": {"wert": 16.667, "einheit": "g", "herkunft": "ab 1858: 1 Lot = 1/30 Zollpfund = 16,667 g"}}
+    },
+    {
+      "id": "quentchen", "formen": ["Quentchen", "Quent"], "groesse": "masse",
+      "metrisch": {"wert": 3.654, "einheit": "g"}, "sicherheit": "amtlich",
+      "herkunft": "Preussen 1816: 1 Quentchen = 1/4 Lot = 3,654 g. Quelle wie Pfund."
+    },
+    {
+      "id": "gran", "formen": ["Gran"], "groesse": "masse",
+      "metrisch": {"wert": 0.0609, "einheit": "g"}, "sicherheit": "amtlich",
+      "herkunft": "Preussisches Medizinalgewicht: 1 Gran = 0,0608999 g. Quelle wie Pfund."
+    },
+    {
+      "id": "mass", "formen": ["Maß", "Maass", "Mass"], "groesse": "volumen",
+      "metrisch": {"wert": 1145.0, "einheit": "ml"}, "sicherheit": "abgeleitet",
+      "herkunft": "Gleichgesetzt mit dem preussischen Quart (1816: 64 Kubikzoll, rund 1,145 l; Quelle wie Pfund). Die Gleichsetzung Maß = Quart ist eine Annahme: Davidis nennt das Maß ohne Definition; das Buch setzt an einer Stelle 6 Flaschen mit 4,5 Maß gleich."
+    },
+    {
+      "id": "schoppen", "formen": ["Schoppen", "Schoppenglas", "Schoppengläser"], "groesse": "volumen",
+      "metrisch": {"wert": 572.5, "einheit": "ml"}, "sicherheit": "konvention",
+      "herkunft": "Ein halbes Quart (Annahme; regional zwischen 0,25 und 0,6 l). Im Pilotbuch nur als Glasgrösse (Schoppenglas)."
+    },
+    {
+      "id": "flasche", "formen": ["Flasche", "Flaschen"], "groesse": "volumen",
+      "metrisch": {"wert": 858.8, "einheit": "ml"}, "sicherheit": "buch",
+      "herkunft": "Verhältnis aus dem Pilotbuch: 6 Flaschen = 4 ½ Maß, also 1 Flasche = 0,75 Maß; mit Maß = 1145 ml gerechnet."
+    },
+    {
+      "id": "scheffel", "formen": ["Scheffel"], "groesse": "volumen",
+      "metrisch": {"wert": 54960.0, "einheit": "ml"}, "sicherheit": "amtlich",
+      "herkunft": "Preussen 1816: 1 Scheffel = 16 Metzen, rund 54,96 l. Quelle wie Pfund."
+    },
+    {
+      "id": "metze", "formen": ["Metze", "Metzen"], "groesse": "volumen",
+      "metrisch": {"wert": 3435.0, "einheit": "ml"}, "sicherheit": "amtlich",
+      "herkunft": "Preussen 1816: 1 Metze = 1/16 Scheffel, rund 3,435 l. Quelle wie Pfund."
+    },
+    {
+      "id": "esslöffel", "formen": ["Eßlöffel", "Esslöffel", "Löffel"], "groesse": "volumen",
+      "metrisch": {"wert": 15.0, "einheit": "ml"}, "sicherheit": "konvention",
+      "herkunft": "Heutige Gleichsetzung 1 EL = 15 ml; historische Löffel streuen. «Löffel» ohne Zusatz ist im Pilotbuch als Esslöffel gelesen (Annahme)."
+    },
+    {
+      "id": "theelöffel", "formen": ["Theelöffel", "Teelöffel"], "groesse": "volumen",
+      "metrisch": {"wert": 5.0, "einheit": "ml"}, "sicherheit": "konvention",
+      "herkunft": "Heutige Gleichsetzung 1 TL = 5 ml."
+    },
+    {
+      "id": "tasse", "formen": ["Tasse", "Tassen", "Obertasse", "Obertassen"], "groesse": "volumen",
+      "metrisch": {"wert": 150.0, "einheit": "ml"}, "sicherheit": "konvention",
+      "herkunft": "Kaffee-Obertasse um 150 ml (heutige Faustregel für historische Tassen 125–200 ml). Annahme."
+    },
+    {
+      "id": "untertasse", "formen": ["Untertasse", "Untertassen"], "groesse": "volumen",
+      "metrisch": {"wert": 100.0, "einheit": "ml"}, "sicherheit": "konvention",
+      "herkunft": "Untertasse «voll» als Schüttmass; 100 ml ist eine grobe Annahme ohne Beleg."
+    },
+    {
+      "id": "weinglas", "formen": ["Weinglas", "Weingläser", "Glas", "Gläser"], "groesse": "volumen",
+      "metrisch": {"wert": 125.0, "einheit": "ml"}, "sicherheit": "konvention",
+      "herkunft": "Weinglas um 125 ml (Annahme). «Glas» als Mengenangabe ist als Weinglas gelesen; als Gefäss (Einmacheglas) wird es nicht umgerechnet."
+    },
+    {
+      "id": "becher", "formen": ["Becher"], "groesse": "volumen",
+      "metrisch": {"wert": 250.0, "einheit": "ml"}, "sicherheit": "konvention",
+      "herkunft": "Trinkbecher um 250 ml (Annahme ohne Beleg)."
+    },
+    {
+      "id": "messerspitze", "formen": ["Messerspitze", "Messerspitzen"], "groesse": "masse",
+      "metrisch": {"wert": 0.5, "einheit": "g"}, "sicherheit": "konvention",
+      "herkunft": "Heutige Faustregel: 1 Msp. = 0,5–1 g Gewürzpulver; untere Grenze gesetzt."
+    },
+    {
+      "id": "zoll", "formen": ["Zoll"], "groesse": "laenge",
+      "metrisch": {"wert": 2.6154, "einheit": "cm"}, "sicherheit": "amtlich",
+      "herkunft": "Preussen 1816: 1 Zoll = 1/12 Fuss = 26,154 mm. Quelle wie Pfund."
+    },
+    {
+      "id": "fuss", "formen": ["Fuß", "Fuss"], "groesse": "laenge",
+      "metrisch": {"wert": 31.385, "einheit": "cm"}, "sicherheit": "amtlich",
+      "herkunft": "Preussen 1816: 1 Fuss = 0,31385 m. Quelle wie Pfund. Im Pilotbuch nur als Körperteil, nicht als Mass."
+    },
+    {
+      "id": "elle", "formen": ["Elle", "Ellen"], "groesse": "laenge",
+      "metrisch": {"wert": 66.694, "einheit": "cm"}, "sicherheit": "amtlich",
+      "herkunft": "Preussen 1816: 1 Elle = 0,66694 m. Quelle wie Pfund."
+    },
+    {
+      "id": "finger", "formen": ["Finger breit", "Finger dick", "Finger"], "groesse": "laenge",
+      "metrisch": {"wert": 2.0, "einheit": "cm"}, "sicherheit": "konvention",
+      "herkunft": "Fingerbreite als Faustmass um 2 cm (Annahme). Nur mit «breit/dick» als Mass gelesen."
+    },
+    {
+      "id": "grad_hitze", "formen": ["Grad Hitze"], "groesse": "ofenstufe",
+      "metrisch": null, "sicherheit": "buch",
+      "stufen": {"1": "stärkste Stufe: eingelegtes Papier bräunt rasch, ohne zu verkohlen; für Blätterteig, Butterteig und Hefeteig", "2": "Papier bräunt langsam; für den Grossteil des Backwerks", "3": "schwächste Stufe; für Gebäck, das trocknen soll"},
+      "herkunft": "Ofenstufe nach der Papierprobe, im Pilotbuch selbst definiert (Kapitel Q, Backregeln). Kein Thermometerwert; eine Gradzahl in °C wäre erfunden und wird nicht gesetzt."
+    },
+    {
+      "id": "grad_tralles", "formen": ["Grad Tralles"], "groesse": "alkoholgehalt",
+      "metrisch": {"wert": 1.0, "einheit": "% vol"}, "sicherheit": "amtlich",
+      "herkunft": "Alkoholometer nach Tralles (Preussen ab 1811): 1 Grad = 1 Volumenprozent Alkohol."
+    },
+    {
+      "id": "silbergroschen", "formen": ["Sgr.", "Sgr", "Silbergroschen"], "groesse": "preis",
+      "metrisch": null, "sicherheit": "kein_wert",
+      "herkunft": "Preis statt Menge (Ware im Wert eines Silbergroschens). 1 Taler = 30 Silbergroschen = 360 Pfennige (Preussen 1821). Ohne Warenpreis von 1849 nicht in Gramm umrechenbar; bleibt im Original und wird als nicht überführbar markiert (REQ-003)."
+    },
+    {
+      "id": "pfennig", "formen": ["Pfennig", "Pfennige", "Pfennigen", "Pf."], "groesse": "preis",
+      "metrisch": null, "sicherheit": "kein_wert",
+      "herkunft": "Preis statt Menge; 1 Silbergroschen = 12 Pfennige (Preussen 1821). Nicht umrechenbar, wie Silbergroschen."
+    },
+    {
+      "id": "taler", "formen": ["Thaler", "Taler"], "groesse": "preis",
+      "metrisch": null, "sicherheit": "kein_wert",
+      "herkunft": "Im Pilotbuch nur als Dickenvergleich mit der Münze (rund 2–3 mm), nicht umgerechnet."
+    },
+    {
+      "id": "dutzend", "formen": ["Dutzend"], "groesse": "anzahl",
+      "metrisch": {"wert": 12.0, "einheit": "Stück"}, "sicherheit": "amtlich",
+      "herkunft": "Zählmass: 1 Dutzend = 12 Stück."
+    }
+  ]
+}

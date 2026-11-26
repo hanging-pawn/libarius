@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "beschreibung": "Quellen für `python -m kochassistent.extraktion <quelleId>`. `datei` ist relativ zum Quellenordner (`quellen` in konfig/pfade.lokal.toml oder Umgebungsvariable KOCHASSISTENT_QUELLEN). Kapitel werden über den Anfang ihres Titels angesprochen.",
+  "quellen": {
+    "G1": {
+      "titel": "Henriette Davidis, Praktisches Kochbuch für die gewöhnliche und feinere Küche, 4. Auflage, Bielefeld 1849",
+      "ausgabe": "Transkription Deutsches Textarchiv (TEI P5, Bereitstellung TextGrid/Kolimo, CC0)",
+      "rechtsstatus": "gemeinfrei",
+      "pilot": true,
+      "datei": "buecher/gemeinfrei/DAV49_data.html",
+      "format": "tei",
+      "kurz": "Davidis 1849",
+      "backen_kapitel": ["F. Aufläufe", "H. Pasteten", "Q. Backwerk"],
+      "ueberholt_kapitel": ["R. Vom Einmachen", "S. Vom Einmachen", "T. Verschiedenes Verfahren", "V. Wurstmachen", "W. Essig"]
+    },
+    "G1b": {
+      "titel": "Henriette Davidis, Praktisches Kochbuch, 7. Auflage, Bielefeld 1858",
+      "ausgabe": "Scan Google Books via archive.org (bub_gb__jVdAAAAcAAJ), Fraktur, Textschicht aus fremder OCR",
+      "rechtsstatus": "gemeinfrei",
+      "pilot": false,
+      "datei": "buecher/gemeinfrei/G1b_archive-bub_gb__jVdAAAAcAAJ.pdf",
+      "format": "scan",
+      "kurz": "Davidis 1858",
+      "seiten": "41-90",
+      "backen_kapitel": [],
+      "ueberholt_kapitel": []
+    }
+  }
+}
