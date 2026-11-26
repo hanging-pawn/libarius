@@ -1,0 +1,73 @@
+{
+  "format": "laufprotokoll/1",
+  "lauf": "versuch-03",
+  "zweck": "Überlegung → Antwort (v03), 1 Epoche",
+  "nachgetragen": "aus konfig/versuch-03-api.gestartet.json (lokal, gitignored); Datenstand dort nur als 16-stelliger Hash-Anfang",
+  "basismodell": "unsloth/Qwen3.5-4B",
+  "einstellungen": {
+    "model_name": "unsloth/Qwen3.5-4B",
+    "training_type": "LoRA/QLoRA",
+    "format_type": "chatml",
+    "train_on_completions": true,
+    "eval_steps": 0.1,
+    "early_stopping_patience": 3,
+    "load_in_4bit": false,
+    "max_seq_length": 1024,
+    "num_epochs": 1,
+    "learning_rate": "2e-4",
+    "batch_size": 4,
+    "gradient_accumulation_steps": 4,
+    "warmup_ratio": 0.05,
+    "lr_scheduler_type": "linear",
+    "save_steps": 100,
+    "weight_decay": 0.01,
+    "random_seed": 3407,
+    "packing": false,
+    "use_lora": true,
+    "lora_r": 32,
+    "lora_alpha": 32,
+    "lora_dropout": 0.0,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "gradient_checkpointing": "unsloth"
+  },
+  "datensaetze": [
+    {
+      "rolle": "train",
+      "datei": "train.jsonl",
+      "sha256": "0916112d35528091",
+      "studio_pfad": "/Users/edal/.unsloth/studio/assets/datasets/uploads/04f59cb3808943c2b5a31b629de12a9f_kochassistent-versuch-03-train.jsonl"
+    },
+    {
+      "rolle": "valid",
+      "datei": "valid.jsonl",
+      "sha256": "2a431e9e55ce0a76",
+      "studio_pfad": "/Users/edal/.unsloth/studio/assets/datasets/uploads/0037867b5c5040ddbace3a5092925be8_kochassistent-versuch-03-valid.jsonl"
+    }
+  ],
+  "saat": 3407,
+  "studio": {
+    "version": "unbekannt",
+    "rechner": "studio",
+    "backend": "MLX",
+    "weg": "api",
+    "job_id": "job_20261119_125247_2a8218b7"
+  },
+  "export": {
+    "format": "keiner"
+  },
+  "ergebnis": {
+    "status": "fertig",
+    "adapter_pfad": "/Users/edal/.unsloth/studio/outputs/unsloth_Qwen3.5-4B_1795089175",
+    "beleg": "daten/destilliert/kette-v03.log (Ende: completed), modelle/versuch-03.probe.md",
+    "schritte": 299,
+    "verlust_letzter": 1.1988
+  }
+}

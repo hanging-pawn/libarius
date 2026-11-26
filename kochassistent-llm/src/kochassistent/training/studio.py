@@ -21,10 +21,17 @@ from pathlib import Path
 
 from kochassistent.modelle import ModellFehlt, sicherstellen
 from kochassistent.studio_api import api, hochladen
+from kochassistent.training import laufprotokoll
 
 
-def starten(konfig: Path, train: Path, valid: Path | None, download_erlaubt: bool = False) -> None:
+def lauf_name(k: dict, konfig: Path) -> str:
+    return k.get("project_name", konfig.stem).removeprefix("kochassistent-")
+
+
+def starten(konfig: Path, train: Path, valid: Path | None, download_erlaubt: bool = False,
+            studio_version: str = "unbekannt", export: str = "keiner", wiederholt: str | None = None) -> None:
     k = json.loads(konfig.read_text(encoding="utf-8"))
+    vorlage = dict(k)
     sicherstellen(k["model_name"], download_erlaubt)  # vor dem Hochladen: kein Lauf, der erst 50 GB lädt
     lauf = k.get("project_name", konfig.stem)
     k["local_datasets"] = [hochladen(train, f"{lauf}-train.jsonl")]
@@ -35,7 +42,14 @@ def starten(konfig: Path, train: Path, valid: Path | None, download_erlaubt: boo
     r = api("POST", "/api/train/start", body)
     k["job_id"] = r.get("job_id")
     gestartet.write_text(json.dumps(k, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(json.dumps(r, ensure_ascii=False), f"\nKonfiguration mit Datenstand: {gestartet}")
+    # Laufprotokoll (konfig/laeufe/<lauf>.json): Einstellungen, voller Datenstand-Hash, Saat, Version, Export
+    p = laufprotokoll.neu(lauf_name(k, konfig), vorlage, train, valid, wiederholt=wiederholt,
+                          studio={"version": studio_version, "job_id": k["job_id"]}, export={"format": export})
+    for eintrag, pfad in zip(p["datensaetze"], k["local_datasets"] + k["local_eval_datasets"]):
+        eintrag["studio_pfad"] = pfad
+    p["ergebnis"] = {"status": "gestartet"}
+    ziel = laufprotokoll.schreibe(p)
+    print(json.dumps(r, ensure_ascii=False), f"\nKonfiguration mit Datenstand: {gestartet}\nLaufprotokoll: {ziel}")
 
 
 def status() -> None:
@@ -70,11 +84,25 @@ def warten(konfig: Path, takt: int = 300) -> int:
               f"Verlust {d.get('loss')}", flush=True)
         time.sleep(takt)
     print(f"Ende: {s.get('phase')} · {s.get('message')} · Fehler {s.get('error')}", flush=True)
+    protokoll = laufprotokoll.LAEUFE / f"{lauf_name(k, konfig)}.json"
+    p = json.loads(protokoll.read_text("utf-8")) if protokoll.exists() else None
+    d, mh = s.get("details") or {}, s.get("metric_history") or {}
+    if p:
+        p["ergebnis"] = {"status": "fertig" if s.get("phase") == "completed" else "fehler",
+                         **({"schritte": d["step"]} if d.get("step") is not None else {}),
+                         **({"verlust_letzter": float(d["loss"])} if d.get("loss") is not None else {}),
+                         **({"eval_verlust_letzter": float(mh["eval_loss"][-1])} if mh.get("eval_loss") else {}),
+                         "beleg": f"/api/train/status job {k['job_id']}: {s.get('message')}"}
     if s.get("phase") != "completed":
+        if p:
+            laufprotokoll.schreibe(p, protokoll)
         return 1
     neu = [a for a in api("GET", "/api/models/loras")["loras"] if a["base_model"] == k["model_name"]]
     k["adapter_path"] = max(neu, key=_zeitmarke)["adapter_path"]
     gestartet.write_text(json.dumps(k, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    if p:
+        p["ergebnis"]["adapter_pfad"] = k["adapter_path"]
+        laufprotokoll.schreibe(p, protokoll)
     print(k["adapter_path"])
     return 0
 
@@ -92,6 +120,9 @@ def main(argv=None) -> int:
     s.add_argument("--train", type=Path, required=True)
     s.add_argument("--valid", type=Path)
     s.add_argument("--download-erlauben", action="store_true", help="Basismodell darf von Hugging Face geladen werden")
+    s.add_argument("--studio-version", default="unbekannt", help="Version der App (Einstellungen → Über), fürs Laufprotokoll")
+    s.add_argument("--export", default="keiner", choices=["keiner", "lora", "merged-16bit", "gguf", "mlx"])
+    s.add_argument("--wiederholt", help="Name des Laufs, den dieser mit gleichem Datenstand wiederholt")
     sub.add_parser("status")
     w = sub.add_parser("warten")
     w.add_argument("--konfig", type=Path, required=True)
@@ -100,7 +131,8 @@ def main(argv=None) -> int:
     if a.befehl == "warten":
         return warten(a.konfig)
     try:
-        {"starten": lambda: starten(a.konfig, a.train, a.valid, a.download_erlauben), "status": status,
+        {"starten": lambda: starten(a.konfig, a.train, a.valid, a.download_erlauben, a.studio_version, a.export,
+                                   a.wiederholt), "status": status,
          "adapter": adapter}[a.befehl]()
     except ModellFehlt as exc:
         print(exc, file=sys.stderr)

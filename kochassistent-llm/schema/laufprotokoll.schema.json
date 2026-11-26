@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "kochassistent/laufprotokoll/1",
+  "title": "Laufprotokoll eines Trainingslaufs in Unsloth Studio (REQ-021, LIBAR-117)",
+  "description": "Eine Datei je Lauf unter konfig/laeufe/<lauf>.json. Enthält alles, um den Lauf zu wiederholen: Basismodell, jede Trainingseinstellung, Datenstand (Hash), Saat, Studio-Version, Exportformat. Keine Daten, keine Schlüssel.",
+  "type": "object",
+  "required": ["format", "lauf", "basismodell", "einstellungen", "datensaetze", "saat", "studio", "export", "ergebnis"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": "laufprotokoll/1"},
+    "lauf": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+    "zweck": {"type": "string"},
+    "wiederholt": {"type": "string", "description": "Name des Laufs, den dieser wiederholt (gleiche Einstellungen, gleicher Datenstand)"},
+    "nachgetragen": {"type": "string", "description": "Gesetzt, wenn das Protokoll nachträglich aus vorhandenen Dateien gebaut wurde: woraus"},
+    "basismodell": {"type": "string", "description": "Hugging-Face-Name, z. B. unsloth/Qwen3.5-0.8B"},
+    "einstellungen": {
+      "type": "object",
+      "description": "Jede an Studio übergebene Trainingseinstellung, wörtlich (ohne Datensatzpfade, die stehen unter datensaetze)",
+      "minProperties": 1
+    },
+    "datensaetze": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["rolle", "datei", "sha256"],
+        "additionalProperties": false,
+        "properties": {
+          "rolle": {"enum": ["train", "valid"]},
+          "datei": {"type": "string", "description": "Pfad relativ zu kochassistent-llm/ (Datei selbst ist gitignored)"},
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{16}([0-9a-f]{48})?$", "description": "voller SHA-256; nachgetragene Läufe nur die ersten 16 Zeichen"},
+          "zeilen": {"type": "integer", "minimum": 0},
+          "studio_pfad": {"type": "string"}
+        }
+      }
+    },
+    "saat": {"type": "integer"},
+    "studio": {
+      "type": "object",
+      "required": ["version", "rechner", "backend", "weg"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {"type": "string", "description": "Version der App; «unbekannt», wenn nicht erhoben"},
+        "rechner": {"type": "string"},
+        "backend": {"type": "string", "description": "z. B. MLX"},
+        "weg": {"enum": ["api", "cli", "gui"]},
+        "job_id": {"type": ["string", "null"]}
+      }
+    },
+    "export": {
+      "type": "object",
+      "required": ["format"],
+      "additionalProperties": false,
+      "properties": {
+        "format": {"enum": ["keiner", "lora", "merged-16bit", "gguf", "mlx"]},
+        "quantisierung": {"type": "string"},
+        "pfad": {"type": "string"}
+      }
+    },
+    "ergebnis": {
+      "type": "object",
+      "required": ["status"],
+      "additionalProperties": false,
+      "properties": {
+        "status": {"enum": ["geplant", "gestartet", "fertig", "abgebrochen", "fehler"]},
+        "schritte": {"type": "integer"},
+        "verlust_letzter": {"type": "number"},
+        "eval_verlust_letzter": {"type": "number"},
+        "adapter_pfad": {"type": ["string", "null"]},
+        "dauer_min": {"type": "number"},
+        "beleg": {"type": "string", "description": "Wo der Abschluss belegt ist (Log, Probe-Datei)"}
+      }
+    }
+  }
+}

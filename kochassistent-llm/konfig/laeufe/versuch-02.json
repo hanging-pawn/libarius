@@ -1,0 +1,72 @@
+{
+  "format": "laufprotokoll/1",
+  "lauf": "versuch-02",
+  "zweck": "destillierte Frage-Antwort-Paare v02, 3 Epochen",
+  "nachgetragen": "aus konfig/versuch-02-api.gestartet.json (lokal, gitignored); Datenstand dort nur als 16-stelliger Hash-Anfang",
+  "basismodell": "unsloth/Qwen3.5-4B",
+  "einstellungen": {
+    "model_name": "unsloth/Qwen3.5-4B",
+    "training_type": "LoRA/QLoRA",
+    "format_type": "chatml",
+    "train_on_completions": true,
+    "eval_steps": 0.1,
+    "early_stopping_patience": 3,
+    "load_in_4bit": false,
+    "max_seq_length": 1024,
+    "num_epochs": 3,
+    "learning_rate": "2e-4",
+    "batch_size": 4,
+    "gradient_accumulation_steps": 4,
+    "warmup_ratio": 0.05,
+    "lr_scheduler_type": "linear",
+    "save_steps": 100,
+    "weight_decay": 0.01,
+    "random_seed": 3407,
+    "packing": false,
+    "use_lora": true,
+    "lora_r": 32,
+    "lora_alpha": 32,
+    "lora_dropout": 0.0,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "gradient_checkpointing": "unsloth"
+  },
+  "datensaetze": [
+    {
+      "rolle": "train",
+      "datei": "train.jsonl",
+      "sha256": "df03ea7e58cb58d1",
+      "studio_pfad": "/Users/edal/.unsloth/studio/assets/datasets/uploads/e44110b41f4f4ef59bc66fc41e6f3623_kochassistent-versuch-02-train.jsonl"
+    },
+    {
+      "rolle": "valid",
+      "datei": "valid.jsonl",
+      "sha256": "f7e4f0877ac04d81",
+      "studio_pfad": "/Users/edal/.unsloth/studio/assets/datasets/uploads/a4f52f1e5f384d40b49b9f7f887c71b8_kochassistent-versuch-02-valid.jsonl"
+    }
+  ],
+  "saat": 3407,
+  "studio": {
+    "version": "unbekannt",
+    "rechner": "studio",
+    "backend": "MLX",
+    "weg": "api",
+    "job_id": "job_20261119_001528_7024393f"
+  },
+  "export": {
+    "format": "keiner"
+  },
+  "ergebnis": {
+    "status": "fertig",
+    "adapter_pfad": "/Users/edal/.unsloth/studio/outputs/unsloth_Qwen3.5-4B_1795043737",
+    "beleg": "daten/destilliert/v02/kette.log (Ende: completed, früh gestoppt), modelle/versuch-02.probe.md",
+    "verlust_letzter": 1.0773
+  }
+}

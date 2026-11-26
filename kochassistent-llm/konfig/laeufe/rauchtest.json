@@ -1,0 +1,46 @@
+{
+  "format": "laufprotokoll/1",
+  "lauf": "rauchtest",
+  "zweck": "Rauchtest der Strecke Korpus → Unsloth (MLX) → Adapter mit dem kleinsten Modell, 5 Schritte",
+  "nachgetragen": "aus modelle/rauchtest/adapter_config.json und checkpoint-5/trainer_state.json (lokal, gitignored); Datensatz aus Zeitstempeln erschlossen (daten/korpus/test 08:42, Lauf 08:43–08:47)",
+  "basismodell": "unsloth/Qwen3.5-0.8B",
+  "einstellungen": {
+    "training_type": "lora",
+    "format_type": "raw",
+    "learning_rate": 0.0001,
+    "max_steps": 5,
+    "max_seq_length": 2048,
+    "lora_r": 32,
+    "lora_scale": 1.0,
+    "lora_dropout": 0.0,
+    "use_cce": true,
+    "base_model_commit_hash": "23c69c53358a07516b5827588b3fdb12ae78fd65",
+    "konfig": "konfig/versuch-01-raw.yaml mit --model unsloth/Qwen3.5-0.8B --max-steps 5"
+  },
+  "datensaetze": [
+    {
+      "rolle": "train",
+      "datei": "daten/korpus/test/train.jsonl",
+      "sha256": "fe837defbb32df1438f76a1257daafadcfeb37c088ac7d1824d442c6bb1cd54c",
+      "zeilen": 1537
+    }
+  ],
+  "saat": 3407,
+  "studio": {
+    "version": "unbekannt",
+    "rechner": "studio",
+    "backend": "MLX",
+    "weg": "cli",
+    "job_id": null
+  },
+  "export": {
+    "format": "keiner"
+  },
+  "ergebnis": {
+    "status": "fertig",
+    "schritte": 5,
+    "verlust_letzter": 1.9068,
+    "adapter_pfad": "modelle/rauchtest",
+    "beleg": "modelle/rauchtest/checkpoint-5/trainer_state.json"
+  }
+}

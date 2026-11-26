@@ -1,0 +1,68 @@
+{
+  "format": "laufprotokoll/1",
+  "lauf": "probelauf-01",
+  "zweck": "Probelauf LIBAR-117: kleinstes Modell, 50 erfundene Beispiele, Export GGUF",
+  "basismodell": "unsloth/Qwen3.5-0.8B",
+  "einstellungen": {
+    "model_name": "unsloth/Qwen3.5-0.8B",
+    "training_type": "LoRA/QLoRA",
+    "format_type": "chatml",
+    "train_on_completions": true,
+    "eval_steps": 0.25,
+    "early_stopping_patience": 3,
+    "load_in_4bit": false,
+    "max_seq_length": 1024,
+    "num_epochs": 3,
+    "learning_rate": "2e-4",
+    "batch_size": 4,
+    "gradient_accumulation_steps": 1,
+    "warmup_ratio": 0.05,
+    "lr_scheduler_type": "linear",
+    "save_steps": 1000,
+    "weight_decay": 0.01,
+    "random_seed": 3407,
+    "packing": false,
+    "use_lora": true,
+    "lora_r": 32,
+    "lora_alpha": 32,
+    "lora_dropout": 0.0,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "gradient_checkpointing": "unsloth"
+  },
+  "datensaetze": [
+    {
+      "rolle": "train",
+      "datei": "daten/probelauf/chat/train.jsonl",
+      "sha256": "2272261b61381a12c99c6bba394aaa4454dfaa2bf7be85d791c4043ae05f6592",
+      "zeilen": 45
+    },
+    {
+      "rolle": "valid",
+      "datei": "daten/probelauf/chat/valid.jsonl",
+      "sha256": "dd85f02c994f4af609a0afd7b84f96876dca6f3ba04c2e3dd4fba6ca501405a5",
+      "zeilen": 5
+    }
+  ],
+  "saat": 3407,
+  "studio": {
+    "version": "unbekannt",
+    "rechner": "studio",
+    "backend": "MLX",
+    "weg": "api",
+    "job_id": null
+  },
+  "export": {
+    "format": "gguf"
+  },
+  "ergebnis": {
+    "status": "geplant"
+  }
+}
