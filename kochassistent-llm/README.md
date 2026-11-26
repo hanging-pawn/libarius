@@ -43,6 +43,18 @@ python3.13 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 ```
 
+## Quelle extrahieren
+
+```bash
+.venv/bin/python -m kochassistent.extraktion G1
+```
+
+Zerlegt eine Quelle aus `konfig/quellen.json` in typisierte Abschnitte mit Fundstelle nach
+`daten/roh/<quelleId>/abschnitte.jsonl` (lokal, gitignored), dazu `zahlen_abweichungen.tsv` und
+`bericht.json`. TEI-Transkriptionen werden direkt gelesen, Scans (`format: scan`) laufen durch die
+OCR von macOS (Vision, Fraktur-Nachkorrektur). Einheiten nach `konfig/einheiten.json` (Wert und
+Herkunft je Einheit). `--stichprobe <datei.md>` schreibt das Prüfblatt mit 50 Zufallsabschnitten.
+
 ## Trainingsbeispiele prüfen
 
 ```bash
