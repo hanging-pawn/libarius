@@ -1,7 +1,7 @@
 {
   "format": "laufprotokoll/1",
   "lauf": "probelauf-02",
-  "zweck": "Wiederholung von probelauf-01 mit gleichen Einstellungen und gleichem Datenstand",
+  "zweck": "",
   "basismodell": "unsloth/Qwen3.5-0.8B",
   "einstellungen": {
     "model_name": "unsloth/Qwen3.5-0.8B",
@@ -42,28 +42,35 @@
       "rolle": "train",
       "datei": "daten/probelauf/chat/train.jsonl",
       "sha256": "2272261b61381a12c99c6bba394aaa4454dfaa2bf7be85d791c4043ae05f6592",
-      "zeilen": 45
+      "zeilen": 45,
+      "studio_pfad": "/Users/edal/.unsloth/studio/assets/datasets/uploads/3537a60cdf63415fad30d072fe2bbf49_kochassistent-probelauf-02-train.jsonl"
     },
     {
       "rolle": "valid",
       "datei": "daten/probelauf/chat/valid.jsonl",
       "sha256": "dd85f02c994f4af609a0afd7b84f96876dca6f3ba04c2e3dd4fba6ca501405a5",
-      "zeilen": 5
+      "zeilen": 5,
+      "studio_pfad": "/Users/edal/.unsloth/studio/assets/datasets/uploads/60b89d6e0f7a456f858ea0c46f910ac5_kochassistent-probelauf-02-valid.jsonl"
     }
   ],
   "saat": 3407,
   "studio": {
-    "version": "unbekannt",
+    "version": "v0.1.925-beta",
     "rechner": "studio",
     "backend": "MLX",
     "weg": "api",
-    "job_id": null
+    "job_id": "job_20261127_151835_163ca792"
   },
   "export": {
     "format": "gguf"
   },
   "ergebnis": {
-    "status": "geplant"
+    "status": "fertig",
+    "schritte": 36,
+    "verlust_letzter": 0.021997667849063873,
+    "eval_verlust_letzter": 0.036879170686006546,
+    "beleg": "/api/train/status job job_20261127_151835_163ca792: Training completed",
+    "adapter_pfad": "/Users/edal/.unsloth/studio/outputs/unsloth_Qwen3.5-0.8B_1795789121"
   },
   "wiederholt": "probelauf-01"
 }
