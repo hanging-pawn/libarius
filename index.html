@@ -4591,6 +4591,27 @@ function korrekturenModul(ablage){
       K.alle = frisch;
       merken(frisch);
     },
+    // LIBAR-164: Eintraege aus einer frisch gelesenen Quelle («Mise (JSON)» nach Neuladen oder
+    // Konflikt) in Ablage UND Arbeitsstand uebernehmen. Nur K.alle zu setzen reichte nicht: das
+    // naechste speichern() eines beliebigen Rezepts setzt K.alle auf die Ablage zurueck, der
+    // nachgezogene Stand war weg und ein spaeterer Abgleich loeschte ihn in der Datei. Plant
+    // keinen Abgleich (ablage.einspielen; ohne sie ablage.schreiben). Vorhandene Eintragsobjekte
+    // behalten ihre Identitaet (View.korrekturen haelt sie fest).
+    einspielen(eintraege){
+      const ids = Object.keys(eintraege || {});
+      if(!ids.length) return;
+      const frisch = lesen();
+      ids.forEach(id => {
+        const e = eintraege[id], mein = K.alle[id];
+        if(mein && mein !== e){
+          mein.zutaten = e.zutaten || {}; mein.notiz = e.notiz || ""; mein.uebernommen = e.uebernommen || mein.uebernommen || [];
+          if(e.notizen || mein.notizen) mein.notizen = e.notizen || {};
+        }else if(!mein) K.alle[id] = e;
+        frisch[id] = K.alle[id];
+      });
+      (ablage.einspielen || ablage.schreiben)(frisch);
+      ids.forEach(id => { basis[id] = JSON.stringify(frisch[id]); });
+    },
     // LIBAR-151: nach der Anmeldung wechselt die Ablage von localStorage auf «Mise (JSON)»
     // (App.korrekturenAufMise). Der Arbeitsstand startet frisch aus der neuen Ablage.
     ablageWechseln(neu){
@@ -7804,8 +7825,8 @@ async function selfTest(){
   try{
     const ph = '[{"name":"Teig","zutaten":[{"name":"Mehl","prozent":1,"einheit":"g"},{"name":"Wasser","prozent":0.65,"einheit":"g"}],"schritte":[]}]';
     const mappe = () => {
-      const aoa = [["Rezept-ID","Name","Basis-Menge (g)","Phasen (JSON)","Protokoll (JSON)"],
-        ["R1","Brot",1000,ph,"[]"], ["R2","Zopf",500,ph,"[]"]];
+      const aoa = [["Rezept-ID","Name","Basis-Menge (g)","Phasen (JSON)","Protokoll (JSON)","Mise (JSON)"],
+        ["R1","Brot",1000,ph,"[]",""], ["R2","Zopf",500,ph,"[]",""]];
       let n = 1;
       return { aoa, eTag: () => "E" + n,
         async getItemMeta(){ return { eTag: "E" + n }; },
@@ -7862,6 +7883,41 @@ async function selfTest(){
       });
       l163.protZelle = zelle(wb, "R1", "Protokoll (JSON)");
       l163.miseR2 = Model.parseMise(zelle(wb, "R2", Model.MISE_SPALTE));
+    }
+    const miseZelle = (wb, id) => Model.parseMise(zelle(wb, id, Model.MISE_SPALTE));
+    const fremdSchreiben = (wb, id, mise) => { const i = wb.aoa[0].indexOf(Model.MISE_SPALTE), z = wb.aoa.findIndex(r => r[0] === id);
+      return wb.updateCell("", "", XLSX.utils.encode_cell({ r: z, c: i }), Model.miseSchreiben({ ...Model.miseLeer(), ...mise })); };
+    const g = (ist, f) => ({ ist, einheit:"g", sollBeiEingabe: null, faktorBeiEingabe: f || 1, ts:"t" });
+    // LIBAR-164 (a) miseNachziehen: B traegt in R2 Korrektur 0/1 und Rezeptnotiz ein. A laedt neu
+    // (datenLaden bei aktivem Mise), aendert R1, dann R2 0/0 -> B's Werte bleiben im Arbeitsstand und in der Datei.
+    {
+      const wb = mappe(); const a = laden(wb);
+      await miseLauf(wb, a, async K => {
+        await fremdSchreiben(wb, "R2", { korrekturen:{ "0/1":400 }, rezeptnotiz:"B-Notiz" });
+        const d = laden(wb); Store.rezepte = d.rezepte; Store.rezepteETag = d.eTag;
+        App.miseNachziehen(Store.rezepte, undefined, K);
+        K.get("R1").zutaten["0/0"] = g(1100); K.speichern("R1");
+        l163.a_nachR1 = JSON.parse(JSON.stringify(K.alle.R2 || null));
+        K.get("R2").zutaten["0/0"] = g(600); K.speichern("R2");
+        await App.miseSync("R1", K); await App.miseSync("R2", K);
+        l163.a_kx = JSON.parse(JSON.stringify(K.alle.R2));
+      });
+      l163.a_R1 = miseZelle(wb, "R1"); l163.a_R2 = miseZelle(wb, "R2");
+    }
+    // LIBAR-164 (b) Konfliktpfad von miseSync: B schreibt die R2-Notiz, A (alter eTag) korrigiert
+    // R2 -> gemischt; danach aendert A R1 und noch einmal R2 -> B's Notiz bleibt.
+    {
+      const wb = mappe(); const a = laden(wb);
+      await miseLauf(wb, a, async K => {
+        await fremdSchreiben(wb, "R2", { rezeptnotiz:"B-Notiz" });
+        K.get("R2").zutaten["0/0"] = g(600); K.speichern("R2");
+        await App.miseSync("R2", K);
+        K.get("R1").zutaten["0/0"] = g(1100); K.speichern("R1");
+        K.get("R2").zutaten["0/1"] = g(330); K.speichern("R2");
+        await App.miseSync("R1", K); await App.miseSync("R2", K);
+        l163.b_kx = JSON.parse(JSON.stringify(K.alle.R2));
+      });
+      l163.b_R2 = miseZelle(wb, "R2");
     }
   }catch(e){ l163.fehler = e; }
 
@@ -9685,7 +9741,14 @@ async function selfTest(){
         fall("LIBAR163-1 miseSync mit fremdem eTag zieht nur Mise nach: Store.rezepteETag bleibt alt, ein Protokolleintrag von A in R1 endet als Konflikt, B's Eintrag bleibt; R2-Notiz geschrieben",
           () => l163.storeETag === l163.vorETag && l163.dateiETag !== l163.vorETag && l163.prot.ergebnis === "konflikt"
             && JSON.parse(l163.protZelle).length === 1 && JSON.parse(l163.protZelle)[0].notiz === "Eintrag von B"
-            && l163.miseR2.rezeptnotiz === "Zopf: Butter kalt")
+            && l163.miseR2.rezeptnotiz === "Zopf: Butter kalt"),
+        fall("LIBAR164-1 miseNachziehen schreibt in die Mise-Ablage: nach speichern(R1) traegt R2 noch B's Korrektur und Notiz; A's spaetere R2-Korrektur loescht sie in der Datei nicht",
+          () => l163.a_nachR1 && l163.a_nachR1.notiz === "B-Notiz" && Calc.korrekturAktuell(l163.a_nachR1.zutaten["0/1"], 1) === 400
+            && l163.a_R2.korrekturen["0/1"] === 400 && l163.a_R2.korrekturen["0/0"] === 600 && l163.a_R2.rezeptnotiz === "B-Notiz"
+            && l163.a_R1.korrekturen["0/0"] === 1100 && l163.a_kx.notiz === "B-Notiz"),
+        fall("LIBAR164-2 Konfliktpfad von miseSync: gemischter Stand landet in der Ablage, B's Rezeptnotiz ueberlebt speichern(R1) und den naechsten R2-Abgleich",
+          () => l163.b_R2.rezeptnotiz === "B-Notiz" && l163.b_R2.korrekturen["0/0"] === 600 && l163.b_R2.korrekturen["0/1"] === 330
+            && l163.b_kx.notiz === "B-Notiz")
       ];
     })(),
     // ---- LIBAR-149 (E-4/E-7) Zutatenzeile «Menge · Name · Hinweis», Stueckzutaten Gewicht zuerst.
@@ -10805,6 +10868,8 @@ const App = {
     let s = kopie(stand);
     return {
       lesen: () => kopie(s),
+      // LIBAR-164: Stand aus der Datei uebernehmen — kein Abgleich (der Aufrufer plant ihn selbst).
+      einspielen(wert){ s = kopie(wert); },
       schreiben(wert){
         const alt = s; s = kopie(wert);
         new Set([...Object.keys(alt), ...Object.keys(s)]).forEach(id => {
@@ -10847,17 +10912,21 @@ const App = {
   // Frischer Bestand (Neuladen, fremder eTag): je Rezept feldweise mischen — meine Aenderungen
   // gegenueber dem zuletzt bestaetigten Stand (miseBasis) gewinnen, alles andere kommt aus der Datei.
   // K = Korrekturen-Instanz (Parameter nur, damit selfTest eine eigene Instanz einsetzen kann).
+  // LIBAR-164: das Ergebnis geht ueber K.einspielen in Ablage und Arbeitsstand.
   miseNachziehen(rezepte, ausser, K = Korrekturen){
+    const ein = {}, planen = [];
     rezepte.forEach(fr => {
       if(fr.id === ausser || !fr.mise) return;
       const frK = Model.kxAusMise(fr.mise, fr);
       const mein = K.alle[fr.id], basis = App.miseBasis[fr.id];
       App.miseBasis[fr.id] = frK;
-      if(!mein){ if(Model.kxHatInhalt(frK)) K.alle[fr.id] = frK; return; }
+      if(!mein){ if(Model.kxHatInhalt(frK)) ein[fr.id] = frK; return; }
       const g = K.mischen(mein, frK, basis);
-      mein.zutaten = g.zutaten; mein.notiz = g.notiz; mein.notizen = g.notizen;
-      if(Model.miseSchreiben(Model.miseMitKx(fr.mise, mein)) !== Model.miseSchreiben(fr.mise)) App.miseSyncPlanen(fr.id);
+      ein[fr.id] = { ...mein, zutaten: g.zutaten, notiz: g.notiz, notizen: g.notizen };
+      if(Model.miseSchreiben(Model.miseMitKx(fr.mise, ein[fr.id])) !== Model.miseSchreiben(fr.mise)) planen.push(fr.id);
     });
+    K.einspielen(ein);
+    planen.forEach(id => App.miseSyncPlanen(id));
   },
   // Notiz-Eingabe speichert je Tastendruck — geschrieben wird erst nach 1.5 s Ruhe.
   miseSyncPlanen(id){
@@ -10897,7 +10966,10 @@ const App = {
         }
         App.miseBasis[id] = Model.kxAusMise(rz.mise, rz);
         if(erg.kx){
-          kx.zutaten = erg.kx.zutaten; kx.notiz = erg.kx.notiz; kx.notizen = erg.kx.notizen || {};
+          // LIBAR-164: gemischter Stand in Ablage und Arbeitsstand (nicht nur ins Objekt kx).
+          K.einspielen({ [id]: { ...kx, zutaten: erg.kx.zutaten, notiz: erg.kx.notiz, notizen: erg.kx.notizen || {},
+            uebernommen: erg.kx.uebernommen || kx.uebernommen || [] } });
+          if(K.alle[id] !== kx){ kx.zutaten = erg.kx.zutaten; kx.notiz = erg.kx.notiz; kx.notizen = erg.kx.notizen || {}; }
           const tippt = View.tipptGerade();
           if(Store.aktuellesRezept && Store.aktuellesRezept.id === id && !tippt) View.rezept();
           View.liste();
