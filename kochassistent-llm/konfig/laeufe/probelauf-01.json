@@ -1,7 +1,7 @@
 {
   "format": "laufprotokoll/1",
   "lauf": "probelauf-01",
-  "zweck": "Probelauf LIBAR-117: kleinstes Modell, 50 erfundene Beispiele, Export GGUF",
+  "zweck": "",
   "basismodell": "unsloth/Qwen3.5-0.8B",
   "einstellungen": {
     "model_name": "unsloth/Qwen3.5-0.8B",
@@ -42,27 +42,36 @@
       "rolle": "train",
       "datei": "daten/probelauf/chat/train.jsonl",
       "sha256": "2272261b61381a12c99c6bba394aaa4454dfaa2bf7be85d791c4043ae05f6592",
-      "zeilen": 45
+      "zeilen": 45,
+      "studio_pfad": "/Users/edal/.unsloth/studio/assets/datasets/uploads/d1eefab7bfdf4709882a39bcad0b883a_kochassistent-probelauf-01-train.jsonl"
     },
     {
       "rolle": "valid",
       "datei": "daten/probelauf/chat/valid.jsonl",
       "sha256": "dd85f02c994f4af609a0afd7b84f96876dca6f3ba04c2e3dd4fba6ca501405a5",
-      "zeilen": 5
+      "zeilen": 5,
+      "studio_pfad": "/Users/edal/.unsloth/studio/assets/datasets/uploads/4bc06e6d4de14af9be9e5e190e14692f_kochassistent-probelauf-01-valid.jsonl"
     }
   ],
   "saat": 3407,
   "studio": {
-    "version": "unbekannt",
+    "version": "v0.1.925-beta",
     "rechner": "studio",
     "backend": "MLX",
     "weg": "api",
-    "job_id": null
+    "job_id": "job_20261127_150640_fd7aa8ba"
   },
   "export": {
-    "format": "gguf"
+    "format": "gguf",
+    "quantisierung": "Q4_K_M",
+    "pfad": "/Users/Shared/kochassistent-llm/modelle/probelauf-01-gguf"
   },
   "ergebnis": {
-    "status": "geplant"
+    "status": "fertig",
+    "schritte": 36,
+    "verlust_letzter": 0.01899021305143833,
+    "eval_verlust_letzter": 0.037546221166849136,
+    "beleg": "/api/train/status job job_20261127_150640_fd7aa8ba: Training completed",
+    "adapter_pfad": "/Users/edal/.unsloth/studio/outputs/unsloth_Qwen3.5-0.8B_1795788451"
   }
 }
