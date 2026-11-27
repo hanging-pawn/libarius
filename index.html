@@ -4507,6 +4507,16 @@ function korrekturenModul(ablage){
   const leer = () => ({ zutaten:{}, notiz:"", uebernommen:[] });
   const notizenNachfuehren = (mein, g) => { if(mein.notizen || Object.keys(g.notizen).length) mein.notizen = g.notizen; };
   const gleich = (a, b) => JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b);
+  // LIBAR-166: eine Zutatenkorrektur gilt als unveraendert, wenn sie dieselbe Menge bei Faktor 1
+  // meint. Der Arbeitsstand ({ ist, faktorBeiEingabe: Store.faktor, ts } aus App.korrekturSetzen)
+  // und die Basis aus «Mise (JSON)» (Model.kxAusMise: { ist: g, faktorBeiEingabe: 1 }) sind zwei
+  // Darstellungen desselben Werts; mit JSON-Gleichheit galt die eigene Eingabe fuer immer als
+  // «von mir geaendert» und schrieb spaetere fremde Aenderungen oder Loeschungen zurueck.
+  const gleichZutat = (a, b) => {
+    if(gleich(a, b)) return true;
+    const ga = a ? Model.miseKorrekturWert(a) : null, gb = b ? Model.miseKorrekturWert(b) : null;
+    return ga != null && gb != null && Math.abs(ga - gb) < 1e-9;
+  };
   // LIBAR-38: Stand jedes Eintrags, wie dieser Tab ihn zuletzt in der Ablage gesehen hat.
   // Das ist die Grundlage des Dreiwege-Vergleichs in mischen(): nur was ICH gegenueber
   // diesem Stand geaendert habe, ueberschreibt den fremden Stand.
@@ -4535,23 +4545,23 @@ function korrekturenModul(ablage){
     mischen(mein, frisch, alt){
       mein = mein || leer(); frisch = frisch || leer(); alt = alt || leer();
       // LIBAR-152: dieselbe Schluesselregel fuer Zutatenkorrekturen und Zeilennotizen.
-      const schluesselweise = (mz, fz, az) => {
+      const schluesselweise = (mz, fz, az, gl) => {
         const erg = {};
         Object.keys(fz).forEach(key => {
           const ichHabeGeloescht = az[key] !== undefined && mz[key] === undefined;
           if(ichHabeGeloescht) return;
-          erg[key] = (mz[key] !== undefined && !gleich(mz[key], az[key])) ? mz[key] : fz[key];
+          erg[key] = (mz[key] !== undefined && !gl(mz[key], az[key])) ? mz[key] : fz[key];
         });
         Object.keys(mz).forEach(key => {
           if(key in erg) return;
           // unveraendert und in der Ablage nicht mehr vorhanden: der andere Tab hat geloescht
-          if(az[key] !== undefined && gleich(mz[key], az[key])) return;
+          if(az[key] !== undefined && gl(mz[key], az[key])) return;
           erg[key] = mz[key];
         });
         return erg;
       };
-      const zutaten = schluesselweise(mein.zutaten || {}, frisch.zutaten || {}, alt.zutaten || {});
-      const notizen = schluesselweise(mein.notizen || {}, frisch.notizen || {}, alt.notizen || {});
+      const zutaten = schluesselweise(mein.zutaten || {}, frisch.zutaten || {}, alt.zutaten || {}, gleichZutat);
+      const notizen = schluesselweise(mein.notizen || {}, frisch.notizen || {}, alt.notizen || {}, gleich);
       const notiz = (mein.notiz || "") !== (alt.notiz || "") ? (mein.notiz || "") : (frisch.notiz || "");
       // uebernommen ist ein Protokoll (§6.3): nie kuerzen, Eintraege beider Tabs behalten
       const uebernommen = (frisch.uebernommen || []).slice();
@@ -7919,6 +7929,24 @@ async function selfTest(){
       });
       l163.b_R2 = miseZelle(wb, "R2");
     }
+    // LIBAR-166: A gibt Wasser 700 g bei Faktor 2 ein (-> 350 in der Datei). B aendert auf 400
+    // bzw. loescht. A laedt neu (miseNachziehen) -> B's Wert/Loeschung gilt, kein Rueckschreiben.
+    for(const art of ["aendern", "loeschen"]){
+      const wb = mappe(); const a = laden(wb);
+      await miseLauf(wb, a, async (K, geplant) => {
+        K.get("R1").zutaten["0/1"] = { ist:700, einheit:"g", sollBeiEingabe:1300, faktorBeiEingabe:2, ts:"2026-11-27T10:00:00Z" };
+        K.speichern("R1");
+        await App.miseSync("R1", K);
+        l163["c_sync_" + art] = miseZelle(wb, "R1").korrekturen["0/1"];
+        await fremdSchreiben(wb, "R1", art === "aendern" ? { korrekturen:{ "0/1":400 } } : {});
+        geplant.length = 0;
+        const d = laden(wb); Store.rezepte = d.rezepte; Store.rezepteETag = d.eTag;
+        App.miseNachziehen(Store.rezepte, undefined, K);
+        l163["c_kx_" + art] = JSON.parse(JSON.stringify(K.alle.R1 || null));
+        l163["c_geplant_" + art] = geplant.slice();
+      });
+      l163["c_R1_" + art] = miseZelle(wb, "R1");
+    }
   }catch(e){ l163.fehler = e; }
 
   const t = [
@@ -9748,7 +9776,17 @@ async function selfTest(){
             && l163.a_R1.korrekturen["0/0"] === 1100 && l163.a_kx.notiz === "B-Notiz"),
         fall("LIBAR164-2 Konfliktpfad von miseSync: gemischter Stand landet in der Ablage, B's Rezeptnotiz ueberlebt speichern(R1) und den naechsten R2-Abgleich",
           () => l163.b_R2.rezeptnotiz === "B-Notiz" && l163.b_R2.korrekturen["0/0"] === 600 && l163.b_R2.korrekturen["0/1"] === 330
-            && l163.b_kx.notiz === "B-Notiz")
+            && l163.b_kx.notiz === "B-Notiz"),
+        fall("LIBAR166-1 Dreiwege-Vergleich je Menge bei Faktor 1: eigene Eingabe 700 g bei ×2 (= 350) gilt nach dem Abgleich als unveraendert — B's 400 bzw. B's Loeschung gewinnt, kein Abgleich geplant",
+          () => { const K = korrekturenModul({ lesen: () => ({}), schreiben(){} });
+            const m = K.mischen({ zutaten:{ "0/1":{ ist:700, faktorBeiEingabe:2, ts:"t" }, "0/0":{ ist:900, faktorBeiEingabe:2, ts:"t" } }, notiz:"" },
+              { zutaten:{ "0/1":{ ist:400, faktorBeiEingabe:1 }, "0/0":{ ist:500, faktorBeiEingabe:1 } }, notiz:"" },
+              { zutaten:{ "0/1":{ ist:350, faktorBeiEingabe:1 }, "0/0":{ ist:500, faktorBeiEingabe:1 } }, notiz:"" });
+            return l163.c_sync_aendern === 350 && l163.c_sync_loeschen === 350
+              && Calc.korrekturAktuell(l163.c_kx_aendern.zutaten["0/1"], 1) === 400 && l163.c_kx_loeschen.zutaten["0/1"] === undefined
+              && !l163.c_geplant_aendern.includes("R1") && !l163.c_geplant_loeschen.includes("R1")
+              && l163.c_R1_aendern.korrekturen["0/1"] === 400 && l163.c_R1_loeschen.korrekturen["0/1"] === undefined
+              && m.zutaten["0/1"].ist === 400 && m.zutaten["0/0"].ist === 900; })
       ];
     })(),
     // ---- LIBAR-149 (E-4/E-7) Zutatenzeile «Menge · Name · Hinweis», Stueckzutaten Gewicht zuerst.
