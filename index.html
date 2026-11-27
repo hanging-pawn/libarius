@@ -7797,6 +7797,74 @@ async function selfTest(){
     l151.konfLog = wb3.log.slice();
   }catch(e){ l151.fehler = e; }
 
+  // LIBAR-163/164/166: App.miseSync/miseNachziehen gegen EINE gemockte Mappe. miseLauf() ersetzt
+  // Data, msalApp, Store, View und die App-Mise-Felder nur fuer die Dauer von fn und stellt sie in
+  // finally vollstaendig wieder her; Korrekturen ist eine eigene Instanz ueber App.miseAblageNeu.
+  const l163 = {};
+  try{
+    const ph = '[{"name":"Teig","zutaten":[{"name":"Mehl","prozent":1,"einheit":"g"},{"name":"Wasser","prozent":0.65,"einheit":"g"}],"schritte":[]}]';
+    const mappe = () => {
+      const aoa = [["Rezept-ID","Name","Basis-Menge (g)","Phasen (JSON)","Protokoll (JSON)"],
+        ["R1","Brot",1000,ph,"[]"], ["R2","Zopf",500,ph,"[]"]];
+      let n = 1;
+      return { aoa, eTag: () => "E" + n,
+        async getItemMeta(){ return { eTag: "E" + n }; },
+        async backup(){ return "b.xlsx"; },
+        async updateCell(pfad, sheet, addr, wert){
+          const c = XLSX.utils.decode_cell(addr);
+          while(aoa.length <= c.r) aoa.push([]);
+          while(aoa[c.r].length <= c.c) aoa[c.r].push(null);
+          aoa[c.r][c.c] = wert; n++; return true; } };
+    };
+    const laden = wb => ({ rezepte: Model.parseRezepte(JSON.parse(JSON.stringify(wb.aoa))).rezepte, eTag: wb.eTag(), wb:{ SheetNames:["Rezepte"], Sheets:{} }, sn:"Rezepte" });
+    const zelle = (wb, id, spalte) => { const i = wb.aoa[0].indexOf(spalte); const z = wb.aoa.find(r => r[0] === id); return z && i > -1 ? z[i] : undefined; };
+    // Geraet-Stand wie App.korrekturenAufMise ihn nach datenLaden anlegt (miseBasis + Mise-Ablage).
+    const miseLauf = async (wb, d, fn) => {
+      const storeKeys = ["rezepte", "rezepteWorkbook", "rezepteETag", "rezepteSheetName"];
+      const sicherStore = Object.fromEntries(storeKeys.map(k => [k, Store[k]]));
+      const sicherData = { verfuegbar: Data.verfuegbar, getItemMeta: Data.getItemMeta, backup: Data.backup, updateCell: Data.updateCell };
+      const sicherApp = { miseAktiv: App.miseAktiv, miseBasis: App.miseBasis, miseLaeuft: App.miseLaeuft,
+        miseFrischLesen: App.miseFrischLesen, miseSyncPlanen: App.miseSyncPlanen };
+      const sicherView = { meldung: View.meldung, rezept: View.rezept, liste: View.liste, tipptGerade: View.tipptGerade };
+      const sicherMsal = msalApp;
+      const geplant = [];
+      try{
+        Object.assign(Store, { rezepte: d.rezepte, rezepteETag: d.eTag, rezepteSheetName:"Rezepte", rezepteWorkbook:{ SheetNames:["Rezepte"], Sheets:{} } });
+        Object.assign(Data, { verfuegbar: () => true, getItemMeta: wb.getItemMeta, backup: wb.backup, updateCell: wb.updateCell });
+        msalApp = { getActiveAccount: () => ({ username:"selftest" }) };
+        Object.assign(View, { meldung(){}, rezept(){}, liste(){}, tipptGerade: () => false });
+        App.miseBasis = {}; const stand = {};
+        d.rezepte.forEach(rz => { if(!rz.mise) return; const k = Model.kxAusMise(rz.mise, rz); App.miseBasis[rz.id] = k; if(Model.kxHatInhalt(k)) stand[rz.id] = k; });
+        Object.assign(App, { miseAktiv: true, miseLaeuft: false, miseFrischLesen: async () => laden(wb), miseSyncPlanen: id => geplant.push(id) });
+        const K = korrekturenModul({ lesen: () => ({}), schreiben(){} });
+        K.ablageWechseln(App.miseAblageNeu(stand));
+        return await fn(K, geplant);
+      }finally{
+        Object.assign(Store, sicherStore); Object.assign(Data, sicherData); Object.assign(App, sicherApp); Object.assign(View, sicherView);
+        msalApp = sicherMsal;
+      }
+    };
+    // LIBAR-163: A laedt (E1). B schreibt einen Protokolleintrag in R1 (fremder eTag). A tippt eine
+    // Notiz in R2 -> miseSync: Konflikt, frisch lesen, R2 schreiben. Danach protokolliert A in R1
+    // mit Store.rezepteETag: das muss als Konflikt enden, B's Eintrag bleibt in der Zelle.
+    {
+      const wb = mappe(); const a = laden(wb);
+      const r1 = a.rezepte.find(r => r.id === "R1");
+      const addrProt = Model.zelladresse(r1._raw.spalten, "Protokoll (JSON)", r1._raw.zeile + 1);
+      await wb.updateCell("", "", addrProt, JSON.stringify([{ datum:"2026-11-27", notiz:"Eintrag von B" }]));
+      l163.vorETag = a.eTag;
+      await miseLauf(wb, a, async K => {
+        K.get("R2").notiz = "Zopf: Butter kalt"; K.speichern("R2");
+        await App.miseSync("R2", K);
+        l163.storeETag = Store.rezepteETag; l163.dateiETag = wb.eTag();
+        l163.prot = await protokollSchreiben(wb, { rezeptePfad:"/T/Rezepte.xlsx", sheetName:"Rezepte", header: r1._raw.spalten,
+          zeileExcel: r1._raw.zeile + 1, aktuellerETag: Store.rezepteETag, protokoll: [...(r1.protokoll || []), { datum:"2026-11-27", notiz:"Eintrag von A" }] });
+      });
+      l163.protZelle = zelle(wb, "R1", "Protokoll (JSON)");
+      l163.miseR2 = Model.parseMise(zelle(wb, "R2", Model.MISE_SPALTE));
+    }
+  }catch(e){ l163.fehler = e; }
+
   const t = [
     ["AP0305-H1 ladeConfig() behaelt eingebaute Aliase und ergaenzt config.json-Aliase, statt sie zu ersetzen",
       h1AliaseNachConfigErhalten],
@@ -9610,6 +9678,16 @@ async function selfTest(){
               && (angemeldet || App.miseAktiv === false); })
       ];
     })(),
+    // ---- LIBAR-163/164/166 Mise-Abgleich mit fremdem eTag (Werte oben vor t, l163).
+    ...(() => {
+      const fall = (name, fn) => { try{ return [name, !l163.fehler && fn() === true]; }catch(e){ return [name, false]; } };
+      return [
+        fall("LIBAR163-1 miseSync mit fremdem eTag zieht nur Mise nach: Store.rezepteETag bleibt alt, ein Protokolleintrag von A in R1 endet als Konflikt, B's Eintrag bleibt; R2-Notiz geschrieben",
+          () => l163.storeETag === l163.vorETag && l163.dateiETag !== l163.vorETag && l163.prot.ergebnis === "konflikt"
+            && JSON.parse(l163.protZelle).length === 1 && JSON.parse(l163.protZelle)[0].notiz === "Eintrag von B"
+            && l163.miseR2.rezeptnotiz === "Zopf: Butter kalt")
+      ];
+    })(),
     // ---- LIBAR-149 (E-4/E-7) Zutatenzeile «Menge · Name · Hinweis», Stueckzutaten Gewicht zuerst.
     ...(() => {
       const fall = (name, fn) => { try{ return [name, fn() === true]; }catch(e){ return [name, false]; } };
@@ -10768,14 +10846,15 @@ const App = {
   },
   // Frischer Bestand (Neuladen, fremder eTag): je Rezept feldweise mischen — meine Aenderungen
   // gegenueber dem zuletzt bestaetigten Stand (miseBasis) gewinnen, alles andere kommt aus der Datei.
-  miseNachziehen(rezepte, ausser){
+  // K = Korrekturen-Instanz (Parameter nur, damit selfTest eine eigene Instanz einsetzen kann).
+  miseNachziehen(rezepte, ausser, K = Korrekturen){
     rezepte.forEach(fr => {
       if(fr.id === ausser || !fr.mise) return;
       const frK = Model.kxAusMise(fr.mise, fr);
-      const mein = Korrekturen.alle[fr.id], basis = App.miseBasis[fr.id];
+      const mein = K.alle[fr.id], basis = App.miseBasis[fr.id];
       App.miseBasis[fr.id] = frK;
-      if(!mein){ if(Model.kxHatInhalt(frK)) Korrekturen.alle[fr.id] = frK; return; }
-      const g = Korrekturen.mischen(mein, frK, basis);
+      if(!mein){ if(Model.kxHatInhalt(frK)) K.alle[fr.id] = frK; return; }
+      const g = K.mischen(mein, frK, basis);
       mein.zutaten = g.zutaten; mein.notiz = g.notiz; mein.notizen = g.notizen;
       if(Model.miseSchreiben(Model.miseMitKx(fr.mise, mein)) !== Model.miseSchreiben(fr.mise)) App.miseSyncPlanen(fr.id);
     });
@@ -10792,24 +10871,30 @@ const App = {
     const { rezepte } = Model.parseRezepte(XLSX.utils.sheet_to_json(wb.Sheets[sn], { header:1, raw:true, defval:null }));
     return { rezepte, eTag, wb, sn };
   },
-  async miseSync(id){
+  async miseSync(id, K = Korrekturen){
     if(!App.miseAktiv) return;
     if(App.miseLaeuft){ App.miseSyncPlanen(id); return; }
     const rz = Store.rezepte.find(r => r.id === id);
     if(!rz || !rz._raw || !(Data.verfuegbar() && msalApp && msalApp.getActiveAccount())) return;
     App.miseLaeuft = true;
     try{
-      const kx = Korrekturen.get(id);
+      const kx = K.get(id);
       const erg = await korrekturMiseSync(Data, { rz, kx, basis: App.miseBasis[id], rezeptePfad: CONFIG.rezeptePfad,
-        sheetName: Store.rezepteSheetName, aktuellerETag: Store.rezepteETag, frischLesen: App.miseFrischLesen, mischen: Korrekturen.mischen });
+        sheetName: Store.rezepteSheetName, aktuellerETag: Store.rezepteETag, frischLesen: App.miseFrischLesen, mischen: K.mischen });
+      // LIBAR-163: fremder eTag -> frisch gelesen wird nur «Mise (JSON)» (mise/_raw) nachgezogen.
+      // Alle anderen Felder (protokoll, phasen, ...) und neue Rezepte bleiben auf dem alten Stand —
+      // darum bleiben Store.rezepteETag und Store.rezepteWorkbook ebenfalls alt. So meldet jeder
+      // andere Schreibweg (Protokoll, Editor, Übernahme) beim eTag-Vergleich den Konflikt und laedt
+      // neu, statt ganze JSON-Zellen aus veralteten Daten ueber die fremde Aenderung zu schreiben.
       if(erg.frisch){
-        Store.rezepteWorkbook = erg.frisch.wb; Store.rezepteSheetName = erg.frisch.sn; Store.rezepteETag = erg.frisch.eTag;
         erg.frisch.rezepte.forEach(fr => { const r = Store.rezepte.find(x => x.id === fr.id); if(r && r !== rz){ r.mise = fr.mise; r._raw = fr._raw; } });
-        App.miseNachziehen(Store.rezepte, id);
+        App.miseNachziehen(Store.rezepte, id, K);
       }
       if(erg.ergebnis === "ok" || erg.ergebnis === "gleich"){
-        erg.geschrieben.forEach(g => workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, g.addr, g.wert));
-        if(erg.ergebnis === "ok") Store.rezepteETag = erg.eTag;
+        if(!erg.frisch){
+          erg.geschrieben.forEach(g => workbookZelleNachfuehren(Store.rezepteWorkbook, Store.rezepteSheetName, g.addr, g.wert));
+          if(erg.ergebnis === "ok") Store.rezepteETag = erg.eTag;
+        }
         App.miseBasis[id] = Model.kxAusMise(rz.mise, rz);
         if(erg.kx){
           kx.zutaten = erg.kx.zutaten; kx.notiz = erg.kx.notiz; kx.notizen = erg.kx.notizen || {};
